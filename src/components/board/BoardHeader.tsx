@@ -1,47 +1,84 @@
-import type { ReactNode } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useEffect, useRef, type ReactNode } from 'react';
+import { StyleSheet, TextInput, View } from 'react-native';
+import { BOARD } from '@/config/layout';
 import { useLayoutMode } from '@/hooks/useLayout';
 import { t } from '@/i18n';
 import { useUiStore } from '@/store/uiStore';
-import { SPACING, useTheme } from '@/theme';
+import { FONT, SPACING, useTheme } from '@/theme';
 import { AppText } from '../ui/AppText';
 import { IconButton } from '../ui/IconButton';
+import { Icon } from '../ui/Icon';
 import { SyncIndicator } from '../shell/SyncIndicator';
 
 interface Props {
   title: string;
-  /** タイトルの右側（検索・メニューなど） */
+  /** 右端のボタン（横3点メニューなど） */
   right?: ReactNode;
+  /** 検索中は、ヘッダー全体が検索フォームになる */
+  search?: { value: string; onChange: (v: string) => void; onClose: () => void } | null;
 }
 
-/** 画面上部のバー: 左にメニューアイコン、中央にプロジェクト名、右に操作ボタンと同期状態。 */
-export function BoardHeader({ title, right }: Props) {
-  const { colors } = useTheme();
+/** 画面上部のバー: 左にメニューアイコン、中央にタイトルと同期状態、右に横3点メニュー。 */
+export function BoardHeader({ title, right, search }: Props) {
+  const { colors, fs } = useTheme();
   const { mode } = useLayoutMode();
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
   const permanent = mode === 'expanded';
   const showMenu = !permanent || collapsed;
+  const input = useRef<TextInput>(null);
+
+  useEffect(() => {
+    if (search) setTimeout(() => input.current?.focus(), 50);
+  }, [!!search]);
 
   return (
     <View style={[styles.bar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-      {showMenu ? (
-        <IconButton
-          icon="menu"
-          label={t('menu.open')}
-          onPress={() => (permanent ? useUiStore.getState().toggleSidebarCollapsed() : useUiStore.getState().setSidebarOpen(true))}
-        />
-      ) : null}
-      <AppText variant="title" numberOfLines={1} style={[styles.title, !showMenu && styles.titleFlush]}>
-        {title}
-      </AppText>
-      {right}
-      <SyncIndicator showLabel={permanent} />
+      <View style={styles.side}>
+        {showMenu ? (
+          <IconButton
+            icon="menu"
+            label={t('menu.open')}
+            onPress={() => (permanent ? useUiStore.getState().toggleSidebarCollapsed() : useUiStore.getState().setSidebarOpen(true))}
+          />
+        ) : null}
+      </View>
+
+      {search ? (
+        <View style={styles.searchRow}>
+          <Icon name="search" size={20} color={colors.textMuted} />
+          <TextInput
+            ref={input}
+            autoFocus
+            value={search.value}
+            onChangeText={search.onChange}
+            placeholder={t('board.searchPlaceholder')}
+            placeholderTextColor={colors.textMuted}
+            accessibilityLabel={t('board.search')}
+            returnKeyType="search"
+            style={[styles.searchInput, { color: colors.text, fontSize: fs(FONT.bodyLarge) }]}
+          />
+        </View>
+      ) : (
+        <View style={styles.center}>
+          <AppText variant="title" numberOfLines={1} style={styles.title}>
+            {title}
+          </AppText>
+          <SyncIndicator />
+        </View>
+      )}
+
+      <View style={styles.side}>
+        {search ? <IconButton icon="close" label={t('board.searchClose')} onPress={search.onClose} /> : right}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  bar: { flexDirection: 'row', alignItems: 'center', minHeight: 56, paddingHorizontal: SPACING.sm, gap: SPACING.xs, borderBottomWidth: StyleSheet.hairlineWidth },
-  title: { flex: 1, marginLeft: SPACING.xs },
-  titleFlush: { marginLeft: SPACING.md },
+  bar: { flexDirection: 'row', alignItems: 'center', height: 56, paddingHorizontal: SPACING.sm, gap: SPACING.xs, borderBottomWidth: StyleSheet.hairlineWidth },
+  side: { width: BOARD.touchTarget, alignItems: 'center', justifyContent: 'center' },
+  center: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.xs, minWidth: 0 },
+  title: { flexShrink: 1, textAlign: 'center' },
+  searchRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  searchInput: { flex: 1, height: 48, backgroundColor: 'transparent', outlineStyle: 'none' } as never,
 });

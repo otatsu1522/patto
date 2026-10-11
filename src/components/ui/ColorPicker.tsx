@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 import { t } from '@/i18n';
 import { RADIUS, SPACING, useTheme } from '@/theme';
-import { TASK_COLOR_KEYS, TASK_COLORS, type TaskColorKey } from '@/theme/taskColors';
+import { TASK_COLOR_KEYS, type TaskColorKey } from '@/theme/taskColors';
 import { AppText } from './AppText';
 import { Icon } from './Icon';
 
@@ -13,7 +13,7 @@ interface Props {
 
 /** パレットから色を選ぶ。先頭は「なし」。 */
 export function ColorPicker({ label, value, onChange }: Props) {
-  const { colors } = useTheme();
+  const { colors, taskColor, isDark } = useTheme();
   return (
     <View style={styles.wrap}>
       <AppText variant="label" muted>
@@ -32,9 +32,9 @@ export function ColorPicker({ label, value, onChange }: Props) {
             accessibilityRole="button"
             accessibilityLabel={key}
             onPress={() => onChange(key)}
-            style={[styles.swatch, { backgroundColor: TASK_COLORS[key], borderColor: value === key ? colors.text : 'transparent' }]}
+            style={[styles.swatch, { backgroundColor: taskColor(key), borderColor: value === key ? colors.text : 'transparent' }]}
           >
-            {value === key ? <Icon name="check" size={16} color="#FFFFFF" /> : null}
+            {value === key ? <Icon name="check" size={16} color={isDark || key === 'yellow' ? '#000000' : '#FFFFFF'} /> : null}
           </Pressable>
         ))}
       </View>

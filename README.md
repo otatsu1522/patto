@@ -1,6 +1,6 @@
 # Patto
 
-オフラインでも使える、シンプルなカンバン式TODOアプリ。Android・iOS・Web を1つのコードで動かします。
+オフラインでも使える、シンプルなカンバン式TODOアプリ。Android・iOS・Web を1つのコードで動かします。初回起動時に、使い方を載せた TUTORIAL プロジェクトが入ります。
 
 - フレームワーク: Expo (React Native) + Expo Router / TypeScript
 - ローカルDB: expo-sqlite（オフラインで動作）
@@ -107,13 +107,13 @@ patto/
 | 入力上限・同期間隔・ごみ箱の日数 | `src/config/limits.ts` |
 | 列数・ブレークポイント・ジェスチャー | `src/config/layout.ts` |
 | ショートカットの既定のキー | `src/shortcuts/actions.ts` |
-| ロゴ | `src/components/ui/Logo.tsx`（アプリ内）、`assets/`（アイコン） |
+| ロゴ（view_kanban） | `src/config/logo.ts`（アプリ内）、`assets/`（アイコン画像） |
 
 アプリ名を変えたら、`package.json` の `name` と、Cloudflare Pages / Supabase 側の名前も必要に応じて合わせてください。
 
 ## 9. ロゴの差し替え
 
-- アプリ内のロゴ: `src/components/ui/Logo.tsx`
+- アプリ内のロゴ: `src/config/logo.ts`（SVG のパス）と `src/components/ui/Logo.tsx`
 - アプリアイコン・ファビコン: `assets/icon.png` `assets/adaptive-icon.png` `assets/favicon.png` `assets/splash-icon.png` を同じ名前・サイズで置き換える
 
 ## 10. ライセンス

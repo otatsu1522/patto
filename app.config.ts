@@ -13,7 +13,7 @@ const config: ExpoConfig = {
   ios: { supportsTablet: true, bundleIdentifier: info.iosBundleId },
   android: {
     package: info.androidPackage,
-    adaptiveIcon: { foregroundImage: './assets/adaptive-icon.png', backgroundColor: '#2F5BEA' },
+    adaptiveIcon: { foregroundImage: './assets/adaptive-icon.png', backgroundColor: '#FFFFFF' },
   },
   web: { bundler: 'metro', output: 'single', favicon: './assets/favicon.png' },
   plugins: [
@@ -21,7 +21,8 @@ const config: ExpoConfig = {
     'expo-secure-store',
     'expo-sqlite',
     'expo-localization',
-    ['expo-splash-screen', { image: './assets/splash-icon.png', imageWidth: 200, backgroundColor: '#2F5BEA' }],
+    ['expo-navigation-bar', { enforceContrast: false }],
+    ['expo-splash-screen', { image: './assets/splash-icon.png', imageWidth: 200, backgroundColor: '#FFFFFF' }],
   ],
   experiments: { typedRoutes: false },
 };

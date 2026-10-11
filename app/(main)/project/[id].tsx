@@ -1,25 +1,22 @@
 import { Redirect, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { useAuthStore } from '@/auth/authStore';
 import { ArchiveDialog } from '@/components/board/ArchiveDialog';
 import { BoardHeader } from '@/components/board/BoardHeader';
 import { BoardView, type BoardViewHandle } from '@/components/board/BoardView';
 import { ColumnDialog } from '@/components/board/NameDialogs';
+import { SearchResults } from '@/components/board/SearchResults';
 import { TaskDialog, type TaskFormValues } from '@/components/board/TaskDialog';
 import { AppText } from '@/components/ui/AppText';
 import { DropdownMenu, type MenuItem } from '@/components/ui/DropdownMenu';
-import { useFeedback } from '@/components/ui/FeedbackProvider';
-import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { isSupabaseConfigured } from '@/config/env';
-import { FONT } from '@/theme/tokens';
 import { LIMITS } from '@/config/limits';
 import { columnsOf, isActive, searchTasks, tasksOf } from '@/domain/selectors';
 import type { ColumnSortMode, KanbanColumn, Task } from '@/domain/types';
 import { useBoardActions } from '@/features/useBoardActions';
 import { popUndo } from '@/features/undo';
-import { useLayoutMode } from '@/hooks/useLayout';
 import { t } from '@/i18n';
 import { clampCursor, initialCursor, moveCursor, type Cursor, type Direction } from '@/shortcuts/cursor';
 import { useEscape, useShortcuts } from '@/shortcuts/useShortcuts';
@@ -27,15 +24,13 @@ import { useDataStore } from '@/store/dataStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useUiStore } from '@/store/uiStore';
 import { syncNow } from '@/sync/controller';
-import { RADIUS, SHADOW, SPACING, useTheme } from '@/theme';
+import { SHADOW, SPACING, useTheme } from '@/theme';
 
 type TaskDialogState = { mode: 'create'; columnId: string } | { mode: 'edit'; taskId: string } | null;
 
 export default function ProjectScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { colors, fs } = useTheme();
-  const { mode } = useLayoutMode();
-  const { confirm } = useFeedback();
+  const { colors } = useTheme();
   const boardRef = useRef<BoardViewHandle>(null);
 
   const ready = useDataStore((s) => s.ready);
@@ -64,19 +59,16 @@ export default function ProjectScreen() {
   const [archiveKind, setArchiveKind] = useState<'archive' | 'trash' | null>(null);
   const [cursor, setCursor] = useState<Cursor | null>(null);
   const [query, setQuery] = useState('');
-  const [searchOpen, setSearchOpen] = useState(false);
-  const searchRef = useRef<TextInput>(null);
+  const [searching, setSearching] = useState(false);
   const follow = useRef<string | null>(null);
 
   useEffect(() => {
     if (project && isActive(project) && id) useSettingsStore.getState().update({ lastProjectId: id });
   }, [project, id]);
 
-  // 検索ショートカット（/）で検索欄を開く
+  // 検索ショートカット（/）で検索を開く
   useEffect(() => {
-    if (searchTick === 0) return;
-    setSearchOpen(true);
-    setTimeout(() => searchRef.current?.focus(), 50);
+    if (searchTick > 0) setSearching(true);
   }, [searchTick]);
 
   // つかんで動かしたタスクにキーボードのカーソルを追従させる
@@ -91,8 +83,8 @@ export default function ProjectScreen() {
   }, [tasksByColumn, cols]);
 
   const results = useMemo(
-    () => (id && query.trim() ? searchTasks({ projects, columns, tasks }, query, id) : []),
-    [projects, columns, tasks, query, id],
+    () => (id && searching && query.trim() ? searchTasks({ projects, columns, tasks }, query, id) : []),
+    [projects, columns, tasks, query, id, searching],
   );
 
   const syncEnabled = !!identity && !identity.local && isSupabaseConfigured && syncMode !== 'off';
@@ -137,6 +129,19 @@ export default function ProjectScreen() {
     if (col) setTaskDialog({ mode: 'create', columnId: col });
   };
 
+  function moveColumnBy(step: -1 | 1) {
+    const c = current();
+    const col = cols[c.columnIndex];
+    if (!col || !cols[c.columnIndex + step]) return;
+    void store.moveColumn(col.id, c.columnIndex + step);
+    update((x) => ({ ...x, columnIndex: x.columnIndex + step }));
+  }
+
+  function closeSearch() {
+    setQuery('');
+    setSearching(false);
+  }
+
   useShortcuts({
     cursorLeft: () => void navigate('left'),
     cursorRight: () => void navigate('right'),
@@ -175,23 +180,10 @@ export default function ProjectScreen() {
   });
 
   useEscape(() => {
-    if (cursor?.grabbed) update((c) => ({ ...c, grabbed: false }));
-    else if (searchOpen) closeSearch();
+    if (searching) closeSearch();
+    else if (cursor?.grabbed) update((c) => ({ ...c, grabbed: false }));
     else if (cursor) setCursor(null);
   });
-
-  function moveColumnBy(step: -1 | 1) {
-    const c = current();
-    const col = cols[c.columnIndex];
-    if (!col || !cols[c.columnIndex + step]) return;
-    void store.moveColumn(col.id, c.columnIndex + step);
-    update((x) => ({ ...x, columnIndex: x.columnIndex + step }));
-  }
-
-  function closeSearch() {
-    setQuery('');
-    setSearchOpen(false);
-  }
 
   if (!ready) return null;
   if (!project || !isActive(project)) return <Redirect href="/home" />;
@@ -199,8 +191,9 @@ export default function ProjectScreen() {
   // ---- メニュー ----
   const boardMenu: MenuItem[] = [
     { label: t('column.new'), icon: 'add', disabled: cols.length >= LIMITS.maxColumnsPerProject, onPress: () => setColumnDialog({ column: null }) },
-    { label: t('board.archiveDone'), icon: 'check', onPress: () => void actions.archiveDone() },
-    { label: t('board.openArchive'), icon: 'archive', separator: true, onPress: () => setArchiveKind('archive') },
+    { label: t('board.search'), icon: 'search', onPress: () => setSearching(true) },
+    { label: t('board.archiveDone'), icon: 'doneMode', separator: true, onPress: () => void actions.archiveDone() },
+    { label: t('board.openArchive'), icon: 'archive', onPress: () => setArchiveKind('archive') },
     { label: t('board.clearArchive'), icon: 'trash', destructive: true, onPress: () => void actions.clear('archive') },
     { label: t('board.openTrash'), icon: 'trash', separator: true, onPress: () => setArchiveKind('trash') },
     { label: t('board.clearTrash'), icon: 'trash', destructive: true, onPress: () => void actions.clear('trash') },
@@ -217,9 +210,18 @@ export default function ProjectScreen() {
       separator: i === 0,
       onPress: () => void store.updateColumn(column.id, { sortMode: m }),
     })),
-    { label: column.isDoneColumn ? t('column.unsetDone') : t('column.setDone'), icon: 'check', separator: true, onPress: () => void store.updateColumn(column.id, { isDoneColumn: !column.isDoneColumn }) },
+    { label: column.isDoneColumn ? t('column.unsetDone') : t('column.setDone'), icon: 'doneMode', separator: true, onPress: () => void store.updateColumn(column.id, { isDoneColumn: !column.isDoneColumn }) },
     { label: t('common.duplicate'), icon: 'copy', onPress: () => void store.duplicateColumn(column.id) },
     { label: t('common.delete'), icon: 'trash', destructive: true, separator: true, onPress: () => void actions.deleteColumn(column) },
+  ];
+
+  /** タスクをタップしたときのメニュー */
+  const taskMenu = (task: Task): MenuItem[] => [
+    { label: t('common.edit'), icon: 'edit', onPress: () => setTaskDialog({ mode: 'edit', taskId: task.id }) },
+    { label: task.isFavorite ? t('common.unfavorite') : t('common.favorite'), icon: task.isFavorite ? 'starOutline' : 'star', onPress: () => void store.updateTask(task.id, { isFavorite: !task.isFavorite }) },
+    { label: t('common.duplicate'), icon: 'copy', onPress: () => void store.duplicateTask(task.id) },
+    { label: t('common.archive'), icon: 'archive', onPress: () => void actions.archiveTask(task) },
+    { label: t('common.delete'), icon: 'trash', destructive: true, separator: true, onPress: () => void actions.deleteTask(task) },
   ];
 
   const editingTask = taskDialog?.mode === 'edit' ? tasks.find((x) => x.id === taskDialog.taskId) ?? null : null;
@@ -228,39 +230,24 @@ export default function ProjectScreen() {
     const dialog = taskDialog;
     setTaskDialog(null);
     if (!dialog) return;
-    if (dialog.mode === 'edit') await store.updateTask(dialog.taskId, v);
-    else await store.createTask({ projectId: project.id, columnId: dialog.columnId, ...v });
+    const fields = { title: v.title, description: v.description, color: v.color, dueAt: v.dueAt, dueHasTime: false };
+    if (dialog.mode === 'edit') {
+      await store.updateTask(dialog.taskId, fields);
+      const task = tasks.find((x) => x.id === dialog.taskId);
+      const target = cols.find((c) => c.id === v.columnId);
+      if (task && target && task.columnId !== target.id) await store.moveTask(task.id, target.id);
+    } else {
+      await store.createTask({ projectId: project.id, columnId: v.columnId, ...fields });
+    }
   };
-
-  const searchField = (
-    <View style={[styles.search, { backgroundColor: colors.column, borderColor: colors.border }]}>
-      <Icon name="search" size={16} color={colors.textMuted} />
-      <TextInput
-        ref={searchRef}
-        value={query}
-        onChangeText={setQuery}
-        placeholder={t('board.search')}
-        placeholderTextColor={colors.textMuted}
-        accessibilityLabel={t('board.search')}
-        style={[styles.searchInput, { color: colors.text, fontSize: fs(FONT.body) }]}
-      />
-      <IconButton icon="close" label={t('common.close')} onPress={closeSearch} box={30} size={16} />
-    </View>
-  );
 
   return (
     <View style={styles.fill}>
       <BoardHeader
         title={project.title}
+        search={searching ? { value: query, onChange: setQuery, onClose: closeSearch } : null}
         right={
-          <>
-            {searchOpen || mode === 'expanded' ? (
-              <View style={mode === 'expanded' ? styles.searchWide : styles.searchNarrow}>{searchField}</View>
-            ) : (
-              <IconButton icon="search" label={t('board.search')} onPress={() => { setSearchOpen(true); setTimeout(() => searchRef.current?.focus(), 50); }} />
-            )}
-            <DropdownMenu items={boardMenu} trigger={(open) => <IconButton icon="more" label={t('board.menu')} onPress={open} />} />
-          </>
+          <DropdownMenu items={boardMenu} trigger={(open) => <IconButton icon="more" label={t('board.menu')} onPress={open} />} />
         }
       />
 
@@ -272,9 +259,9 @@ export default function ProjectScreen() {
           cursor={cursor}
           compactCards={density === 'compact'}
           menuItemsFor={columnMenu}
-          onTaskPress={(task) => setTaskDialog({ mode: 'edit', taskId: task.id })}
-          onTaskMove={(task, dir) => void actions.moveTaskBy(task, dir)}
-          onTaskDrop={(task, target) => void actions.moveTask(task, target)}
+          taskMenuFor={taskMenu}
+          onAdvance={(task) => void actions.advance(task)}
+          onTaskDrop={(task, target, favorite) => void actions.dropTask(task, target, favorite)}
           onColumnDrop={(column, toIndex) => void store.moveColumn(column.id, toIndex)}
           onAddTask={(column, title) => void store.createTask({ projectId: project.id, columnId: column.id, title })}
           onRefresh={syncEnabled ? async () => void (await syncNow()) : undefined}
@@ -288,31 +275,18 @@ export default function ProjectScreen() {
           </View>
         ) : null}
 
-        {query.trim() ? (
-          <View style={[styles.results, SHADOW.float, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <ScrollView keyboardShouldPersistTaps="handled">
-              {results.length === 0 ? (
-                <AppText muted style={styles.resultItem}>
-                  {t('board.searchEmpty')}
-                </AppText>
-              ) : (
-                results.map((task) => (
-                  <Pressable
-                    key={task.id}
-                    accessibilityRole="button"
-                    onPress={() => {
-                      closeSearch();
-                      setTaskDialog({ mode: 'edit', taskId: task.id });
-                    }}
-                    style={styles.resultItem}
-                  >
-                    <AppText numberOfLines={1}>{task.title}</AppText>
-                    <AppText variant="caption" muted numberOfLines={1}>
-                      {cols.find((c) => c.id === task.columnId)?.title}
-                    </AppText>
-                  </Pressable>
-                ))
-              )}
+        {searching && query.trim() ? (
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.surface }]}>
+            <ScrollView keyboardShouldPersistTaps="handled" persistentScrollbar>
+              <SearchResults
+                results={results}
+                projects={projects}
+                columns={columns}
+                onPress={(task) => {
+                  closeSearch();
+                  setTaskDialog({ mode: 'edit', taskId: task.id });
+                }}
+              />
             </ScrollView>
           </View>
         ) : null}
@@ -321,11 +295,10 @@ export default function ProjectScreen() {
       <TaskDialog
         visible={taskDialog !== null}
         task={editingTask}
+        columns={cols.map((c) => ({ id: c.id, title: c.title }))}
+        defaultColumnId={taskDialog?.mode === 'create' ? taskDialog.columnId : cols[0]?.id ?? ''}
         onClose={() => setTaskDialog(null)}
         onSubmit={submitTask}
-        onDelete={editingTask ? async () => ((await actions.deleteTask(editingTask)) ? setTaskDialog(null) : undefined) : undefined}
-        onDuplicate={editingTask ? () => { void store.duplicateTask(editingTask.id); setTaskDialog(null); } : undefined}
-        onArchive={editingTask ? () => { void actions.archiveTask(editingTask); setTaskDialog(null); } : undefined}
       />
       <ColumnDialog
         visible={columnDialog !== null}
@@ -354,11 +327,5 @@ export default function ProjectScreen() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  search: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingLeft: SPACING.md, borderRadius: RADIUS.md, borderWidth: 1, minHeight: 38 },
-  searchInput: { flex: 1, paddingVertical: SPACING.xs, outlineStyle: 'none' } as never,
-  searchWide: { width: 260 },
-  searchNarrow: { flex: 1 },
-  banner: { position: 'absolute', top: SPACING.md, alignSelf: 'center', paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm, borderRadius: RADIUS.pill },
-  results: { position: 'absolute', top: SPACING.xs, right: SPACING.md, left: SPACING.md, maxHeight: 320, maxWidth: 520, alignSelf: 'flex-end', borderRadius: RADIUS.md, borderWidth: 1, overflow: 'hidden' },
-  resultItem: { paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm, minHeight: 44, justifyContent: 'center' },
+  banner: { position: 'absolute', top: SPACING.md, alignSelf: 'center', paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm },
 });

@@ -30,11 +30,18 @@ export function useBoardActions(projectId: string) {
         withUndo(t('board.undoMoved'), () => store().moveTask(task.id, from));
       },
 
-      async moveTaskBy(task: Task, direction: -1 | 1) {
+      /** 次（右）のカンバンへ。いちばん右のときは最初のカンバンへ戻す。 */
+      async advance(task: Task) {
         const cols = columnsOf(store().columns, projectId);
+        if (cols.length < 2) return;
         const i = cols.findIndex((c) => c.id === task.columnId);
-        const target = cols[i + direction];
-        if (target) await this.moveTask(task, target);
+        await this.moveTask(task, cols[i + 1] ?? cols[0]!);
+      },
+
+      /** ドラッグで落としたとき: カンバンの移動と、お気に入りの出し入れ。 */
+      async dropTask(task: Task, target: KanbanColumn, favorite: boolean) {
+        await this.moveTask(task, target);
+        if (favorite !== task.isFavorite) await store().updateTask(task.id, { isFavorite: favorite });
       },
 
       async deleteTask(task: Task, askFirst = true) {

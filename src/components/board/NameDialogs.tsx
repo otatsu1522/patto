@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { LIMITS } from '@/config/limits';
 import type { KanbanColumn, Project } from '@/domain/types';
-import { validateMaxLength, validateTitle, firstError } from '@/domain/validation';
+import { validateTitle } from '@/domain/validation';
 import { t } from '@/i18n';
 import type { TaskColorKey } from '@/theme/taskColors';
 import { Button } from '../ui/Button';
@@ -49,37 +49,33 @@ interface ProjectDialogProps {
   visible: boolean;
   project: Project | null;
   onClose: () => void;
-  onSubmit: (v: { title: string; description: string; color: TaskColorKey | null }) => void;
+  onSubmit: (v: { title: string; color: TaskColorKey | null }) => void;
 }
 
-/** プロジェクトの作成・編集ダイアログ。 */
+/** プロジェクトの作成・編集ダイアログ（タイトルと色のみ）。 */
 export function ProjectDialog({ visible, project, onClose, onSubmit }: ProjectDialogProps) {
   const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
   const [color, setColor] = useState<TaskColorKey | null>(null);
   const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
     setTitle(project?.title ?? '');
-    setDescription(project?.description ?? '');
     setColor(project?.color ?? null);
     setSubmitted(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, project?.id]);
 
   const titleError = submitted ? validateTitle(title, LIMITS.projectTitleMax) : null;
-  const descError = submitted ? validateMaxLength(description, LIMITS.projectDescriptionMax) : null;
   const submit = () => {
     setSubmitted(true);
-    if (firstError(validateTitle(title, LIMITS.projectTitleMax), validateMaxLength(description, LIMITS.projectDescriptionMax))) return;
-    onSubmit({ title: title.trim(), description, color });
+    if (validateTitle(title, LIMITS.projectTitleMax)) return;
+    onSubmit({ title: title.trim(), color });
   };
 
   return (
     <Dialog visible={visible} title={project ? t('project.edit') : t('project.create')} onClose={onClose} footer={<Button label={t('common.confirm')} onPress={submit} fullWidth />}>
       <TextField label={t('project.title')} value={title} onChangeText={setTitle} error={titleError} autoFocus onSubmitEditing={submit} returnKeyType="done" />
-      <TextField label={t('project.description')} value={description} onChangeText={setDescription} error={descError} lines={3} />
       <ColorPicker label={t('project.color')} value={color} onChange={setColor} />
     </Dialog>
   );

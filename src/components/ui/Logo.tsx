@@ -1,29 +1,19 @@
 import { StyleSheet, View } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
+import { VIEW_KANBAN_PATH } from '@/config/logo';
 import { BRAND } from '@/theme/palette';
 
-/** Patto のロゴ（3列のカンバンとカード）。ビューだけで描くので画像ファイルは不要。 */
+/** Patto のロゴ: Google の Material Symbols「view_kanban」。白背景に黒。 */
 export function Logo({ size = 64 }: { size?: number }) {
-  const u = size / 64;
-  const col = (cards: number[], accentIndex = -1) => (
-    <View style={[styles.col, { width: 14 * u, borderRadius: 4 * u, padding: 2 * u, gap: 2 * u }]}>
-      {cards.map((h, i) => (
-        <View
-          key={i}
-          style={{ height: h * u, borderRadius: 2.5 * u, backgroundColor: i === accentIndex ? BRAND.yellow : BRAND.white }}
-        />
-      ))}
-    </View>
-  );
   return (
-    <View style={[styles.tile, { width: size, height: size, borderRadius: size * 0.24, paddingHorizontal: 7 * u, gap: 4 * u }]}>
-      {col([10, 8, 8], 0)}
-      {col([8, 12])}
-      {col([12, 8, 6], 1)}
+    <View style={[styles.tile, { width: size, height: size, padding: size * 0.12 }]}>
+      <Svg width="100%" height="100%" viewBox="0 -960 960 960">
+        <Path d={VIEW_KANBAN_PATH} fill={BRAND.foreground} />
+      </Svg>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  tile: { backgroundColor: BRAND.blue, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  col: { backgroundColor: 'rgba(255,255,255,0.28)', alignSelf: 'center' },
+  tile: { backgroundColor: BRAND.background, borderWidth: 1, borderColor: '#D4D4D4' },
 });

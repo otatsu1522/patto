@@ -1,35 +1,37 @@
 import { useRef } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, View } from 'react-native';
 import { GestureDetector } from 'react-native-gesture-handler';
-import { BOARD } from '@/config/layout';
 import { dueState, formatDue } from '@/domain/due';
 import type { Task } from '@/domain/types';
 import { t } from '@/i18n';
 import { nowMs } from '@/lib/clock';
-import { RADIUS, SHADOW, SPACING, useTheme } from '@/theme';
-import { TASK_COLORS } from '@/theme/taskColors';
+import { SHADOW, SPACING, useTheme } from '@/theme';
 import { AppText } from '../ui/AppText';
+import { DropdownMenu, type MenuItem } from '../ui/DropdownMenu';
 import { Icon } from '../ui/Icon';
-import { IconButton } from '../ui/IconButton';
 import { useDragGesture, type DragHandlers } from './dragGesture';
 
 interface Props {
   task: Task;
+  /** 所属カンバンが DONE モードか（横線で表示する） */
+  done: boolean;
+  /** 説明を隠してコンパクトに表示する */
   compact: boolean;
-  hasLeft: boolean;
-  hasRight: boolean;
+  /** いちばん右のカンバンか（右へ移動の代わりに、最初へ戻るUターンを出す） */
+  isLast: boolean;
+  /** カンバンが1つだけのとき、移動ボタンを出さない */
+  canAdvance: boolean;
   focused: boolean;
   grabbed: boolean;
   dragging: boolean;
-  onPress: () => void;
-  onMoveLeft: () => void;
-  onMoveRight: () => void;
+  menuItems: MenuItem[];
+  onAdvance: () => void;
   drag: DragHandlers;
 }
 
-/** タスクのカード。左右の矢印で隣のカンバンへ移動、タップで編集、長押し（PCはドラッグ）で移動。 */
-export function TaskCard({ task, compact, hasLeft, hasRight, focused, grabbed, dragging, onPress, onMoveLeft, onMoveRight, drag }: Props) {
-  const { colors } = useTheme();
+/** タスクのカード。タップでメニュー、右端のボタンで次のカンバンへ、長押し（PCはドラッグ）でつかんで移動。 */
+export function TaskCard({ task, done, compact, isLast, canAdvance, focused, grabbed, dragging, menuItems, onAdvance, drag }: Props) {
+  const { colors, taskColor } = useTheme();
   const lastDragEnd = useRef(0);
   const gesture = useDragGesture({
     ...drag,
@@ -39,10 +41,10 @@ export function TaskCard({ task, compact, hasLeft, hasRight, focused, grabbed, d
     },
   });
 
-  const due = task.dueAt !== null ? { dueAt: task.dueAt, dueHasTime: task.dueHasTime } : null;
+  const due = task.dueAt !== null ? { dueAt: task.dueAt, dueHasTime: false } : null;
   const state = due ? dueState(due, nowMs()) : null;
   const dueColor = state === 'overdue' ? colors.danger : state === 'today' ? colors.warning : colors.textMuted;
-  const done = task.completedAt !== null;
+  const strike = done ? styles.done : undefined;
 
   return (
     <View
@@ -58,62 +60,71 @@ export function TaskCard({ task, compact, hasLeft, hasRight, focused, grabbed, d
         grabbed && { backgroundColor: colors.column, borderStyle: 'dashed' },
       ]}
     >
-      <View style={styles.side}>
-        {hasLeft ? <IconButton icon="left" label={t('task.moveLeft')} onPress={onMoveLeft} box={34} size={18} color={colors.textMuted} /> : null}
-      </View>
-      <GestureDetector gesture={gesture}>
+      <DropdownMenu
+        items={menuItems}
+        anchorStyle={styles.anchor}
+        trigger={(open) => (
+          <GestureDetector gesture={gesture}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={task.title}
+              onPress={() => {
+                if (Date.now() - lastDragEnd.current > 300) open();
+              }}
+              style={styles.body}
+            >
+              <View style={styles.titleRow}>
+                {task.color ? <View style={[styles.dot, { backgroundColor: taskColor(task.color) }]} /> : null}
+                <AppText bold numberOfLines={2} style={[styles.title, strike]}>
+                  {task.title}
+                </AppText>
+              </View>
+              {task.description && !compact ? (
+                <AppText variant="caption" muted numberOfLines={2} style={strike}>
+                  {task.description}
+                </AppText>
+              ) : null}
+              {due ? (
+                <View style={styles.meta}>
+                  <Icon name="calendar" size={14} color={dueColor} />
+                  <AppText variant="caption" bold={state !== 'upcoming'} color={dueColor} style={strike}>
+                    {state === 'overdue' ? `${t('task.overdue')} ` : state === 'today' ? `${t('task.today')} ` : ''}
+                    {formatDue(due)}
+                  </AppText>
+                </View>
+              ) : null}
+            </Pressable>
+          </GestureDetector>
+        )}
+      />
+      {canAdvance ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={task.title}
+          accessibilityLabel={isLast ? t('task.moveFirst') : t('task.moveRight')}
           onPress={() => {
-            if (Date.now() - lastDragEnd.current > 300) onPress();
+            Keyboard.dismiss();
+            onAdvance();
           }}
-          style={styles.body}
+          style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
+            styles.advance,
+            { borderLeftColor: colors.border, backgroundColor: pressed || hovered ? colors.column : 'transparent' },
+          ]}
         >
-          {task.color ? <View style={[styles.bar, { backgroundColor: TASK_COLORS[task.color] }]} /> : null}
-          <View style={styles.texts}>
-            <AppText bold numberOfLines={compact ? 1 : 2} style={done ? styles.done : undefined}>
-              {task.title}
-            </AppText>
-            {due || task.isFavorite || done ? (
-              <View style={styles.meta}>
-                {task.isFavorite ? <Icon name="star" size={14} color={colors.accent} /> : null}
-                {done ? (
-                  <View style={styles.metaItem}>
-                    <Icon name="check" size={14} color={colors.success} />
-                    <AppText variant="caption" color={colors.success}>
-                      {t('task.completed')}
-                    </AppText>
-                  </View>
-                ) : null}
-                {due ? (
-                  <View style={styles.metaItem}>
-                    <Icon name="calendar" size={14} color={dueColor} />
-                    <AppText variant="caption" bold={state !== 'upcoming'} color={dueColor}>
-                      {state === 'overdue' ? `${t('task.overdue')} ` : state === 'today' ? `${t('task.today')} ` : ''}
-                      {formatDue(due)}
-                    </AppText>
-                  </View>
-                ) : null}
-              </View>
-            ) : null}
-          </View>
+          <Icon name={isLast ? 'uturn' : 'forward'} size={26} color={colors.textMuted} />
         </Pressable>
-      </GestureDetector>
-      <View style={styles.side}>
-        {hasRight ? <IconButton icon="right" label={t('task.moveRight')} onPress={onMoveRight} box={34} size={18} color={colors.textMuted} /> : null}
-      </View>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { flexDirection: 'row', alignItems: 'stretch', borderRadius: RADIUS.md, minHeight: BOARD.touchTarget, overflow: 'hidden' },
-  side: { width: 34, alignItems: 'center', justifyContent: 'center' },
-  body: { flex: 1, flexDirection: 'row', paddingVertical: SPACING.sm, gap: SPACING.sm, cursor: 'grab' } as never,
-  bar: { width: 5, borderRadius: 3 },
-  texts: { flex: 1, gap: SPACING.xs, justifyContent: 'center' },
-  meta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: SPACING.sm },
-  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  done: { textDecorationLine: 'line-through', opacity: 0.7 },
+  card: { flexDirection: 'row', alignItems: 'stretch', minHeight: 76 },
+  anchor: { flex: 1 },
+  body: { flex: 1, paddingVertical: SPACING.md + 2, paddingLeft: SPACING.lg, paddingRight: SPACING.md, gap: SPACING.xs + 2, cursor: 'grab' } as never,
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  title: { flexShrink: 1 },
+  dot: { width: 12, height: 12, borderRadius: 6 },
+  meta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  advance: { width: 60, alignItems: 'center', justifyContent: 'center', borderLeftWidth: StyleSheet.hairlineWidth },
+  done: { textDecorationLine: 'line-through', opacity: 0.6 },
 });

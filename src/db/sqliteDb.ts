@@ -23,49 +23,64 @@ export async function openLocalDb(scope: string): Promise<LocalDb> {
   const db = await SQLite.openDatabaseAsync(`${dbNameFor(scope)}.db`);
   await migrate(db);
 
+  // withTransactionAsync() は排他的ではなく、同じ接続で複数のトランザクションが重なるとエラーになる。
+  // そのため、この接続への読み書きはすべて1本の待ち行列に並べて、1つずつ順番に実行する。
+  let queue: Promise<unknown> = Promise.resolve();
+  const serial = <T,>(task: () => Promise<T>): Promise<T> => {
+    const result = queue.then(task, task);
+    queue = result.catch(() => undefined);
+    return result;
+  };
+
   return {
-    async loadAll(): Promise<Snapshot> {
-      const [projects, columns, tasks] = await Promise.all(
-        TABLE_NAMES.map((t) => db.getAllAsync<Record<string, unknown>>(`SELECT * FROM ${t}`)),
-      );
+    loadAll: () =>
+      serial(async (): Promise<Snapshot> => {
+      const projects = await db.getAllAsync<Record<string, unknown>>('SELECT * FROM projects');
+      const columns = await db.getAllAsync<Record<string, unknown>>('SELECT * FROM kanban_columns');
+      const tasks = await db.getAllAsync<Record<string, unknown>>('SELECT * FROM tasks');
       return {
         projects: (projects ?? []).map((r) => fromLocalRow('projects', r)),
         columns: (columns ?? []).map((r) => fromLocalRow('kanban_columns', r)),
         tasks: (tasks ?? []).map((r) => fromLocalRow('tasks', r)),
       } as Snapshot;
-    },
+      }),
 
-    async upsert(table: TableName, rows: AnyRecord[]): Promise<void> {
-      if (rows.length === 0) return;
-      const cols = [...TABLE_DEFS[table].map((c) => c.column), 'dirty'];
-      const sql = `INSERT OR REPLACE INTO ${table} (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`;
-      await db.withTransactionAsync(async () => {
-        for (const rec of rows) {
-          const row = toLocalRow(table, rec);
-          await db.runAsync(sql, cols.map((c) => row[c] ?? null));
-        }
-      });
-    },
+    upsert: (table: TableName, rows: AnyRecord[]) =>
+      serial(async () => {
+        if (rows.length === 0) return;
+        const cols = [...TABLE_DEFS[table].map((c) => c.column), 'dirty'];
+        const sql = `INSERT OR REPLACE INTO ${table} (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`;
+        await db.withTransactionAsync(async () => {
+          for (const rec of rows) {
+            const row = toLocalRow(table, rec);
+            await db.runAsync(sql, cols.map((c) => row[c] ?? null));
+          }
+        });
+      }),
 
-    async remove(table: TableName, ids: string[]): Promise<void> {
-      if (ids.length === 0) return;
-      await db.withTransactionAsync(async () => {
-        for (const id of ids) await db.runAsync(`DELETE FROM ${table} WHERE id = ?`, [id]);
-      });
-    },
+    remove: (table: TableName, ids: string[]) =>
+      serial(async () => {
+        if (ids.length === 0) return;
+        await db.withTransactionAsync(async () => {
+          for (const id of ids) await db.runAsync(`DELETE FROM ${table} WHERE id = ?`, [id]);
+        });
+      }),
 
-    async getMeta(key: string): Promise<string | null> {
-      const r = await db.getFirstAsync<{ value: string }>('SELECT value FROM sync_meta WHERE key = ?', [key]);
-      return r?.value ?? null;
-    },
+    getMeta: (key: string) =>
+      serial(async () => {
+        const r = await db.getFirstAsync<{ value: string }>('SELECT value FROM sync_meta WHERE key = ?', [key]);
+        return r?.value ?? null;
+      }),
 
-    async setMeta(key: string, value: string): Promise<void> {
-      await db.runAsync('INSERT OR REPLACE INTO sync_meta (key, value) VALUES (?, ?)', [key, value]);
-    },
+    setMeta: (key: string, value: string) =>
+      serial(async () => {
+        await db.runAsync('INSERT OR REPLACE INTO sync_meta (key, value) VALUES (?, ?)', [key, value]);
+      }),
 
-    async close(): Promise<void> {
-      await db.closeAsync();
-    },
+    close: () =>
+      serial(async () => {
+        await db.closeAsync();
+      }),
   };
 }
 

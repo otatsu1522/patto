@@ -38,5 +38,5 @@ export const IconButton = ({ icon, label, onPress, size = 22, color, disabled, s
 };
 
 const styles = StyleSheet.create({
-  base: { alignItems: 'center', justifyContent: 'center', borderRadius: RADIUS.pill },
+  base: { alignItems: 'center', justifyContent: 'center' },
 });

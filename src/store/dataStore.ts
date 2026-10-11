@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { DEFAULT_COLUMNS } from '@/config/defaults';
+import { TUTORIAL_PROJECT_TITLE, TUTORIAL_TASKS } from '@/config/tutorial';
 import { LIMITS } from '@/config/limits';
 import { openLocalDb } from '@/db/sqliteDb';
 import type { LocalDb } from '@/db/types';
@@ -94,6 +95,8 @@ interface DataState extends Snapshot {
   /** 指定IDを端末から完全に削除する（サーバー側の削除は呼び出し側で先に行う） */
   purgeLocal: (ids: { projects: string[]; columns: string[]; tasks: string[] }) => Promise<void>;
   importBoards: (boards: ImportedBoard[]) => Promise<number>;
+  /** 初回だけ、サンプルプロジェクト（TUTORIAL）を作る */
+  seedTutorial: () => Promise<void>;
 }
 
 export const useDataStore = create<DataState>((set, get) => {
@@ -105,11 +108,9 @@ export const useDataStore = create<DataState>((set, get) => {
       tasks: upsertById(s.tasks, changes.tasks),
     }));
     const d = getDb();
-    await Promise.all([
-      d.upsert('projects', changes.projects ?? []),
-      d.upsert('kanban_columns', changes.columns ?? []),
-      d.upsert('tasks', changes.tasks ?? []),
-    ]);
+    await d.upsert('projects', changes.projects ?? []);
+    await d.upsert('kanban_columns', changes.columns ?? []);
+    await d.upsert('tasks', changes.tasks ?? []);
     if (notify) changeListeners.forEach((fn) => fn());
   }
 
@@ -175,11 +176,9 @@ export const useDataStore = create<DataState>((set, get) => {
           tasks: upsertById(s.tasks.filter((x) => !dt.has(x.id)), changes.tasks),
         };
       });
-      await Promise.all([
-        d.upsert('projects', changes.projects ?? []),
-        d.upsert('kanban_columns', changes.columns ?? []),
-        d.upsert('tasks', changes.tasks ?? []),
-      ]);
+      await d.upsert('projects', changes.projects ?? []);
+      await d.upsert('kanban_columns', changes.columns ?? []);
+      await d.upsert('tasks', changes.tasks ?? []);
     },
 
     // ---- プロジェクト ----
@@ -277,6 +276,14 @@ export const useDataStore = create<DataState>((set, get) => {
           prev = key;
           return patchRecord(x, { sortKey: key }, ts);
         });
+      }
+      // DONEモードを切り替えたら、すでにあるタスクの完了日時も合わせる
+      if (patch.isDoneColumn !== undefined && patch.isDoneColumn !== c.isDoneColumn) {
+        const kids = get().tasks.filter((x) => x.columnId === id && isActive(x));
+        changes.tasks = [
+          ...(changes.tasks ?? []),
+          ...kids.map((x) => patchRecord(x, { completedAt: patch.isDoneColumn ? x.completedAt ?? ts : null }, ts)),
+        ];
       }
       await commit(changes);
     },
@@ -428,6 +435,28 @@ export const useDataStore = create<DataState>((set, get) => {
       await get().applyRemote({}, removed);
     },
 
+    async seedTutorial() {
+      const d = getDb();
+      if (await d.getMeta('tutorialSeeded')) return;
+      await d.setMeta('tutorialSeeded', '1');
+      if (get().projects.length > 0) return;
+      const ts = now();
+      const project = buildProject(owner(), ts, { title: t(TUTORIAL_PROJECT_TITLE) }, keyAtEnd([]));
+      const columns = seedColumns(project.id, ts);
+      const tasks: Task[] = [];
+      columns.forEach((column, ci) => {
+        let key: string | null = null;
+        (TUTORIAL_TASKS[ci] ?? []).forEach((item, i) => {
+          key = keyForIndex(key ? [{ id: 'x', sortKey: key }] : [], 1);
+          // 上から順に並ぶよう、更新日を少しずつずらす
+          tasks.push(
+            buildTask(owner(), ts - i * 1000, { projectId: project.id, columnId: column.id, title: t(item.title), description: t(item.description) }, key, column.isDoneColumn),
+          );
+        });
+      });
+      await commit({ projects: [project], columns, tasks });
+    },
+
     async importBoards(boards) {
       const ts = now();
       const projects: Project[] = [];
@@ -450,7 +479,7 @@ export const useDataStore = create<DataState>((set, get) => {
             const tk = buildTask(
               owner(),
               ts,
-              { projectId: p.id, columnId: col.id, title: bt.title, description: bt.description, color: bt.color, dueAt: bt.dueAt, dueHasTime: bt.dueAt !== null, isFavorite: bt.isFavorite },
+              { projectId: p.id, columnId: col.id, title: bt.title, description: bt.description, color: bt.color, dueAt: bt.dueAt, dueHasTime: false, isFavorite: bt.isFavorite },
               taskKey,
               bt.completed || bc.isDone,
             );

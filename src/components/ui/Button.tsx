@@ -23,7 +23,7 @@ export function Button({ label, onPress, variant = 'primary', icon, disabled, lo
   const palette = {
     primary: { bg: colors.primary, fg: colors.onPrimary, border: colors.primary },
     secondary: { bg: colors.surface, fg: colors.text, border: colors.border },
-    danger: { bg: colors.danger, fg: '#FFFFFF', border: colors.danger },
+    danger: { bg: colors.danger, fg: colors.onDanger, border: colors.danger },
     ghost: { bg: 'transparent', fg: colors.primary, border: 'transparent' },
   }[variant];
   const inactive = disabled || loading;

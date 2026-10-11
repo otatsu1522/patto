@@ -70,8 +70,8 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
       {children}
       {toast ? (
         <View pointerEvents="box-none" style={styles.toastWrap}>
-          <View style={[styles.toast, SHADOW.float, { backgroundColor: colors.text }]}>
-            <AppText color={colors.bg} style={styles.toastText}>
+          <View style={[styles.toast, SHADOW.float, { backgroundColor: colors.inverse }]}>
+            <AppText color={colors.onInverse} style={styles.toastText}>
               {toast.message}
             </AppText>
             {toast.onAction ? (
@@ -82,7 +82,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
                   setToast(null);
                 }}
               >
-                <AppText bold color={colors.accent}>
+                <AppText bold color={colors.inverseAccent}>
                   {toast.actionLabel}
                 </AppText>
               </Pressable>

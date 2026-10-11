@@ -120,5 +120,5 @@ const styles = StyleSheet.create({
   column: { flexDirection: 'column', alignItems: 'flex-start', paddingVertical: SPACING.md },
   flex: { flex: 1 },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
-  choice: { paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, borderRadius: RADIUS.pill, borderWidth: 1 },
+  choice: { paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, borderRadius: 0, borderWidth: 1 },
 });

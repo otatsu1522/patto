@@ -6,7 +6,7 @@ export type IconName = ComponentProps<typeof Ionicons>['name'];
 /** アプリ内で使うアイコンの対応表（アイコンを変えるときはここだけ編集）。 */
 export const ICONS = {
   menu: 'menu',
-  more: 'ellipsis-vertical',
+  more: 'ellipsis-horizontal',
   moreHorizontal: 'ellipsis-horizontal',
   add: 'add',
   close: 'close',
@@ -40,6 +40,10 @@ export const ICONS = {
   logout: 'log-out-outline',
   folder: 'folder-outline',
   grab: 'hand-left-outline',
+  uturn: 'return-down-back-outline',
+  doneMode: 'checkmark-done-circle',
+  forward: 'chevron-forward',
+  down: 'chevron-down',
 } as const satisfies Record<string, IconName>;
 
 export type IconKey = keyof typeof ICONS;

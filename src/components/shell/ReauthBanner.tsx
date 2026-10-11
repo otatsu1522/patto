@@ -25,7 +25,7 @@ export function ReauthBanner() {
 
   return (
     <View style={[styles.bar, { backgroundColor: colors.warning }]}>
-      <AppText variant="caption" bold color="#FFFFFF" style={styles.text}>
+      <AppText variant="caption" bold color={colors.onWarning} style={styles.text}>
         {message ?? t('auth.reauthNeeded')}
       </AppText>
       <TextInput

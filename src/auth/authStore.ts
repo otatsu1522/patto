@@ -65,8 +65,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
   }
 
   /** この端末でこのユーザーとして使い始める（端末内DBを開き、状態を保存する）。 */
-  async function enter(identity: Identity) {
+  async function enter(identity: Identity, options: { seedTutorial?: boolean } = {}) {
     await useDataStore.getState().open(identity.userId, identity.userId);
+    // 新しく使い始めるときだけ、サンプルプロジェクト（TUTORIAL）を入れる
+    if (options.seedTutorial) await useDataStore.getState().seedTutorial();
     await persist(identity);
     set({ identity, status: identity.mode, needsReauth: false });
   }
@@ -138,7 +140,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
         });
         if (error) return { ok: false, message: mapAuthError(error) };
         if (!data.session || !data.user) return { ok: false, message: t('auth.error.signupFailed') };
-        await enter({ mode: 'account', userId: data.user.id, email: data.user.email ?? '', displayName: displayName.trim() });
+        await enter({ mode: 'account', userId: data.user.id, email: data.user.email ?? '', displayName: displayName.trim() }, { seedTutorial: true });
         return { ok: true };
       } catch (e) {
         return fail(e);
@@ -149,14 +151,14 @@ export const useAuthStore = create<AuthState>((set, get) => {
       const client = getSupabase();
       // Supabase 未設定: 端末内だけで使うゲスト
       if (!client) {
-        await enter({ mode: 'guest', userId: LOCAL_USER_ID, email: '', displayName: '', local: true });
+        await enter({ mode: 'guest', userId: LOCAL_USER_ID, email: '', displayName: '', local: true }, { seedTutorial: true });
         return { ok: true };
       }
       try {
         // 初回だけ通信して匿名ユーザーを作る。以降はオフラインでも使える
         const { data, error } = await client.auth.signInAnonymously();
         if (error || !data.user) return { ok: false, message: mapAuthError(error) };
-        await enter({ mode: 'guest', userId: data.user.id, email: '', displayName: '' });
+        await enter({ mode: 'guest', userId: data.user.id, email: '', displayName: '' }, { seedTutorial: true });
         return { ok: true };
       } catch (e) {
         return fail(e);
