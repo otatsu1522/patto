@@ -169,5 +169,5 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   edge: { position: 'absolute', left: 0, bottom: 0, width: EDGE_WIDTH, zIndex: 5 },
   backdrop: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, zIndex: 10 },
-  drawer: { position: 'absolute', left: 0, top: 0, bottom: 0, zIndex: 11 },
+  drawer: { position: 'absolute', left: 0, top: 0, bottom: 0, zIndex: 11, flexDirection: 'row' },
 });

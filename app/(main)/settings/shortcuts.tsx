@@ -88,7 +88,7 @@ export default function ShortcutSettings() {
                         accessibilityRole="button"
                         accessibilityLabel={`${t('settings.shortcutsRemove')}: ${displayKey(k)}`}
                         onPress={() => setKeys(a.id, bindings[a.id].filter((x) => x !== k))}
-                        style={[styles.key, { borderColor: colors.border, backgroundColor: colors.column }]}
+                        style={[styles.key, { borderColor: colors.border, backgroundColor: colors.hover }]}
                       >
                         <AppText variant="caption" bold>
                           {displayKey(k)}

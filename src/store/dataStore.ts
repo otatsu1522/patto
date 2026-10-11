@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { DEFAULT_COLUMNS } from '@/config/defaults';
-import { TUTORIAL_PROJECT_TITLE, TUTORIAL_TASKS } from '@/config/tutorial';
+import { TUTORIAL_PROJECT_COLOR, TUTORIAL_PROJECT_TITLE, TUTORIAL_TASKS } from '@/config/tutorial';
 import { LIMITS } from '@/config/limits';
 import { openLocalDb } from '@/db/sqliteDb';
 import type { LocalDb } from '@/db/types';
@@ -128,7 +128,7 @@ export const useDataStore = create<DataState>((set, get) => {
       const col = buildColumn(
         owner(),
         ts,
-        { projectId, title: t(def.titleKey), isDoneColumn: def.isDone },
+        { projectId, title: t(def.titleKey), isDoneColumn: def.isDone, color: def.color },
         keyForIndex(prev ? [{ id: 'p', sortKey: prev }] : [], 1),
       );
       prev = col.sortKey;
@@ -441,7 +441,7 @@ export const useDataStore = create<DataState>((set, get) => {
       await d.setMeta('tutorialSeeded', '1');
       if (get().projects.length > 0) return;
       const ts = now();
-      const project = buildProject(owner(), ts, { title: t(TUTORIAL_PROJECT_TITLE) }, keyAtEnd([]));
+      const project = buildProject(owner(), ts, { title: t(TUTORIAL_PROJECT_TITLE), color: TUTORIAL_PROJECT_COLOR }, keyAtEnd([]));
       const columns = seedColumns(project.id, ts);
       const tasks: Task[] = [];
       columns.forEach((column, ci) => {

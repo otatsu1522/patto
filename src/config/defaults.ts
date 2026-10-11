@@ -1,11 +1,12 @@
+import type { TaskColorKey } from '@/theme/taskColors';
 import type { FontScaleKey } from './layout';
 
 /** 新規プロジェクト作成時に自動で作るカンバン（タイトルは i18n のキー）。 */
 export const DEFAULT_COLUMNS = [
-  { titleKey: 'defaults.column.todo', isDone: false },
-  { titleKey: 'defaults.column.doing', isDone: false },
-  { titleKey: 'defaults.column.done', isDone: true },
-] as const;
+  { titleKey: 'defaults.column.todo', isDone: false, color: 'blue' },
+  { titleKey: 'defaults.column.doing', isDone: false, color: 'orange' },
+  { titleKey: 'defaults.column.done', isDone: true, color: 'green' },
+] as const satisfies readonly { titleKey: string; isDone: boolean; color: TaskColorKey }[];
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type SyncMode = 'off' | 'manual' | 'auto';

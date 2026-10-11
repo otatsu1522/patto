@@ -28,7 +28,7 @@ export const IconButton = ({ icon, label, onPress, size = 22, color, disabled, s
       hitSlop={4}
       style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
         styles.base,
-        { width: box, height: box, backgroundColor: pressed || hovered ? colors.column : 'transparent', opacity: disabled ? 0.4 : 1 },
+        { width: box, height: box, backgroundColor: pressed || hovered ? colors.hover : 'transparent', opacity: disabled ? 0.4 : 1 },
         style,
       ]}
     >

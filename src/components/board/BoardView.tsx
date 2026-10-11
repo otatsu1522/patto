@@ -2,7 +2,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRe
 import { Animated, Keyboard, Pressable, ScrollView, StyleSheet, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { BOARD, GESTURE } from '@/config/layout';
 import type { KanbanColumn, Task } from '@/domain/types';
-import { boardGeometry, columnIndexAt, useLayoutMode } from '@/hooks/useLayout';
+import { adjacentOffset, boardGeometry, columnIndexAt, nearestOffsetIndex, useLayoutMode } from '@/hooks/useLayout';
 import { t } from '@/i18n';
 import type { Cursor } from '@/shortcuts/cursor';
 import { RADIUS, SHADOW, SPACING, useTheme } from '@/theme';
@@ -28,7 +28,7 @@ interface Props {
   /** ドラッグで落としたとき。favorite は落とした位置（お気に入りの横線の上か下か） */
   onTaskDrop: (task: Task, target: KanbanColumn, favorite: boolean) => void;
   onColumnDrop: (column: KanbanColumn, toIndex: number) => void;
-  onAddTask: (column: KanbanColumn, title: string) => void;
+  onAddTask: (column: KanbanColumn) => void;
   onRefresh?: () => Promise<void>;
 }
 
@@ -61,31 +61,26 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
   const dividers = useRef(new Map<string, () => Promise<number | null>>());
   const pos = useRef(new Animated.ValueXY()).current;
 
-  const geo = useMemo(() => boardGeometry(size.width, mode), [size.width, mode]);
-  const contentWidth = geo.padding * 2 + geo.columnWidth * columns.length + BOARD.columnGap * Math.max(0, columns.length - 1);
-  const maxScroll = Math.max(0, contentWidth - size.width);
+  const geo = useMemo(() => boardGeometry(size.width, mode, columns.length), [size.width, mode, columns.length]);
 
   const registerDivider = useCallback((columnId: string, measure: (() => Promise<number | null>) | null) => {
     if (measure) dividers.current.set(columnId, measure);
     else dividers.current.delete(columnId);
   }, []);
 
-  const scrollToX = useCallback(
-    (x: number) => {
-      scrollRef.current?.scrollTo({ x: Math.max(0, Math.min(x, maxScroll)), animated: true });
-    },
-    [maxScroll],
-  );
+  const scrollToX = useCallback((x: number) => {
+    scrollRef.current?.scrollTo({ x: Math.max(0, x), animated: true });
+  }, []);
 
+  /** 指定のカンバンが見える位置までスクロールする */
   const scrollToColumn = useCallback(
     (index: number) => {
-      if (geo.snap) return scrollToX(index * geo.step);
-      const left = geo.padding + index * geo.step;
-      const right = left + geo.columnWidth;
-      if (left < scrollXRef.current) scrollToX(left - geo.padding);
-      else if (right > scrollXRef.current + size.width) scrollToX(right - size.width + geo.padding);
+      const current = nearestOffsetIndex(geo.offsets, scrollXRef.current);
+      if (geo.compact) return scrollToX(geo.offsets[Math.min(index, geo.offsets.length - 1)] ?? 0);
+      if (index < current) scrollToX(geo.offsets[index] ?? 0);
+      else if (index > current + geo.visible - 1) scrollToX(geo.offsets[Math.min(index - geo.visible + 1, geo.offsets.length - 1)] ?? 0);
     },
-    [geo, scrollToX, size.width],
+    [geo, scrollToX],
   );
 
   useImperativeHandle(ref, () => ({ scrollToColumn }), [scrollToColumn]);
@@ -170,21 +165,23 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
         return;
       }
       if (now - edge.current.since >= GESTURE.edgeDwellMs) {
-        scrollToX(scrollXRef.current + side * geo.step);
+        const next = adjacentOffset(geo.offsets, scrollXRef.current, side);
+        if (next !== null) scrollToX(next);
         edge.current = { side, since: now };
         setTimeout(updateHover, 350);
       }
     }, 100);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dragInfo, size.width, geo.step]);
+  }, [dragInfo, size.width, geo.offsets]);
 
   const taskDragHandlers = (task: Task): DragHandlers => ({ begin: (x, y) => begin({ kind: 'task', task }, x, y), move, end });
   const columnDragHandlers = (column: KanbanColumn): DragHandlers => ({ begin: (x, y) => begin({ kind: 'column', column }, x, y), move, end });
 
-  const page = geo.snap && geo.step > 0 ? Math.round(scrollX / geo.step) : 0;
-  const showButtons = !geo.snap && columns.length > geo.visible;
-  const columnHeight = Math.max(0, size.height - (geo.snap && columns.length > 1 ? 32 : 0) - BOARD.boardPadding * 2);
+  const page = nearestOffsetIndex(geo.offsets, scrollX);
+  const showButtons = geo.peek > 0;
+  const maxOffset = geo.offsets[geo.offsets.length - 1] ?? 0;
+  const columnHeight = Math.max(0, size.height - (geo.compact && columns.length > 1 ? 32 : 0) - BOARD.boardPadding * 2);
 
   return (
     <View ref={containerRef} style={styles.fill} onLayout={onLayout} collapsable={false}>
@@ -195,12 +192,11 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
           <ScrollView
             ref={scrollRef}
             horizontal
-            snapToInterval={geo.snap ? geo.step : undefined}
-            snapToAlignment="start"
+            snapToOffsets={geo.offsets.length > 1 ? geo.offsets : undefined}
             decelerationRate="fast"
-            disableIntervalMomentum={geo.snap}
-            showsHorizontalScrollIndicator={!geo.snap}
-            persistentScrollbar={!geo.snap}
+            disableIntervalMomentum={geo.compact}
+            showsHorizontalScrollIndicator={!geo.compact}
+            persistentScrollbar={!geo.compact}
             indicatorStyle={isDark ? 'white' : 'black'}
             onScroll={onScroll}
             onScrollBeginDrag={blurInputs}
@@ -227,7 +223,7 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                 menuItems={props.menuItemsFor(column, index)}
                 taskMenu={props.taskMenuFor}
                 onAdvance={props.onAdvance}
-                onAddTask={(title) => props.onAddTask(column, title)}
+                onAddTask={() => props.onAddTask(column)}
                 taskDrag={taskDragHandlers}
                 columnDrag={columnDragHandlers(column)}
                 registerDivider={registerDivider}
@@ -240,22 +236,34 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
           {showButtons ? (
             <>
               {scrollX > 1 ? (
-                <View pointerEvents="box-none" style={[styles.navBtn, styles.navLeft]}>
-                  <IconButton icon="left" label={t('board.prev')} onPress={() => scrollToX(scrollXRef.current - geo.step)} style={{ ...SHADOW.float, backgroundColor: colors.surface }} />
+                <View pointerEvents="box-none" style={[styles.navBtn, styles.navLeft, { width: geo.peek }]}>
+                  <IconButton
+                    icon="left"
+                    label={t('board.prev')}
+                    box={34}
+                    onPress={() => scrollToX(adjacentOffset(geo.offsets, scrollXRef.current, -1) ?? 0)}
+                    style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }}
+                  />
                 </View>
               ) : null}
-              {scrollX < maxScroll - 1 ? (
-                <View pointerEvents="box-none" style={[styles.navBtn, styles.navRight]}>
-                  <IconButton icon="right" label={t('board.next')} onPress={() => scrollToX(scrollXRef.current + geo.step)} style={{ ...SHADOW.float, backgroundColor: colors.surface }} />
+              {scrollX < maxOffset - 1 ? (
+                <View pointerEvents="box-none" style={[styles.navBtn, styles.navRight, { width: geo.peek }]}>
+                  <IconButton
+                    icon="right"
+                    label={t('board.next')}
+                    box={34}
+                    onPress={() => scrollToX(adjacentOffset(geo.offsets, scrollXRef.current, 1) ?? maxOffset)}
+                    style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }}
+                  />
                 </View>
               ) : null}
             </>
           ) : null}
 
-          {geo.snap && columns.length > 1 ? (
+          {geo.compact && columns.length > 1 ? (
             <View style={styles.dots}>
               {columns.map((c, i) => (
-                <Pressable key={c.id} accessibilityRole="button" accessibilityLabel={c.title} onPress={() => scrollToX(i * geo.step)} hitSlop={8}>
+                <Pressable key={c.id} accessibilityRole="button" accessibilityLabel={c.title} onPress={() => scrollToX(geo.offsets[i] ?? 0)} hitSlop={8}>
                   <View style={[styles.dot, { backgroundColor: i === page ? colors.text : colors.border }]} />
                 </Pressable>
               ))}
@@ -287,7 +295,7 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  navBtn: { position: 'absolute', top: 0, bottom: 0, justifyContent: 'center' },
+  navBtn: { position: 'absolute', top: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' },
   navLeft: { left: 2 },
   navRight: { right: 2 },
   dots: { height: 32, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.sm, position: 'absolute', bottom: 0, left: 0, right: 0 },

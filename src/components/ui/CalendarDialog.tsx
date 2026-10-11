@@ -80,7 +80,7 @@ export function CalendarDialog({ visible, value, onClose, onSelect }: Props) {
                 style={({ hovered }: { pressed: boolean; hovered?: boolean }) => [
                   styles.cell,
                   {
-                    backgroundColor: isSelected ? colors.primary : hovered ? colors.column : 'transparent',
+                    backgroundColor: isSelected ? colors.primary : hovered ? colors.hover : 'transparent',
                     borderColor: isToday ? colors.accent : 'transparent',
                   },
                 ]}

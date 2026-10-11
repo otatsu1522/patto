@@ -6,6 +6,12 @@ import { useSettingsStore } from '@/store/settingsStore';
 import { darkPalette, lightPalette, type Palette } from './palette';
 import { TASK_COLORS, TASK_COLORS_DARK, type TaskColorKey } from './taskColors';
 
+import {
+  DarkTheme as NavigationDarkTheme,
+  DefaultTheme as NavigationDefaultTheme,
+  ThemeProvider as NavigationThemeProvider,
+} from 'expo-router';
+
 export { FONT, RADIUS, SHADOW, SPACING } from './tokens';
 
 interface Theme {
@@ -44,8 +50,8 @@ function useNavigationBar(isDark: boolean) {
   useEffect(() => {
     if (Platform.OS !== 'android') return;
     try {
-      // 暗い画面なら「暗いバー+明るいボタン」、明るい画面なら「明るいバー+暗いボタン」
-      NavigationBar.setStyle(isDark ? 'dark' : 'light');
+      // style はボタンの色。暗い画面なら明るいボタン('light')、明るい画面なら暗いボタン('dark')
+      NavigationBar.setStyle(isDark ? 'light' : 'dark');
     } catch {
       /* 未対応の端末では何もしない */
     }
@@ -70,10 +76,32 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     };
   }, [mode, system, scaleKey]);
 
+  // 画面遷移（ナビゲーション）の背景色などもテーマに合わせる。合わせないとOS標準の背景色になる。
+  const navigationTheme = useMemo(() => {
+    const base = value.isDark ? NavigationDarkTheme : NavigationDefaultTheme;
+    return {
+      ...base,
+      dark: value.isDark,
+      colors: {
+        ...base.colors,
+        primary: value.colors.accent,
+        background: value.colors.bg,
+        card: value.colors.surface,
+        text: value.colors.text,
+        border: value.colors.border,
+        notification: value.colors.danger,
+      },
+    };
+  }, [value]);
+
   useWebChrome(value.isDark, value.colors);
   useNavigationBar(value.isDark);
 
-  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+  return (
+    <NavigationThemeProvider value={navigationTheme}>
+      <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
+    </NavigationThemeProvider>
+  );
 }
 
 export function useTheme(): Theme {

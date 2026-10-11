@@ -35,7 +35,7 @@ export function SearchResults({ results, projects, columns, onPress }: Props) {
             onPress={() => onPress(task)}
             style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
               styles.item,
-              { borderBottomColor: colors.border, backgroundColor: pressed || hovered ? colors.column : 'transparent' },
+              { borderBottomColor: colors.divider, backgroundColor: pressed || hovered ? colors.hover : 'transparent' },
             ]}
           >
             <AppText variant="caption" muted numberOfLines={1}>

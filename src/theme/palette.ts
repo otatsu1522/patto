@@ -1,4 +1,7 @@
-/** 配色トークン。色を変えるときはこのファイルだけ編集する。白黒ベース（ライト=白、ダーク=黒）。 */
+/**
+ * 配色トークン。色を変えるときはこのファイルだけ編集する。白黒ベース（ライト=白、ダーク=黒）。
+ * 背景（bg / surface / column）は同色にして、境界は border で区切る。将来グレーなどに変えるときは各値を変える。
+ */
 export interface Palette {
   /** 画面の背景 */
   bg: string;
@@ -7,6 +10,10 @@ export interface Palette {
   /** カンバンの背景 */
   column: string;
   border: string;
+  /** 区切り線（横線・縦線）。いまは border と同じ値。変えると区切り線だけの色を変えられる */
+  divider: string;
+  /** ホバー・押下・選択中の行の背景 */
+  hover: string;
   text: string;
   textMuted: string;
   /** 主ボタンの色（文字色の反転と同じ） */
@@ -30,10 +37,12 @@ export interface Palette {
 }
 
 export const lightPalette: Palette = {
-  bg: '#F5F5F5',
+  bg: '#FFFFFF',
   surface: '#FFFFFF',
-  column: '#EBEBEB',
+  column: '#FFFFFF',
   border: '#D4D4D4',
+  divider: '#D4D4D4',
+  hover: '#F0F0F0',
   text: '#111111',
   textMuted: '#616161',
   primary: '#111111',
@@ -53,10 +62,12 @@ export const lightPalette: Palette = {
 };
 
 export const darkPalette: Palette = {
-  bg: '#1A1A1A',
+  bg: '#000000',
   surface: '#000000',
-  column: '#262626',
+  column: '#000000',
   border: '#3A3A3A',
+  divider: '#3A3A3A',
+  hover: '#1F1F1F',
   text: '#F2F2F2',
   textMuted: '#A8A8A8',
   primary: '#F2F2F2',

@@ -7,6 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/auth/authStore';
 import { isSupabaseConfigured } from '@/config/env';
 import { FeedbackProvider } from '@/components/ui/FeedbackProvider';
+import { MenuProvider } from '@/components/ui/MenuHost';
 import { autoPurgeLocal } from '@/features/maintenance';
 import { nowMs } from '@/lib/clock';
 import { useDataStore } from '@/store/dataStore';
@@ -82,10 +83,10 @@ function Boot() {
     );
   }
   return (
-    <>
+    <MenuProvider>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <Slot />
-    </>
+    </MenuProvider>
   );
 }
 

@@ -202,6 +202,7 @@ export default function ProjectScreen() {
   const sortLabel = (m: ColumnSortMode) => `${t('column.sortMode')}: ${t(m === 'updated' ? 'column.sort.updated' : m === 'manual' ? 'column.sort.manual' : 'column.sort.due')}`;
   const columnMenu = (column: KanbanColumn, index: number): MenuItem[] => [
     { label: t('column.rename'), icon: 'edit', onPress: () => setColumnDialog({ column }) },
+    { label: t('task.add'), icon: 'add', onPress: () => openCreateTask(column.id) },
     { label: t('column.moveLeft'), icon: 'left', disabled: index === 0, onPress: () => void store.moveColumn(column.id, index - 1) },
     { label: t('column.moveRight'), icon: 'right', disabled: index === cols.length - 1, onPress: () => void store.moveColumn(column.id, index + 1) },
     ...(['updated', 'manual', 'due'] as ColumnSortMode[]).map((m, i) => ({
@@ -263,7 +264,7 @@ export default function ProjectScreen() {
           onAdvance={(task) => void actions.advance(task)}
           onTaskDrop={(task, target, favorite) => void actions.dropTask(task, target, favorite)}
           onColumnDrop={(column, toIndex) => void store.moveColumn(column.id, toIndex)}
-          onAddTask={(column, title) => void store.createTask({ projectId: project.id, columnId: column.id, title })}
+          onAddTask={(column) => openCreateTask(column.id)}
           onRefresh={syncEnabled ? async () => void (await syncNow()) : undefined}
         />
 

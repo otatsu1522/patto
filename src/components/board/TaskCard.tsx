@@ -57,7 +57,7 @@ export function TaskCard({ task, done, compact, isLast, canAdvance, focused, gra
           borderWidth: focused ? 2 : 1,
           opacity: dragging ? 0.35 : 1,
         },
-        grabbed && { backgroundColor: colors.column, borderStyle: 'dashed' },
+        grabbed && { backgroundColor: colors.hover, borderStyle: 'dashed' },
       ]}
     >
       <DropdownMenu
@@ -107,10 +107,10 @@ export function TaskCard({ task, done, compact, isLast, canAdvance, focused, gra
           }}
           style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
             styles.advance,
-            { borderLeftColor: colors.border, backgroundColor: pressed || hovered ? colors.column : 'transparent' },
+            { backgroundColor: pressed || hovered ? colors.hover : 'transparent' },
           ]}
         >
-          <Icon name={isLast ? 'uturn' : 'forward'} size={26} color={colors.textMuted} />
+          <Icon name={isLast ? 'uturn' : 'forward'} size={20} color={colors.textMuted} />
         </Pressable>
       ) : null}
     </View>
@@ -120,11 +120,11 @@ export function TaskCard({ task, done, compact, isLast, canAdvance, focused, gra
 const styles = StyleSheet.create({
   card: { flexDirection: 'row', alignItems: 'stretch', minHeight: 76 },
   anchor: { flex: 1 },
-  body: { flex: 1, paddingVertical: SPACING.md + 2, paddingLeft: SPACING.lg, paddingRight: SPACING.md, gap: SPACING.xs + 2, cursor: 'grab' } as never,
+  body: { flex: 1, paddingVertical: SPACING.md + 2, paddingLeft: SPACING.lg, paddingRight: SPACING.sm, gap: SPACING.xs + 2, cursor: 'grab' } as never,
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   title: { flexShrink: 1 },
   dot: { width: 12, height: 12, borderRadius: 6 },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  advance: { width: 60, alignItems: 'center', justifyContent: 'center', borderLeftWidth: StyleSheet.hairlineWidth },
+  advance: { width: 36, alignItems: 'center', justifyContent: 'center' },
   done: { textDecorationLine: 'line-through', opacity: 0.6 },
 });

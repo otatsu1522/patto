@@ -4,6 +4,7 @@ import { LIMITS } from '@/config/limits';
 import { formatDue, parseDue } from '@/domain/due';
 import type { Task } from '@/domain/types';
 import { firstError, validateMaxLength, validateTitle } from '@/domain/validation';
+import { useFocusOnOpen } from '@/hooks/useFocusOnOpen';
 import { t } from '@/i18n';
 import { formatDateTime } from '@/lib/dates';
 import { SPACING, useTheme } from '@/theme';
@@ -13,7 +14,6 @@ import { Button } from '../ui/Button';
 import { CalendarDialog } from '../ui/CalendarDialog';
 import { ColorPicker } from '../ui/ColorPicker';
 import { Dialog } from '../ui/Dialog';
-import { DropdownMenu } from '../ui/DropdownMenu';
 import { useFeedback } from '../ui/FeedbackProvider';
 import { Icon } from '../ui/Icon';
 import { IconButton } from '../ui/IconButton';
@@ -52,6 +52,9 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
   const [due, setDue] = useState('');
   const [columnId, setColumnId] = useState(defaultColumnId);
   const [calendar, setCalendar] = useState(false);
+  const [options, setOptions] = useState(false);
+  const [selectOpen, setSelectOpen] = useState(false);
+  const titleInput = useFocusOnOpen(visible);
   const [submitted, setSubmitted] = useState(false);
 
   const initialColumn = task?.columnId ?? defaultColumnId;
@@ -64,6 +67,8 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
     setDue(dueText(task));
     setColumnId(initialColumn);
     setCalendar(false);
+    setOptions(false);
+    setSelectOpen(false);
     setSubmitted(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, task?.id]);
@@ -104,44 +109,80 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
         onClose={requestClose}
         footer={<Button label={t('common.confirm')} onPress={submit} fullWidth />}
       >
-        <TextField label={t('task.title')} value={title} onChangeText={setTitle} error={titleError} autoFocus onSubmitEditing={submit} returnKeyType="done" />
-        <TextField label={t('task.description')} value={description} onChangeText={setDescription} error={descError} lines={4} />
-        <ColorPicker label={t('task.color')} value={color} onChange={setColor} />
+        <TextField label={t('task.title')} value={title} onChangeText={setTitle} error={titleError} ref={titleInput} onSubmitEditing={submit} returnKeyType="done" />
 
-        <View style={styles.dueRow}>
-          <View style={styles.flex}>
-            <TextField label={t('task.due')} value={due} onChangeText={setDue} placeholder={t('task.dueHint')} error={dueError} autoCapitalize="none" autoCorrect={false} />
-          </View>
-          <IconButton icon="calendar" label={t('task.dueOpen')} onPress={() => setCalendar(true)} style={styles.dueButton} />
-        </View>
-
-        <View style={styles.field}>
-          <AppText variant="label" muted>
-            {t('task.column')}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={options ? t('task.optionsHide') : t('task.options')}
+          onPress={() => setOptions((v) => !v)}
+          style={styles.optionsToggle}
+        >
+          <AppText muted bold>
+            {t('task.options')}
           </AppText>
-          <DropdownMenu
-            anchorStyle={styles.flex}
-            items={columns.map((c) => ({ label: c.title, icon: c.id === columnId ? 'check' : undefined, onPress: () => setColumnId(c.id) }))}
-            trigger={(open) => (
-              <Pressable accessibilityRole="button" accessibilityLabel={t('task.column')} onPress={open} style={[styles.select, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+          <Icon name={options ? 'up' : 'down'} size={20} color={colors.textMuted} />
+        </Pressable>
+
+        {options ? (
+          <>
+            <TextField label={t('task.description')} value={description} onChangeText={setDescription} error={descError} lines={4} />
+            <ColorPicker label={t('task.color')} value={color} onChange={setColor} />
+
+            <View style={styles.dueRow}>
+              <View style={styles.flex}>
+                <TextField label={t('task.due')} value={due} onChangeText={setDue} placeholder={t('task.dueHint')} error={dueError} autoCapitalize="none" autoCorrect={false} />
+              </View>
+              <IconButton icon="calendar" label={t('task.dueOpen')} onPress={() => setCalendar(true)} style={styles.dueButton} />
+            </View>
+
+            <View style={styles.field}>
+              <AppText variant="label" muted>
+                {t('task.column')}
+              </AppText>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('task.column')}
+                onPress={() => setSelectOpen((v) => !v)}
+                style={[styles.select, { borderColor: colors.border, backgroundColor: colors.surface }]}
+              >
                 <AppText style={styles.flex} numberOfLines={1}>
                   {currentColumn?.title ?? ''}
                 </AppText>
-                <Icon name="down" size={18} color={colors.textMuted} />
+                <Icon name={selectOpen ? 'up' : 'down'} size={18} color={colors.textMuted} />
               </Pressable>
-            )}
-          />
-        </View>
+              {selectOpen ? (
+                <View style={[styles.list, { borderColor: colors.border }]}>
+                  {columns.map((c) => (
+                    <Pressable
+                      key={c.id}
+                      accessibilityRole="button"
+                      onPress={() => {
+                        setColumnId(c.id);
+                        setSelectOpen(false);
+                      }}
+                      style={({ hovered }: { pressed: boolean; hovered?: boolean }) => [styles.option, { backgroundColor: hovered ? colors.hover : 'transparent' }]}
+                    >
+                      <View style={styles.checkSlot}>{c.id === columnId ? <Icon name="check" size={18} /> : null}</View>
+                      <AppText numberOfLines={1} style={styles.flex}>
+                        {c.title}
+                      </AppText>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+            </View>
 
-        {task ? (
-          <View style={styles.dates}>
-            <AppText variant="caption" muted>
-              {t('task.createdAt')}: {formatDateTime(task.createdAt)}
-            </AppText>
-            <AppText variant="caption" muted>
-              {t('task.updatedAt')}: {formatDateTime(task.updatedAt)}
-            </AppText>
-          </View>
+            {task ? (
+              <View style={styles.dates}>
+                <AppText variant="caption" muted>
+                  {t('task.createdAt')}: {formatDateTime(task.createdAt)}
+                </AppText>
+                <AppText variant="caption" muted>
+                  {t('task.updatedAt')}: {formatDateTime(task.updatedAt)}
+                </AppText>
+              </View>
+            ) : null}
+          </>
         ) : null}
       </Dialog>
 
@@ -164,5 +205,9 @@ const styles = StyleSheet.create({
   dueButton: { marginBottom: 2 },
   field: { gap: SPACING.xs },
   select: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, borderWidth: 1, paddingHorizontal: SPACING.md, minHeight: 44 },
+  list: { borderWidth: 1 },
+  option: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, minHeight: 44, paddingHorizontal: SPACING.md },
+  checkSlot: { width: 22, alignItems: 'center' },
+  optionsToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44 },
   dates: { gap: 2, alignItems: 'flex-end' },
 });

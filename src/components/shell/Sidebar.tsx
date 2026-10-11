@@ -62,6 +62,16 @@ export function Sidebar({ width, topInset, bottomInset, onToggle, onNavigate }: 
   const favorites = list.filter((p) => p.isFavorite);
   const normals = list.filter((p) => !p.isFavorite);
   const archived = useMemo(() => archivedProjects(projects), [projects]);
+  // プロジェクトごとのタスク数（削除・アーカイブ済みは含めない。DONEモードのタスクは含める）
+  const taskCounts = useMemo(() => {
+    const liveColumns = new Set(columns.filter((c) => c.deletedAt === null).map((c) => c.id));
+    const counts = new Map<string, number>();
+    for (const task of tasks) {
+      if (task.deletedAt !== null || task.archivedAt !== null || !liveColumns.has(task.columnId)) continue;
+      counts.set(task.projectId, (counts.get(task.projectId) ?? 0) + 1);
+    }
+    return counts;
+  }, [columns, tasks]);
   const results = useMemo(() => searchTasks({ projects, columns, tasks }, query), [projects, columns, tasks, query]);
   const currentId = pathname.startsWith('/project/') ? pathname.split('/')[2] : null;
 
@@ -83,11 +93,14 @@ export function Sidebar({ width, topInset, bottomInset, onToggle, onNavigate }: 
   };
 
   const row = (p: Project) => (
-    <View key={p.id} style={[styles.item, { backgroundColor: currentId === p.id ? colors.column : 'transparent' }]}>
+    <View key={p.id} style={[styles.item, { backgroundColor: currentId === p.id ? colors.hover : 'transparent' }]}>
       <Pressable accessibilityRole="button" onPress={() => open(p.id)} style={styles.itemMain}>
         <View style={[styles.dot, { backgroundColor: p.color ? taskColor(p.color) : 'transparent', borderColor: p.color ? 'transparent' : colors.border }]} />
         <AppText numberOfLines={1} ellipsizeMode="tail" bold={currentId === p.id} style={styles.flex}>
           {p.title}
+        </AppText>
+        <AppText variant="caption" muted>
+          {t('column.taskCount', { count: taskCounts.get(p.id) ?? 0 })}
         </AppText>
       </Pressable>
       <DropdownMenu
@@ -113,7 +126,7 @@ export function Sidebar({ width, topInset, bottomInset, onToggle, onNavigate }: 
         </AppText>
       </View>
 
-      <View style={[styles.search, { borderBottomColor: colors.border }]}>
+      <View style={[styles.search, { borderBottomColor: colors.divider }]}>
         <Icon name="search" size={18} color={colors.textMuted} />
         <TextInput
           ref={searchRef}
@@ -149,7 +162,7 @@ export function Sidebar({ width, topInset, bottomInset, onToggle, onNavigate }: 
               </AppText>
             ) : null}
             {favorites.map(row)}
-            {favorites.length > 0 && normals.length > 0 ? <View style={[styles.divider, { backgroundColor: colors.textMuted }]} /> : null}
+            {favorites.length > 0 && normals.length > 0 ? <View style={[styles.divider, { backgroundColor: colors.divider }]} /> : null}
             {normals.map(row)}
 
             <Pressable
@@ -158,10 +171,10 @@ export function Sidebar({ width, topInset, bottomInset, onToggle, onNavigate }: 
                 useUiStore.getState().requestNewProject();
                 onNavigate();
               }}
-              style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [styles.itemMain, { backgroundColor: pressed || hovered ? colors.column : 'transparent' }]}
+              style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [styles.itemMain, { backgroundColor: pressed || hovered ? colors.hover : 'transparent' }]}
             >
-              <Icon name="add" size={20} color={colors.accent} />
-              <AppText color={colors.accent} bold numberOfLines={1} style={styles.flex}>
+              <Icon name="add" size={20} color={colors.textMuted} />
+              <AppText muted numberOfLines={1} style={styles.flex}>
                 {t('menu.newProject')}
               </AppText>
             </Pressable>
@@ -181,7 +194,8 @@ export function Sidebar({ width, topInset, bottomInset, onToggle, onNavigate }: 
         )}
       </ScrollView>
 
-      <View style={[styles.footer, { borderTopColor: colors.border }]}>
+      <View style={[styles.rule, { backgroundColor: colors.divider }]} />
+      <View style={styles.footer}>
         <Pressable
           accessibilityRole="button"
           onPress={() => {
@@ -223,7 +237,7 @@ export function Sidebar({ width, topInset, bottomInset, onToggle, onNavigate }: 
 }
 
 const styles = StyleSheet.create({
-  root: { borderRightWidth: StyleSheet.hairlineWidth },
+  root: { borderRightWidth: StyleSheet.hairlineWidth, flexShrink: 0 },
   flex: { flex: 1 },
   brand: { flexDirection: 'row', alignItems: 'center', height: 56, paddingHorizontal: SPACING.sm, gap: SPACING.xs, marginBottom: SPACING.md },
   search: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginHorizontal: SPACING.lg, borderBottomWidth: StyleSheet.hairlineWidth, minHeight: 44, marginBottom: SPACING.sm },
@@ -235,7 +249,8 @@ const styles = StyleSheet.create({
   itemMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACING.md, minHeight: BOARD.touchTarget, paddingLeft: SPACING.lg, paddingRight: SPACING.sm },
   dot: { width: 12, height: 12, borderRadius: 6, borderWidth: 1 },
   divider: { height: 1, marginVertical: SPACING.xs, marginHorizontal: SPACING.lg },
+  rule: { height: 1, marginHorizontal: SPACING.lg },
   archiveToggle: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs, padding: SPACING.lg },
-  footer: { borderTopWidth: StyleSheet.hairlineWidth, paddingVertical: SPACING.xs },
+  footer: { paddingVertical: SPACING.xs },
   footerRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, minHeight: BOARD.touchTarget, paddingHorizontal: SPACING.lg },
 });

@@ -1,4 +1,5 @@
 import type { StringKey } from '@/i18n';
+import type { TaskColorKey } from '@/theme/taskColors';
 
 /**
  * 初回起動時に作るサンプルプロジェクト（TUTORIAL）。文言は i18n の tutorial.* で変更する。
@@ -10,6 +11,7 @@ interface TutorialTask {
 }
 
 export const TUTORIAL_PROJECT_TITLE: StringKey = 'defaults.tutorial.project';
+export const TUTORIAL_PROJECT_COLOR: TaskColorKey = 'red';
 
 export const TUTORIAL_TASKS: TutorialTask[][] = [
   // TODO: アプリの機能一覧

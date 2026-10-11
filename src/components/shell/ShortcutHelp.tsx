@@ -21,7 +21,7 @@ export function ShortcutHelp() {
           <AppText style={styles.label}>{t(a.labelKey)}</AppText>
           <View style={styles.keys}>
             {bindings[a.id].map((k) => (
-              <View key={k} style={[styles.key, { borderColor: colors.border, backgroundColor: colors.column }]}>
+              <View key={k} style={[styles.key, { borderColor: colors.border, backgroundColor: colors.hover }]}>
                 <AppText variant="caption" bold>
                   {displayKey(k)}
                 </AppText>

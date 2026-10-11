@@ -44,6 +44,7 @@ export const ICONS = {
   doneMode: 'checkmark-done-circle',
   forward: 'chevron-forward',
   down: 'chevron-down',
+  up: 'chevron-up',
 } as const satisfies Record<string, IconName>;
 
 export type IconKey = keyof typeof ICONS;

@@ -1,16 +1,25 @@
 /**
- * タスク・カンバン・プロジェクトの色パレット。キーはTrelloのラベル色名に合わせてある（インポート/エクスポート用）。
+ * タスク・カンバン・プロジェクトの色パレット（16色）。
  * ライトテーマは濃いめ、ダークテーマは明るめにして、どちらの背景でも見えるようにしている。
+ * キーの一部は Trello のラベル色名と同じ（インポート/エクスポート用）。
  */
 export const TASK_COLORS = {
   red: '#D93025',
   orange: '#E8710A',
-  yellow: '#F2B600',
+  amber: '#F29900',
+  yellow: '#E6B800',
+  lime: '#7CB305',
   green: '#188038',
+  teal: '#00897B',
   sky: '#129EAF',
   blue: '#1A73E8',
+  indigo: '#4F46E5',
   purple: '#9334E6',
   pink: '#D01884',
+  rose: '#E11D48',
+  brown: '#8D6E63',
+  gray: '#757575',
+  slate: '#37474F',
 } as const;
 
 export type TaskColorKey = keyof typeof TASK_COLORS;
@@ -18,12 +27,20 @@ export type TaskColorKey = keyof typeof TASK_COLORS;
 export const TASK_COLORS_DARK: Record<TaskColorKey, string> = {
   red: '#F28B82',
   orange: '#FCAD70',
+  amber: '#FDC269',
   yellow: '#FDD663',
+  lime: '#C0DD6C',
   green: '#81C995',
+  teal: '#6FD3C6',
   sky: '#78D9EC',
   blue: '#8AB4F8',
+  indigo: '#A5A0FF',
   purple: '#C58AF9',
   pink: '#FF8BCB',
+  rose: '#FF8FA8',
+  brown: '#BCAAA4',
+  gray: '#BDBDBD',
+  slate: '#CFD8DC',
 };
 
 export const TASK_COLOR_KEYS = Object.keys(TASK_COLORS) as TaskColorKey[];

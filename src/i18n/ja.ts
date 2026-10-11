@@ -55,7 +55,7 @@ export const ja = {
 
   // サイドバー・検索
   'menu.projects': 'プロジェクト',
-  'menu.newProject': '新しいプロジェクトを追加',
+  'menu.newProject': 'プロジェクトを追加',
   'menu.settings': '設定',
   'menu.search': 'すべてのタスクを検索',
   'menu.searchEmpty': '一致するタスクはありません',
@@ -97,7 +97,7 @@ export const ja = {
 
   // プロジェクト
   'project.create': 'プロジェクトを作成',
-  'project.edit': 'プロジェクトを編集',
+  'project.edit': 'プロジェクトの編集',
   'project.title': 'プロジェクト名',
   'project.description': '説明',
   'project.color': '色',
@@ -110,9 +110,9 @@ export const ja = {
   'project.copySuffix': ' のコピー',
 
   // カンバン
-  'column.new': '新しいカンバン',
+  'column.new': 'カンバンを追加',
   'column.create': 'カンバンを作成',
-  'column.rename': 'カンバンの名前を変更',
+  'column.rename': 'カンバンの編集',
   'column.title': 'カンバン名',
   'column.moveLeft': '左へ移動',
   'column.moveRight': '右へ移動',
@@ -137,7 +137,7 @@ export const ja = {
   'task.new': '新しいタスク',
   'task.add': 'タスクを追加',
   'task.addPlaceholder': 'タイトルを入力して追加',
-  'task.edit': 'タスクを編集',
+  'task.edit': 'タスクの編集',
   'task.create': 'タスクを作成',
   'task.title': 'タイトル',
   'task.description': '説明',
@@ -346,6 +346,8 @@ export const ja = {
   'tutorial.done1.desc': 'Patto へようこそ。',
   'tutorial.done2.title': 'TUTORIAL プロジェクトを開く',
   'tutorial.done2.desc': '',
+  'task.options': 'オプション',
+  'task.optionsHide': 'オプションを閉じる',
 } as const;
 
 export type StringKey = keyof typeof ja;

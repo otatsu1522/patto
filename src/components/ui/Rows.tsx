@@ -38,7 +38,7 @@ export function LinkRow({ label, onPress, icon, value, destructive, chevron = tr
       onPress={onPress}
       style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
         styles.row,
-        { backgroundColor: pressed || hovered ? colors.column : 'transparent', opacity: disabled ? 0.5 : 1 },
+        { backgroundColor: pressed || hovered ? colors.hover : 'transparent', opacity: disabled ? 0.5 : 1 },
       ]}
     >
       {icon ? <Icon name={icon} size={20} color={destructive ? colors.danger : colors.textMuted} /> : null}

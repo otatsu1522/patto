@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { LIMITS } from '@/config/limits';
 import type { KanbanColumn, Project } from '@/domain/types';
 import { validateTitle } from '@/domain/validation';
+import { useFocusOnOpen } from '@/hooks/useFocusOnOpen';
 import { t } from '@/i18n';
 import type { TaskColorKey } from '@/theme/taskColors';
 import { Button } from '../ui/Button';
@@ -21,6 +22,7 @@ export function ColumnDialog({ visible, column, onClose, onSubmit }: ColumnDialo
   const [title, setTitle] = useState('');
   const [color, setColor] = useState<TaskColorKey | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const titleInput = useFocusOnOpen(visible);
 
   useEffect(() => {
     if (!visible) return;
@@ -39,7 +41,7 @@ export function ColumnDialog({ visible, column, onClose, onSubmit }: ColumnDialo
 
   return (
     <Dialog visible={visible} title={column ? t('column.rename') : t('column.create')} onClose={onClose} footer={<Button label={t('common.confirm')} onPress={submit} fullWidth />}>
-      <TextField label={t('column.title')} value={title} onChangeText={setTitle} error={error} autoFocus onSubmitEditing={submit} returnKeyType="done" />
+      <TextField label={t('column.title')} value={title} onChangeText={setTitle} error={error} ref={titleInput} onSubmitEditing={submit} returnKeyType="done" />
       <ColorPicker label={t('column.color')} value={color} onChange={setColor} />
     </Dialog>
   );
@@ -57,6 +59,7 @@ export function ProjectDialog({ visible, project, onClose, onSubmit }: ProjectDi
   const [title, setTitle] = useState('');
   const [color, setColor] = useState<TaskColorKey | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const titleInput = useFocusOnOpen(visible);
 
   useEffect(() => {
     if (!visible) return;
@@ -75,7 +78,7 @@ export function ProjectDialog({ visible, project, onClose, onSubmit }: ProjectDi
 
   return (
     <Dialog visible={visible} title={project ? t('project.edit') : t('project.create')} onClose={onClose} footer={<Button label={t('common.confirm')} onPress={submit} fullWidth />}>
-      <TextField label={t('project.title')} value={title} onChangeText={setTitle} error={titleError} autoFocus onSubmitEditing={submit} returnKeyType="done" />
+      <TextField label={t('project.title')} value={title} onChangeText={setTitle} error={titleError} ref={titleInput} onSubmitEditing={submit} returnKeyType="done" />
       <ColorPicker label={t('project.color')} value={color} onChange={setColor} />
     </Dialog>
   );

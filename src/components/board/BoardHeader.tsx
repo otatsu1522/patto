@@ -63,7 +63,9 @@ export function BoardHeader({ title, right, search }: Props) {
           <AppText variant="title" numberOfLines={1} style={styles.title}>
             {title}
           </AppText>
-          <SyncIndicator />
+          <View style={styles.sync}>
+            <SyncIndicator />
+          </View>
         </View>
       )}
 
@@ -79,6 +81,7 @@ const styles = StyleSheet.create({
   side: { width: BOARD.touchTarget, alignItems: 'center', justifyContent: 'center' },
   center: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.xs, minWidth: 0 },
   title: { flexShrink: 1, textAlign: 'center' },
+  sync: { paddingTop: 4 },
   searchRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   searchInput: { flex: 1, height: 48, backgroundColor: 'transparent', outlineStyle: 'none' } as never,
 });
