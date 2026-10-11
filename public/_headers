@@ -1,0 +1,4 @@
+# Cloudflare Pages: すべてのページにヘッダーを付ける（expo-sqlite の Web 版に必要）
+/*
+  Cross-Origin-Embedder-Policy: credentialless
+  Cross-Origin-Opener-Policy: same-origin

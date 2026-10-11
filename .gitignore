@@ -1,0 +1,29 @@
+# 依存関係・生成物
+node_modules/
+.expo/
+dist/
+web-build/
+android/
+ios/
+*.tsbuildinfo
+
+# 秘密情報・環境ごとの設定（コミットしない）。.env.example だけは Git 管理する
+.env
+.env.local
+.env.*.local
+supabase/.env
+supabase/.temp/
+*.keystore
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+google-services.json
+GoogleService-Info.plist
+
+# OS・エディタ
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea/

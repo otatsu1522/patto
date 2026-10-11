@@ -1,0 +1,287 @@
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { Animated, Pressable, ScrollView, StyleSheet, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { BOARD, GESTURE } from '@/config/layout';
+import type { KanbanColumn, Task } from '@/domain/types';
+import { boardGeometry, columnIndexAt, useLayoutMode } from '@/hooks/useLayout';
+import { t } from '@/i18n';
+import type { Cursor } from '@/shortcuts/cursor';
+import { RADIUS, SHADOW, SPACING, useTheme } from '@/theme';
+import { AppText } from '../ui/AppText';
+import { EmptyState } from '../ui/EmptyState';
+import { IconButton } from '../ui/IconButton';
+import type { MenuItem } from '../ui/DropdownMenu';
+import { ColumnView } from './ColumnView';
+import type { DragHandlers } from './dragGesture';
+
+export interface BoardViewHandle {
+  scrollToColumn: (index: number) => void;
+}
+
+interface Props {
+  columns: KanbanColumn[];
+  tasksOf: (columnId: string) => Task[];
+  cursor: Cursor | null;
+  compactCards: boolean;
+  menuItemsFor: (column: KanbanColumn, index: number) => MenuItem[];
+  onTaskPress: (task: Task) => void;
+  onTaskMove: (task: Task, direction: -1 | 1) => void;
+  onTaskDrop: (task: Task, target: KanbanColumn) => void;
+  onColumnDrop: (column: KanbanColumn, toIndex: number) => void;
+  onAddTask: (column: KanbanColumn, title: string) => void;
+  onRefresh?: () => Promise<void>;
+}
+
+type DragInfo = { kind: 'task'; task: Task } | { kind: 'column'; column: KanbanColumn };
+
+/**
+ * カンバンを横に並べるボード。
+ * - スマホ縦: 1列表示でスワイプ（ページ送り）/ それ以外: 3列表示、4つ以上は横スクロール＋前後ボタン
+ * - 長押し（PCはドラッグ）でタスク・カンバンをつかんで移動。画面端に寄せると隣へスクロールする
+ */
+export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(props, ref) {
+  const { columns, tasksOf, cursor } = props;
+  const { colors } = useTheme();
+  const { mode } = useLayoutMode();
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  const [scrollX, setScrollX] = useState(0);
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const [dragInfo, setDragInfo] = useState<DragInfo | null>(null);
+
+  const scrollRef = useRef<ScrollView>(null);
+  const containerRef = useRef<View>(null);
+  const origin = useRef({ x: 0, y: 0 });
+  const scrollXRef = useRef(0);
+  const pointer = useRef({ x: 0, y: 0 });
+  const edge = useRef({ side: 0, since: 0 });
+  const dragRef = useRef<DragInfo | null>(null);
+  const hoverRef = useRef<number | null>(null);
+  const pos = useRef(new Animated.ValueXY()).current;
+
+  const geo = useMemo(() => boardGeometry(size.width, mode), [size.width, mode]);
+  const contentWidth =
+    mode === 'compact'
+      ? geo.step * columns.length
+      : BOARD.boardPadding * 2 + geo.columnWidth * columns.length + BOARD.columnGap * Math.max(0, columns.length - 1);
+  const maxScroll = Math.max(0, contentWidth - size.width);
+
+  const scrollToX = useCallback(
+    (x: number) => {
+      const clamped = Math.max(0, Math.min(x, maxScroll));
+      scrollRef.current?.scrollTo({ x: clamped, animated: true });
+    },
+    [maxScroll],
+  );
+
+  const scrollToColumn = useCallback(
+    (index: number) => {
+      if (geo.paging) return scrollToX(index * geo.step);
+      const left = BOARD.boardPadding + index * geo.step;
+      const right = left + geo.columnWidth;
+      if (left < scrollXRef.current) scrollToX(left - BOARD.boardPadding);
+      else if (right > scrollXRef.current + size.width) scrollToX(right - size.width + BOARD.boardPadding);
+    },
+    [geo, scrollToX, size.width],
+  );
+
+  useImperativeHandle(ref, () => ({ scrollToColumn }), [scrollToColumn]);
+
+  // キーボードのカーソルが画面外のカンバンに移ったら、そこまでスクロールする
+  useEffect(() => {
+    if (cursor && size.width > 0) scrollToColumn(cursor.columnIndex);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cursor?.columnIndex, size.width]);
+
+  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    scrollXRef.current = e.nativeEvent.contentOffset.x;
+    setScrollX(e.nativeEvent.contentOffset.x);
+  };
+
+  const onLayout = (e: LayoutChangeEvent) => {
+    setSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height });
+  };
+
+  // ---- ドラッグ ----
+  const updateHover = () => {
+    const idx = columnIndexAt(pointer.current.x, scrollXRef.current, geo, columns.length);
+    if (idx !== hoverRef.current) {
+      hoverRef.current = idx;
+      setHoverIndex(idx);
+    }
+  };
+
+  const begin = (info: DragInfo, absX: number, absY: number) => {
+    containerRef.current?.measureInWindow((x, y) => {
+      origin.current = { x, y };
+      pointer.current = { x: absX - x, y: absY - y };
+      pos.setValue({ x: absX - x, y: absY - y });
+      updateHover();
+    });
+    dragRef.current = info;
+    setDragInfo(info);
+    edge.current = { side: 0, since: 0 };
+  };
+
+  const move = (absX: number, absY: number) => {
+    pointer.current = { x: absX - origin.current.x, y: absY - origin.current.y };
+    pos.setValue(pointer.current);
+    updateHover();
+  };
+
+  const end = (cancelled: boolean) => {
+    const info = dragRef.current;
+    const idx = hoverRef.current;
+    dragRef.current = null;
+    hoverRef.current = null;
+    setDragInfo(null);
+    setHoverIndex(null);
+    if (!info || cancelled || idx === null) return;
+    const target = columns[idx];
+    if (!target) return;
+    if (info.kind === 'task') props.onTaskDrop(info.task, target);
+    else props.onColumnDrop(info.column, idx);
+  };
+
+  // 画面の左右端に一定時間留まると、隣のカンバンへスクロールする
+  useEffect(() => {
+    if (!dragInfo) return;
+    const timer = setInterval(() => {
+      const x = pointer.current.x;
+      const side = x < GESTURE.edgeZone ? -1 : x > size.width - GESTURE.edgeZone ? 1 : 0;
+      const now = Date.now();
+      if (side === 0) {
+        edge.current = { side: 0, since: 0 };
+        return;
+      }
+      if (edge.current.side !== side) {
+        edge.current = { side, since: now };
+        return;
+      }
+      if (now - edge.current.since >= GESTURE.edgeDwellMs) {
+        scrollToX(scrollXRef.current + side * geo.step);
+        edge.current = { side, since: now };
+        setTimeout(updateHover, 350);
+      }
+    }, 100);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dragInfo, size.width, geo.step]);
+
+  const taskDragHandlers = (task: Task): DragHandlers => ({
+    begin: (x, y) => begin({ kind: 'task', task }, x, y),
+    move,
+    end,
+  });
+  const columnDragHandlers = (column: KanbanColumn): DragHandlers => ({
+    begin: (x, y) => begin({ kind: 'column', column }, x, y),
+    move,
+    end,
+  });
+
+  const page = geo.paging && geo.step > 0 ? Math.round(scrollX / geo.step) : 0;
+  const showButtons = !geo.paging && columns.length > geo.visible;
+  const columnHeight = Math.max(0, size.height - (geo.paging && columns.length > 1 ? 32 : 0) - BOARD.boardPadding * 2);
+
+  return (
+    <View ref={containerRef} style={styles.fill} onLayout={onLayout} collapsable={false}>
+      {columns.length === 0 ? (
+        <EmptyState title={t('column.empty')} hint={t('column.emptyHint')} />
+      ) : size.width > 0 ? (
+        <>
+          <ScrollView
+            ref={scrollRef}
+            horizontal
+            pagingEnabled={geo.paging}
+            snapToInterval={geo.paging ? undefined : geo.step}
+            decelerationRate={geo.paging ? 'normal' : 'fast'}
+            showsHorizontalScrollIndicator={!geo.paging}
+            onScroll={onScroll}
+            scrollEventThrottle={16}
+            scrollEnabled={!dragInfo}
+            contentContainerStyle={{ paddingVertical: BOARD.boardPadding, paddingHorizontal: geo.paging ? 0 : BOARD.boardPadding, gap: geo.paging ? 0 : BOARD.columnGap }}
+          >
+            {columns.map((column, index) => {
+              const tasks = tasksOf(column.id);
+              const wrapStyle = geo.paging ? { width: geo.step, paddingHorizontal: BOARD.boardPadding } : undefined;
+              return (
+                <View key={column.id} style={wrapStyle}>
+                  <ColumnView
+                    column={column}
+                    tasks={tasks}
+                    index={index}
+                    count={columns.length}
+                    width={geo.columnWidth}
+                    height={columnHeight}
+                    compactCards={props.compactCards}
+                    cursorTaskIndex={cursor && cursor.columnIndex === index ? cursor.taskIndex : null}
+                    grabbed={!!cursor?.grabbed}
+                    dropTarget={dragInfo !== null && hoverIndex === index && !(dragInfo.kind === 'task' && dragInfo.task.columnId === column.id) && !(dragInfo.kind === 'column' && dragInfo.column.id === column.id)}
+                    draggingTaskId={dragInfo?.kind === 'task' ? dragInfo.task.id : null}
+                    draggingColumn={dragInfo?.kind === 'column' && dragInfo.column.id === column.id}
+                    menuItems={props.menuItemsFor(column, index)}
+                    onTaskPress={props.onTaskPress}
+                    onTaskMove={props.onTaskMove}
+                    onAddTask={(title) => props.onAddTask(column, title)}
+                    taskDrag={taskDragHandlers}
+                    columnDrag={columnDragHandlers(column)}
+                    onRefresh={props.onRefresh}
+                  />
+                </View>
+              );
+            })}
+          </ScrollView>
+
+          {showButtons ? (
+            <>
+              <View pointerEvents="box-none" style={[styles.navBtn, styles.navLeft]}>
+                <IconButton icon="left" label={t('board.prev')} onPress={() => scrollToX(scrollXRef.current - geo.step)} disabled={scrollX <= 0} style={{ ...styles.navInner, ...SHADOW.float, backgroundColor: colors.surface }} />
+              </View>
+              <View pointerEvents="box-none" style={[styles.navBtn, styles.navRight]}>
+                <IconButton icon="right" label={t('board.next')} onPress={() => scrollToX(scrollXRef.current + geo.step)} disabled={scrollX >= maxScroll - 1} style={{ ...styles.navInner, ...SHADOW.float, backgroundColor: colors.surface }} />
+              </View>
+            </>
+          ) : null}
+
+          {geo.paging && columns.length > 1 ? (
+            <View style={styles.dots}>
+              {columns.map((c, i) => (
+                <Pressable key={c.id} accessibilityRole="button" accessibilityLabel={c.title} onPress={() => scrollToX(i * geo.step)} hitSlop={8}>
+                  <View style={[styles.dot, { backgroundColor: i === page ? colors.primary : colors.border }]} />
+                </Pressable>
+              ))}
+              <AppText variant="caption" muted style={styles.pageText}>
+                {t('board.pageIndicator', { index: page + 1, total: columns.length })}
+              </AppText>
+            </View>
+          ) : null}
+        </>
+      ) : null}
+
+      {dragInfo ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.ghost,
+            SHADOW.float,
+            { backgroundColor: colors.surface, borderColor: colors.primary, transform: [{ translateX: Animated.subtract(pos.x, 70) }, { translateY: Animated.subtract(pos.y, 20) }] },
+          ]}
+        >
+          <AppText bold numberOfLines={2}>
+            {dragInfo.kind === 'task' ? dragInfo.task.title : dragInfo.column.title}
+          </AppText>
+        </Animated.View>
+      ) : null}
+    </View>
+  );
+});
+
+const styles = StyleSheet.create({
+  fill: { flex: 1 },
+  navBtn: { position: 'absolute', top: 0, bottom: 0, justifyContent: 'center' },
+  navLeft: { left: 2 },
+  navRight: { right: 2 },
+  navInner: { opacity: 0.95 },
+  dots: { height: 32, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.sm, position: 'absolute', bottom: 0, left: 0, right: 0 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  pageText: { marginLeft: SPACING.sm },
+  ghost: { position: 'absolute', left: 0, top: 0, width: 140, borderWidth: 2, borderRadius: RADIUS.md, padding: SPACING.sm, zIndex: 50 },
+});

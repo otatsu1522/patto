@@ -1,0 +1,13 @@
+{
+  "name": "Patto",
+  "slug": "patto",
+  "scheme": "patto",
+  "description": "オフラインでも使える、シンプルなカンバン式TODOアプリ",
+  "version": "1.0.0",
+  "license": "MIT",
+  "copyrightYear": "2026",
+  "copyrightHolder": "Patto",
+  "iosBundleId": "dev.patto.app",
+  "androidPackage": "dev.patto.app",
+  "links": { "terms": "", "privacy": "", "contact": "" }
+}
