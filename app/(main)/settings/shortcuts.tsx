@@ -11,6 +11,7 @@ import { SHORTCUT_ACTIONS, displayKey, findConflict, isModifierOnly, keyToString
 import { useSettingsStore } from '@/store/settingsStore';
 import { useUiStore } from '@/store/uiStore';
 import { RADIUS, SPACING, useTheme } from '@/theme';
+import { BORDER_WIDTH } from '@/theme/tokens';
 
 /** キーボードショートカットの確認・変更（Web版）。 */
 export default function ShortcutSettings() {
@@ -121,6 +122,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, paddingHorizontal: SPACING.lg, paddingVertical: SPACING.xs, minHeight: 52 },
   label: { flex: 1 },
   keys: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '55%' },
-  key: { minWidth: 30, paddingHorizontal: SPACING.sm, paddingVertical: 4, borderRadius: RADIUS.sm, borderWidth: 1, alignItems: 'center' },
+  key: { minWidth: 30, paddingHorizontal: SPACING.sm, paddingVertical: 4, borderRadius: RADIUS.sm, borderWidth: BORDER_WIDTH, alignItems: 'center' },
   capture: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.sm },
 });

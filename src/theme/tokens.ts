@@ -6,3 +6,6 @@ export const SHADOW = {
   card: { shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   float: { shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 8 },
 } as const;
+
+/** 線（枠線・区切り線・ヘッダー下の線）の太さ。すべての線をこの値にそろえる。 */
+export const BORDER_WIDTH = 1;

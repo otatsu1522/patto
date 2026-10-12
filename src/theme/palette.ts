@@ -21,6 +21,8 @@ export interface Palette {
   onPrimary: string;
   /** リンク・フォーカスなどの強調色（青） */
   accent: string;
+  /** 強調色の上に載せる文字色 */
+  onAccent: string;
   danger: string;
   onDanger: string;
   warning: string;
@@ -48,6 +50,7 @@ export const lightPalette: Palette = {
   primary: '#111111',
   onPrimary: '#FFFFFF',
   accent: '#0B57D0',
+  onAccent: '#FFFFFF',
   danger: '#C5221F',
   onDanger: '#FFFFFF',
   warning: '#8F5200',
@@ -73,6 +76,7 @@ export const darkPalette: Palette = {
   primary: '#F2F2F2',
   onPrimary: '#000000',
   accent: '#8AB4F8',
+  onAccent: '#000000',
   danger: '#F28B82',
   onDanger: '#000000',
   warning: '#FDD663',

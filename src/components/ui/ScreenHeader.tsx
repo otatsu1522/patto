@@ -4,6 +4,7 @@ import { t } from '@/i18n';
 import { SPACING, useTheme } from '@/theme';
 import { AppText } from './AppText';
 import { IconButton } from './IconButton';
+import { BORDER_WIDTH } from '@/theme/tokens';
 
 /** 設定画面などの上部バー（戻るボタン + タイトル）。 */
 export function ScreenHeader({ title, onBack }: { title: string; onBack?: () => void }) {
@@ -15,11 +16,13 @@ export function ScreenHeader({ title, onBack }: { title: string; onBack?: () => 
       <AppText variant="title" numberOfLines={1} style={styles.title}>
         {title}
       </AppText>
+      <View style={styles.spacer} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  bar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.sm, borderBottomWidth: StyleSheet.hairlineWidth, minHeight: 56 },
-  title: { flex: 1, marginLeft: SPACING.xs },
+  bar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.sm, borderBottomWidth: BORDER_WIDTH, minHeight: 56 },
+  title: { flex: 1, textAlign: 'center' },
+  spacer: { width: 44 },
 });

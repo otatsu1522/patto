@@ -1,6 +1,6 @@
 import * as NavigationBar from 'expo-navigation-bar';
 import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react';
-import { Platform, useColorScheme } from 'react-native';
+import { Appearance, Platform, useColorScheme } from 'react-native';
 import { FONT_SCALES } from '@/config/layout';
 import { useSettingsStore } from '@/store/settingsStore';
 import { darkPalette, lightPalette, type Palette } from './palette';
@@ -12,7 +12,7 @@ import {
   ThemeProvider as NavigationThemeProvider,
 } from 'expo-router';
 
-export { FONT, RADIUS, SHADOW, SPACING } from './tokens';
+export { BORDER_WIDTH, FONT, RADIUS, SHADOW, SPACING } from './tokens';
 
 interface Theme {
   colors: Palette;
@@ -93,6 +93,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       },
     };
   }, [value]);
+
+  // アプリのテーマをOSに伝える。OSとアプリでテーマが違うと、ステータスバー・ナビゲーションボタン・
+  // 標準ダイアログなどの背景/文字色がOSのテーマのままになり、アプリと逆の色になってしまう。
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    Appearance.setColorScheme(mode === 'system' ? 'unspecified' : mode);
+  }, [mode]);
 
   useWebChrome(value.isDark, value.colors);
   useNavigationBar(value.isDark);

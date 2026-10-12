@@ -12,11 +12,13 @@ import { AppText } from '@/components/ui/AppText';
 import { DropdownMenu, type MenuItem } from '@/components/ui/DropdownMenu';
 import { IconButton } from '@/components/ui/IconButton';
 import { isSupabaseConfigured } from '@/config/env';
+import { BOARD } from '@/config/layout';
 import { LIMITS } from '@/config/limits';
 import { columnsOf, isActive, searchTasks, tasksOf } from '@/domain/selectors';
 import type { ColumnSortMode, KanbanColumn, Task } from '@/domain/types';
 import { useBoardActions } from '@/features/useBoardActions';
 import { popUndo } from '@/features/undo';
+import { useLayoutMode } from '@/hooks/useLayout';
 import { t } from '@/i18n';
 import { clampCursor, initialCursor, moveCursor, type Cursor, type Direction } from '@/shortcuts/cursor';
 import { useEscape, useShortcuts } from '@/shortcuts/useShortcuts';
@@ -32,6 +34,8 @@ export default function ProjectScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors } = useTheme();
   const boardRef = useRef<BoardViewHandle>(null);
+  const { mode } = useLayoutMode();
+  const pane = mode !== 'expanded';
 
   const ready = useDataStore((s) => s.ready);
   const projects = useDataStore((s) => s.projects);
@@ -218,8 +222,8 @@ export default function ProjectScreen() {
 
   /** タスクをタップしたときのメニュー */
   const taskMenu = (task: Task): MenuItem[] => [
-    { label: t('common.edit'), icon: 'edit', onPress: () => setTaskDialog({ mode: 'edit', taskId: task.id }) },
-    { label: task.isFavorite ? t('common.unfavorite') : t('common.favorite'), icon: task.isFavorite ? 'starOutline' : 'star', onPress: () => void store.updateTask(task.id, { isFavorite: !task.isFavorite }) },
+    { label: t('task.edit'), icon: 'edit', onPress: () => setTaskDialog({ mode: 'edit', taskId: task.id }) },
+    { label: task.isFavorite ? t('common.unfavorite') : t('common.favorite'), icon: task.isFavorite ? 'unpin' : 'pin', onPress: () => void store.updateTask(task.id, { isFavorite: !task.isFavorite }) },
     { label: t('common.duplicate'), icon: 'copy', onPress: () => void store.duplicateTask(task.id) },
     { label: t('common.archive'), icon: 'archive', onPress: () => void actions.archiveTask(task) },
     { label: t('common.delete'), icon: 'trash', destructive: true, separator: true, onPress: () => void actions.deleteTask(task) },
@@ -242,18 +246,19 @@ export default function ProjectScreen() {
     }
   };
 
+  const header = (
+    <BoardHeader
+      title={project.title}
+      search={searching ? { value: query, onChange: setQuery, onClose: closeSearch } : null}
+      right={<DropdownMenu items={boardMenu} trigger={(open) => <IconButton icon="more" label={t('board.menu')} onPress={open} />} />}
+    />
+  );
+
   return (
     <View style={styles.fill}>
-      <BoardHeader
-        title={project.title}
-        search={searching ? { value: query, onChange: setQuery, onClose: closeSearch } : null}
-        right={
-          <DropdownMenu items={boardMenu} trigger={(open) => <IconButton icon="more" label={t('board.menu')} onPress={open} />} />
-        }
-      />
-
       <View style={styles.fill}>
         <BoardView
+          header={header}
           ref={boardRef}
           columns={cols}
           tasksOf={(columnId) => tasksByColumn.get(columnId) ?? []}
@@ -277,7 +282,7 @@ export default function ProjectScreen() {
         ) : null}
 
         {searching && query.trim() ? (
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.surface }]}>
+          <View style={[StyleSheet.absoluteFill, { top: pane ? BOARD.headerHeight : 0, backgroundColor: colors.surface }]}>
             <ScrollView keyboardShouldPersistTaps="handled" persistentScrollbar>
               <SearchResults
                 results={results}

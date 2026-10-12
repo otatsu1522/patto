@@ -2,6 +2,7 @@ import { usePathname, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useAuthStore } from '@/auth/authStore';
+import { withAlpha } from '@/lib/color';
 import { APP_NAME } from '@/config/app';
 import { BOARD } from '@/config/layout';
 import { archivedProjects, searchTasks, visibleProjects } from '@/domain/selectors';
@@ -21,20 +22,20 @@ import { useFeedback } from '../ui/FeedbackProvider';
 import { Icon } from '../ui/Icon';
 import { IconButton } from '../ui/IconButton';
 import { useSyncLabel } from './SyncIndicator';
+import { BORDER_WIDTH } from '@/theme/tokens';
 
 interface Props {
   width: number;
-  /** 画面上の余白（ステータスバーの高さ）。ドロワーのときだけ必要 */
-  topInset: number;
-  bottomInset: number;
-  /** 左上のメニューアイコンを押したとき（閉じる / たたむ） */
+  /** 左上にメニューアイコンを出す（PCの常設メニュー）。スマホは画面上部のバーのアイコンを使うので出さない */
+  showMenuIcon: boolean;
+  /** メニューアイコンを押したとき（たたむ） */
   onToggle: () => void;
-  /** 画面を移動したとき（ドロワーを閉じる） */
+  /** 画面を移動したとき（スマホではメニューを閉じる） */
   onNavigate: () => void;
 }
 
 /** 左のメニュー: メニューアイコン+アプリ名、検索、プロジェクト一覧、新規作成、設定、同期状態。 */
-export function Sidebar({ width, topInset, bottomInset, onToggle, onNavigate }: Props) {
+export function Sidebar({ width, showMenuIcon, onToggle, onNavigate }: Props) {
   const { colors, fs, taskColor } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
@@ -92,36 +93,43 @@ export function Sidebar({ width, topInset, bottomInset, onToggle, onNavigate }: 
     if (currentId === p.id) router.replace('/home');
   };
 
-  const row = (p: Project) => (
-    <View key={p.id} style={[styles.item, { backgroundColor: currentId === p.id ? colors.hover : 'transparent' }]}>
-      <Pressable accessibilityRole="button" onPress={() => open(p.id)} style={styles.itemMain}>
-        <View style={[styles.dot, { backgroundColor: p.color ? taskColor(p.color) : 'transparent', borderColor: p.color ? 'transparent' : colors.border }]} />
-        <AppText numberOfLines={1} ellipsizeMode="tail" bold={currentId === p.id} style={styles.flex}>
-          {p.title}
-        </AppText>
-        <AppText variant="caption" muted>
-          {t('column.taskCount', { count: taskCounts.get(p.id) ?? 0 })}
-        </AppText>
-      </Pressable>
-      <DropdownMenu
-        items={[
-          { label: t('common.edit'), icon: 'edit', onPress: () => setEditing(p) },
-          { label: p.isFavorite ? t('common.unfavorite') : t('common.favorite'), icon: p.isFavorite ? 'starOutline' : 'star', onPress: () => void store.updateProject(p.id, { isFavorite: !p.isFavorite }) },
-          { label: t('common.duplicate'), icon: 'copy', onPress: () => void store.duplicateProject(p.id) },
-          { label: p.archivedAt ? t('project.unarchiveAction') : t('project.archiveAction'), icon: 'archive', onPress: () => void store.setProjectArchived(p.id, p.archivedAt === null) },
-          { label: t('common.delete'), icon: 'trash', destructive: true, separator: true, onPress: () => void removeProject(p) },
-        ]}
-        trigger={(openMenu) => <IconButton icon="more" label={p.title} onPress={openMenu} box={40} size={20} />}
-      />
-    </View>
-  );
+  const row = (p: Project) => {
+    // 選択中の行は、ホバー（薄いグレー）と区別できるよう文字色と背景を反転する
+    const selected = currentId === p.id;
+    const fg = selected ? colors.onPrimary : colors.text;
+    return (
+      <View key={p.id} style={[styles.item, { backgroundColor: selected ? colors.primary : 'transparent' }]}>
+        <Pressable accessibilityRole="button" onPress={() => open(p.id)} style={styles.itemMain}>
+          <View style={[styles.dot, { backgroundColor: p.color ? taskColor(p.color) : 'transparent', borderColor: p.color ? 'transparent' : selected ? colors.onPrimary : colors.border }]} />
+          <AppText numberOfLines={1} ellipsizeMode="tail" bold={selected} color={fg} style={styles.flex}>
+            {p.title}
+          </AppText>
+          <AppText variant="caption" color={selected ? colors.onPrimary : colors.textMuted}>
+            {t('column.taskCount', { count: taskCounts.get(p.id) ?? 0 })}
+          </AppText>
+        </Pressable>
+        <DropdownMenu
+          items={[
+            { label: t('project.edit'), icon: 'edit', onPress: () => setEditing(p) },
+            { label: p.isFavorite ? t('common.unfavorite') : t('common.favorite'), icon: p.isFavorite ? 'unpin' : 'pin', onPress: () => void store.updateProject(p.id, { isFavorite: !p.isFavorite }) },
+            { label: t('common.duplicate'), icon: 'copy', onPress: () => void store.duplicateProject(p.id) },
+            { label: p.archivedAt ? t('project.unarchiveAction') : t('project.archiveAction'), icon: 'archive', onPress: () => void store.setProjectArchived(p.id, p.archivedAt === null) },
+            { label: t('common.delete'), icon: 'trash', destructive: true, separator: true, onPress: () => void removeProject(p) },
+          ]}
+          trigger={(openMenu) => (
+            <IconButton icon="more" label={p.title} color={fg} hoverColor={selected ? withAlpha(colors.onPrimary, 0.25) : undefined} onPress={openMenu} box={40} size={20} />
+          )}
+        />
+      </View>
+    );
+  };
 
   return (
-    <View style={[styles.root, { width, backgroundColor: colors.surface, borderRightColor: colors.border, paddingTop: topInset, paddingBottom: bottomInset }]}>
+    <View style={[styles.root, { width, backgroundColor: colors.surface, borderRightColor: colors.border, }]}>
       {/* 画面上部のバーと同じ位置にメニューアイコンを置く（押すと閉じる） */}
       <View style={styles.brand}>
-        <IconButton icon="menu" label={t('menu.open')} onPress={onToggle} />
-        <AppText variant="title" numberOfLines={1} style={styles.flex}>
+        {showMenuIcon ? <IconButton icon="menu" label={t('menu.open')} onPress={onToggle} /> : null}
+        <AppText variant="title" numberOfLines={1} style={[styles.flex, !showMenuIcon && styles.brandName]}>
           {APP_NAME}
         </AppText>
       </View>
@@ -199,8 +207,8 @@ export function Sidebar({ width, topInset, bottomInset, onToggle, onNavigate }: 
         <Pressable
           accessibilityRole="button"
           onPress={() => {
+            // メニューは閉じない（戻ったときも開いたままの状態を保つ）
             router.push('/settings');
-            onNavigate();
           }}
           style={styles.footerRow}
         >
@@ -237,19 +245,20 @@ export function Sidebar({ width, topInset, bottomInset, onToggle, onNavigate }: 
 }
 
 const styles = StyleSheet.create({
-  root: { borderRightWidth: StyleSheet.hairlineWidth, flexShrink: 0 },
+  root: { borderRightWidth: BORDER_WIDTH, flexShrink: 0 },
   flex: { flex: 1 },
+  brandName: { paddingLeft: SPACING.sm + SPACING.xs },
   brand: { flexDirection: 'row', alignItems: 'center', height: 56, paddingHorizontal: SPACING.sm, gap: SPACING.xs, marginBottom: SPACING.md },
-  search: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginHorizontal: SPACING.lg, borderBottomWidth: StyleSheet.hairlineWidth, minHeight: 44, marginBottom: SPACING.sm },
+  search: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginHorizontal: SPACING.lg, borderBottomWidth: BORDER_WIDTH, minHeight: 44, marginBottom: SPACING.sm },
   searchInput: { flex: 1, paddingVertical: SPACING.sm, backgroundColor: 'transparent', outlineStyle: 'none' } as never,
   listContent: { paddingVertical: SPACING.sm },
   sectionTitle: { paddingHorizontal: SPACING.lg, paddingVertical: SPACING.xs },
   hint: { padding: SPACING.lg },
   item: { flexDirection: 'row', alignItems: 'center', paddingRight: 2 },
   itemMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACING.md, minHeight: BOARD.touchTarget, paddingLeft: SPACING.lg, paddingRight: SPACING.sm },
-  dot: { width: 12, height: 12, borderRadius: 6, borderWidth: 1 },
-  divider: { height: 1, marginVertical: SPACING.xs, marginHorizontal: SPACING.lg },
-  rule: { height: 1, marginHorizontal: SPACING.lg },
+  dot: { width: 12, height: 12, borderRadius: 6, borderWidth: BORDER_WIDTH },
+  divider: { height: BORDER_WIDTH, marginVertical: SPACING.xs, marginHorizontal: SPACING.lg },
+  rule: { height: BORDER_WIDTH, marginHorizontal: SPACING.lg },
   archiveToggle: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs, padding: SPACING.lg },
   footer: { paddingVertical: SPACING.xs },
   footerRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, minHeight: BOARD.touchTarget, paddingHorizontal: SPACING.lg },

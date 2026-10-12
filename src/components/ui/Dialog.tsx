@@ -7,6 +7,7 @@ import { RADIUS, SHADOW, SPACING, useTheme } from '@/theme';
 import { useLayoutMode } from '@/hooks/useLayout';
 import { AppText } from './AppText';
 import { IconButton } from './IconButton';
+import { BORDER_WIDTH } from '@/theme/tokens';
 
 interface Props {
   visible: boolean;
@@ -66,7 +67,7 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   backdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.lg },
   bottom: { justifyContent: 'flex-end', padding: 0 },
-  card: { width: '100%', maxHeight: '90%', borderRadius: RADIUS.lg, borderWidth: 1, overflow: 'hidden' },
+  card: { width: '100%', maxHeight: '90%', borderRadius: RADIUS.lg, borderWidth: BORDER_WIDTH, overflow: 'hidden' },
   sheet: { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, maxWidth: '100%' as never },
   header: { flexDirection: 'row', alignItems: 'center', paddingLeft: SPACING.lg, paddingRight: SPACING.sm, paddingTop: SPACING.sm },
   title: { flex: 1 },

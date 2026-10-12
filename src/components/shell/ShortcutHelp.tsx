@@ -6,6 +6,7 @@ import { useUiStore } from '@/store/uiStore';
 import { RADIUS, SPACING, useTheme } from '@/theme';
 import { AppText } from '../ui/AppText';
 import { Dialog } from '../ui/Dialog';
+import { BORDER_WIDTH } from '@/theme/tokens';
 
 /** ショートカット一覧（? キーで表示）。 */
 export function ShortcutHelp() {
@@ -38,5 +39,5 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
   label: { flex: 1 },
   keys: { flexDirection: 'row', gap: SPACING.xs },
-  key: { minWidth: 28, paddingHorizontal: SPACING.sm, paddingVertical: 3, borderRadius: RADIUS.sm, borderWidth: 1, alignItems: 'center' },
+  key: { minWidth: 28, paddingHorizontal: SPACING.sm, paddingVertical: 3, borderRadius: RADIUS.sm, borderWidth: BORDER_WIDTH, alignItems: 'center' },
 });

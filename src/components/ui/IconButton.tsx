@@ -14,10 +14,12 @@ interface Props {
   style?: ViewStyle;
   /** タップ領域の大きさ。既定は最小タップサイズ */
   box?: number;
+  /** ホバー・押下時の背景色（背景が反転している行の上など、既定の色が合わないとき） */
+  hoverColor?: string;
 }
 
 /** アイコンだけのボタン。アクセシビリティのため label を必須にしている。 */
-export const IconButton = ({ icon, label, onPress, size = 22, color, disabled, style, box = BOARD.touchTarget }: Props) => {
+export const IconButton = ({ icon, label, onPress, size = 22, color, disabled, style, box = BOARD.touchTarget, hoverColor }: Props) => {
   const { colors } = useTheme();
   return (
     <Pressable
@@ -28,7 +30,7 @@ export const IconButton = ({ icon, label, onPress, size = 22, color, disabled, s
       hitSlop={4}
       style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
         styles.base,
-        { width: box, height: box, backgroundColor: pressed || hovered ? colors.hover : 'transparent', opacity: disabled ? 0.4 : 1 },
+        { width: box, height: box, backgroundColor: pressed || hovered ? hoverColor ?? colors.hover : 'transparent', opacity: disabled ? 0.4 : 1 },
         style,
       ]}
     >

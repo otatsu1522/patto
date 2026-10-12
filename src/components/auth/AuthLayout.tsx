@@ -5,6 +5,7 @@ import { APP_NAME } from '@/config/app';
 import { RADIUS, SHADOW, SPACING, useTheme } from '@/theme';
 import { AppText } from '../ui/AppText';
 import { Logo } from '../ui/Logo';
+import { BORDER_WIDTH } from '@/theme/tokens';
 
 /** ログイン・登録系の画面の共通枠（上にアプリ名、その下にフォーム）。 */
 export function AuthLayout({ children, subtitle }: { children: ReactNode; subtitle?: string }) {
@@ -34,5 +35,5 @@ const styles = StyleSheet.create({
   scroll: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.lg, gap: SPACING.xl },
   brand: { alignItems: 'center', gap: SPACING.sm },
   center: { textAlign: 'center' },
-  card: { width: '100%', maxWidth: 420, borderRadius: RADIUS.lg, borderWidth: 1, padding: SPACING.xl, gap: SPACING.md },
+  card: { width: '100%', maxWidth: 420, borderRadius: RADIUS.lg, borderWidth: BORDER_WIDTH, padding: SPACING.xl, gap: SPACING.md },
 });

@@ -4,6 +4,7 @@ import { BOARD } from '@/config/layout';
 import { RADIUS, SPACING, useTheme } from '@/theme';
 import { AppText } from './AppText';
 import { Icon } from './Icon';
+import { BORDER_WIDTH } from '@/theme/tokens';
 
 export function Section({ title, children }: { title?: string; children: React.ReactNode }) {
   const { colors } = useTheme();
@@ -109,16 +110,16 @@ export function ChoiceRow<T extends string>({
 
 export function Divider() {
   const { colors } = useTheme();
-  return <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: colors.border }} />;
+  return <View style={{ height: BORDER_WIDTH, backgroundColor: colors.border }} />;
 }
 
 const styles = StyleSheet.create({
   section: { gap: SPACING.xs },
   sectionTitle: { paddingHorizontal: SPACING.sm },
-  card: { borderRadius: RADIUS.lg, borderWidth: 1, overflow: 'hidden' },
+  card: { borderRadius: RADIUS.lg, borderWidth: BORDER_WIDTH, overflow: 'hidden' },
   row: { minHeight: BOARD.touchTarget + 4, flexDirection: 'row', alignItems: 'center', gap: SPACING.md, paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm },
   column: { flexDirection: 'column', alignItems: 'flex-start', paddingVertical: SPACING.md },
   flex: { flex: 1 },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
-  choice: { paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, borderRadius: 0, borderWidth: 1 },
+  choice: { paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, borderRadius: 0, borderWidth: BORDER_WIDTH },
 });

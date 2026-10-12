@@ -6,6 +6,7 @@ import { RADIUS, SHADOW, SPACING, useTheme } from '@/theme';
 import { AppText } from './AppText';
 import type { MenuItem } from './DropdownMenu';
 import { Icon } from './Icon';
+import { BORDER_WIDTH } from '@/theme/tokens';
 
 interface Rect {
   x: number;
@@ -59,7 +60,7 @@ export function MenuProvider({ children }: { children: ReactNode }) {
 
   return (
     <Ctx.Provider value={host}>
-      <View style={styles.root}>
+      <View style={[styles.root, { backgroundColor: colors.bg }]}>
         {children}
         {menu ? (
           <View style={styles.overlay}>
@@ -100,9 +101,9 @@ export function MenuProvider({ children }: { children: ReactNode }) {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   overlay: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, zIndex: 1000 },
-  menu: { position: 'absolute', borderRadius: RADIUS.md, borderWidth: 1, paddingVertical: SPACING.xs, overflow: 'hidden' },
+  menu: { position: 'absolute', borderRadius: RADIUS.md, borderWidth: BORDER_WIDTH, paddingVertical: SPACING.xs, overflow: 'hidden' },
   item: { height: ITEM_HEIGHT, flexDirection: 'row', alignItems: 'center', gap: SPACING.md, paddingHorizontal: SPACING.lg },
   iconSlot: { width: ICON_SLOT, alignItems: 'center' },
   label: { flex: 1 },
-  sep: { height: 1, marginHorizontal: SPACING.sm },
+  sep: { height: BORDER_WIDTH, marginHorizontal: SPACING.sm },
 });

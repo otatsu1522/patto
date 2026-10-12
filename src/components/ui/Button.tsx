@@ -4,8 +4,9 @@ import type { IconKey } from '@/config/icons';
 import { RADIUS, SPACING, useTheme } from '@/theme';
 import { AppText } from './AppText';
 import { Icon } from './Icon';
+import { BORDER_WIDTH } from '@/theme/tokens';
 
-type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
+type Variant = 'primary' | 'accent' | 'secondary' | 'danger' | 'ghost';
 
 interface Props {
   label: string;
@@ -22,6 +23,7 @@ export function Button({ label, onPress, variant = 'primary', icon, disabled, lo
   const { colors } = useTheme();
   const palette = {
     primary: { bg: colors.primary, fg: colors.onPrimary, border: colors.primary },
+    accent: { bg: colors.accent, fg: colors.onAccent, border: colors.accent },
     secondary: { bg: colors.surface, fg: colors.text, border: colors.border },
     danger: { bg: colors.danger, fg: colors.onDanger, border: colors.danger },
     ghost: { bg: 'transparent', fg: colors.primary, border: 'transparent' },
@@ -53,7 +55,7 @@ const styles = StyleSheet.create({
     minHeight: BOARD.touchTarget,
     paddingHorizontal: SPACING.lg,
     borderRadius: RADIUS.md,
-    borderWidth: 1,
+    borderWidth: BORDER_WIDTH,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

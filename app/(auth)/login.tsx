@@ -11,6 +11,7 @@ import { isSupabaseConfigured } from '@/config/env';
 import { firstError, validateEmail } from '@/domain/validation';
 import { t } from '@/i18n';
 import { SPACING, useTheme } from '@/theme';
+import { BORDER_WIDTH } from '@/theme/tokens';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -74,6 +75,6 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   links: { alignItems: 'center' },
   divider: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
-  line: { flex: 1, height: StyleSheet.hairlineWidth },
+  line: { flex: 1, height: BORDER_WIDTH },
   note: { textAlign: 'center' },
 });

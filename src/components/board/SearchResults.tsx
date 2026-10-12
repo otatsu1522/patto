@@ -3,6 +3,7 @@ import type { KanbanColumn, Project, Task } from '@/domain/types';
 import { t } from '@/i18n';
 import { SPACING, useTheme } from '@/theme';
 import { AppText } from '../ui/AppText';
+import { BORDER_WIDTH } from '@/theme/tokens';
 
 interface Props {
   results: Task[];
@@ -58,5 +59,5 @@ export function SearchResults({ results, projects, columns, onPress }: Props) {
 
 const styles = StyleSheet.create({
   empty: { padding: SPACING.lg },
-  item: { paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md, gap: 2, borderBottomWidth: StyleSheet.hairlineWidth },
+  item: { paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md, gap: 2, borderBottomWidth: BORDER_WIDTH },
 });

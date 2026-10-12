@@ -10,6 +10,7 @@ import { AppText } from '../ui/AppText';
 import { DropdownMenu, type MenuItem } from '../ui/DropdownMenu';
 import { Icon } from '../ui/Icon';
 import { useDragGesture, type DragHandlers } from './dragGesture';
+import { BORDER_WIDTH } from '@/theme/tokens';
 
 interface Props {
   task: Task;
@@ -54,7 +55,7 @@ export function TaskCard({ task, done, compact, isLast, canAdvance, focused, gra
         {
           backgroundColor: colors.surface,
           borderColor: focused ? colors.focus : colors.border,
-          borderWidth: focused ? 2 : 1,
+          borderWidth: focused ? 2 : BORDER_WIDTH,
           opacity: dragging ? 0.35 : 1,
         },
         grabbed && { backgroundColor: colors.hover, borderStyle: 'dashed' },

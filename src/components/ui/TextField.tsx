@@ -5,6 +5,7 @@ import { t } from '@/i18n';
 import { FONT, RADIUS, SPACING, useTheme } from '@/theme';
 import { AppText } from './AppText';
 import { IconButton } from './IconButton';
+import { BORDER_WIDTH } from '@/theme/tokens';
 
 interface Props extends Omit<TextInputProps, 'style'> {
   label?: string;
@@ -64,6 +65,6 @@ export const TextField = forwardRef<TextInput, Props>(function TextField(
 
 const styles = StyleSheet.create({
   wrap: { gap: SPACING.xs },
-  box: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: RADIUS.md, paddingHorizontal: SPACING.md },
+  box: { flexDirection: 'row', alignItems: 'center', borderWidth: BORDER_WIDTH, borderRadius: RADIUS.md, paddingHorizontal: SPACING.md },
   input: { flex: 1, paddingVertical: SPACING.sm, outlineStyle: 'none' } as never,
 });

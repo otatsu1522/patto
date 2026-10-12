@@ -4,6 +4,7 @@ import { t } from '@/i18n';
 import { RADIUS, SHADOW, SPACING, useTheme } from '@/theme';
 import { AppText } from './AppText';
 import { Button } from './Button';
+import { BORDER_WIDTH } from '@/theme/tokens';
 
 export interface ConfirmOptions {
   title: string;
@@ -113,7 +114,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.lg },
-  card: { width: '100%', maxWidth: 440, borderRadius: RADIUS.lg, borderWidth: 1, padding: SPACING.lg, gap: SPACING.md },
+  card: { width: '100%', maxWidth: 440, borderRadius: RADIUS.lg, borderWidth: BORDER_WIDTH, padding: SPACING.lg, gap: SPACING.md },
   actions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: SPACING.sm, marginTop: SPACING.sm },
   toastWrap: { position: 'absolute', left: 0, right: 0, bottom: SPACING.xl, alignItems: 'center', paddingHorizontal: SPACING.lg },
   toast: { flexDirection: 'row', alignItems: 'center', gap: SPACING.lg, borderRadius: RADIUS.md, paddingVertical: SPACING.md, paddingHorizontal: SPACING.lg, maxWidth: 520 },

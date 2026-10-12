@@ -14,10 +14,11 @@ export const BOARD = {
   columnGap: 12,
   boardPadding: 12,
   sidebarWidth: 300,
-  drawerWidth: 300,
   dialogMaxWidth: 520,
   menuMinWidth: 220,
   touchTarget: 44,
+  /** 画面上部のバー（ヘッダー）の高さ */
+  headerHeight: 56,
 } as const;
 
 export const GESTURE = {

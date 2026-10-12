@@ -85,3 +85,7 @@ export function columnIndexAt(x: number, scrollX: number, g: BoardGeometry, coun
   const idx = Math.floor((x + scrollX - g.padding + BOARD.columnGap / 2) / g.step);
   return Math.max(0, Math.min(idx, count - 1));
 }
+
+/** メニューの幅: PCは画面の約1/4、スマホは画面の約8割。 */
+export const sidebarWidthFor = (windowWidth: number, permanent: boolean): number =>
+  permanent ? Math.round(Math.min(400, Math.max(220, windowWidth * 0.25))) : Math.round(Math.min(340, Math.max(260, windowWidth * 0.82)));

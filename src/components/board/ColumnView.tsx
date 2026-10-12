@@ -11,6 +11,7 @@ import { Icon } from '../ui/Icon';
 import { IconButton } from '../ui/IconButton';
 import { useDragGesture, type DragHandlers } from './dragGesture';
 import { TaskCard } from './TaskCard';
+import { BORDER_WIDTH } from '@/theme/tokens';
 
 export interface ColumnViewProps {
   column: KanbanColumn;
@@ -171,14 +172,14 @@ export function ColumnView(p: ColumnViewProps) {
 }
 
 const styles = StyleSheet.create({
-  column: { borderRadius: RADIUS.lg, borderWidth: 1, overflow: 'hidden' },
+  column: { borderRadius: RADIUS.lg, borderWidth: BORDER_WIDTH, overflow: 'hidden' },
   header: { flexDirection: 'row', alignItems: 'center', paddingLeft: SPACING.md, paddingRight: SPACING.xs, margin: 2 },
   titleWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, minHeight: GESTURE.edgeZone, cursor: 'grab' } as never,
   dot: { width: 12, height: 12, borderRadius: 6 },
-  title: { flexShrink: 1 },
+  title: { flex: 1 },
   list: { flex: 1 },
   listContent: { padding: SPACING.sm, gap: SPACING.sm },
-  divider: { height: 1, marginVertical: SPACING.xs, marginHorizontal: SPACING.xs },
-  zone: { minHeight: 36, borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
+  divider: { height: BORDER_WIDTH, marginVertical: SPACING.xs, marginHorizontal: SPACING.xs },
+  zone: { minHeight: 36, borderWidth: BORDER_WIDTH, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
   add: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, padding: SPACING.md },
 });

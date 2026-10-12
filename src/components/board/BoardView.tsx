@@ -1,12 +1,14 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Animated, Keyboard, Pressable, ScrollView, StyleSheet, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { BOARD, GESTURE } from '@/config/layout';
 import type { KanbanColumn, Task } from '@/domain/types';
-import { adjacentOffset, boardGeometry, columnIndexAt, nearestOffsetIndex, useLayoutMode } from '@/hooks/useLayout';
+import { registerBoardMenu, closeBoardMenu } from '@/hooks/boardMenu';
+import { adjacentOffset, boardGeometry, columnIndexAt, nearestOffsetIndex, sidebarWidthFor, useLayoutMode } from '@/hooks/useLayout';
 import { t } from '@/i18n';
 import type { Cursor } from '@/shortcuts/cursor';
-import { RADIUS, SHADOW, SPACING, useTheme } from '@/theme';
+import { BORDER_WIDTH, RADIUS, SHADOW, SPACING, useTheme } from '@/theme';
 import { AppText } from '../ui/AppText';
+import { Sidebar } from '../shell/Sidebar';
 import { EmptyState } from '../ui/EmptyState';
 import { IconButton } from '../ui/IconButton';
 import type { MenuItem } from '../ui/DropdownMenu';
@@ -25,30 +27,38 @@ interface Props {
   menuItemsFor: (column: KanbanColumn, index: number) => MenuItem[];
   taskMenuFor: (task: Task) => MenuItem[];
   onAdvance: (task: Task) => void;
-  /** ドラッグで落としたとき。favorite は落とした位置（お気に入りの横線の上か下か） */
+  /** ドラッグで落としたとき。favorite は落とした位置（ピン留めの横線の上か下か） */
   onTaskDrop: (task: Task, target: KanbanColumn, favorite: boolean) => void;
   onColumnDrop: (column: KanbanColumn, toIndex: number) => void;
   onAddTask: (column: KanbanColumn) => void;
   onRefresh?: () => Promise<void>;
+  /**
+   * 画面上部のバー。スマホではメニューと一緒に横へ動かす（メニューを開くと、画面全体が右へずれてメニューが現れる）。
+   * PCでは、ボードの上にそのまま表示する。
+   */
+  header?: ReactNode;
 }
 
 type DragInfo = { kind: 'task'; task: Task } | { kind: 'column'; column: KanbanColumn };
 
 /**
  * カンバンを横に並べるボード。
- * - スマホ縦: 前後のカンバンが見える幅で、1つずつ吸着しながらスクロール
+ * - スマホ縦: 前後のカンバンが見える幅で、1つずつ吸着しながらスクロール。
+ *   メニューは「いちばん左のカンバンのさらに左」にある横スクロールの一部で、カンバンを動かすのと同じ操作で開く。
  * - それ以外: 3列表示、4つ以上は横スクロール＋前後ボタン（動かせる方向のボタンだけ表示）
  * - 長押し（PCはドラッグ）でタスク・カンバンをつかんで移動。画面端に寄せると隣へスクロール
  */
 export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(props, ref) {
-  const { columns, tasksOf, cursor } = props;
+  const { columns, tasksOf, cursor, header } = props;
   const { colors, isDark } = useTheme();
-  const { mode } = useLayoutMode();
+  const { mode, width: windowWidth } = useLayoutMode();
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [scrollX, setScrollX] = useState(0);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [dragInfo, setDragInfo] = useState<DragInfo | null>(null);
   const [blurSignal, setBlurSignal] = useState(0);
+  const [positioned, setPositioned] = useState(false);
+  const scrollAnim = useRef(new Animated.Value(0)).current;
 
   const scrollRef = useRef<ScrollView>(null);
   const containerRef = useRef<View>(null);
@@ -63,27 +73,66 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
 
   const geo = useMemo(() => boardGeometry(size.width, mode, columns.length), [size.width, mode, columns.length]);
 
+  // スマホ（PC以外）: メニューを「いちばん左のカンバンのさらに左」の1ページとして横スクロールの中に置く。
+  // メニューの幅ぶん、カンバンが右へずれるので、カンバンの止まる位置もその分ずらす。
+  const pane = mode !== 'expanded';
+  const menuWidth = sidebarWidthFor(windowWidth, false);
+  /** メニューのページが左端からはみ出す分（左の余白をメニューが使う）を引いた、カンバンのずれ */
+  const menuShift = pane ? menuWidth + BOARD.columnGap - geo.padding : 0;
+  /** カンバンごとの「止まる位置」（メニューを含む） */
+  const offsets = useMemo(() => geo.offsets.map((o) => o + menuShift), [geo.offsets, menuShift]);
+  /** 横スクロールが吸着する位置。メニューを開いた位置（0）も含める */
+  const snapOffsets = useMemo(() => (pane ? [0, ...offsets] : offsets), [pane, offsets]);
+  const closedX = offsets[0] ?? 0;
+  /** スマホでは、メニューを画面の上端まで広げるため、カンバンの上にヘッダーの高さの空きを作る */
+  const headerOffset = pane ? BOARD.headerHeight : 0;
+  const menuVisible = pane && scrollX < closedX - 2;
+  const closedXRef = useRef(closedX);
+  closedXRef.current = closedX;
+
   const registerDivider = useCallback((columnId: string, measure: (() => Promise<number | null>) | null) => {
     if (measure) dividers.current.set(columnId, measure);
     else dividers.current.delete(columnId);
   }, []);
 
-  const scrollToX = useCallback((x: number) => {
-    scrollRef.current?.scrollTo({ x: Math.max(0, x), animated: true });
+  const scrollToX = useCallback((x: number, animated = true) => {
+    scrollRef.current?.scrollTo({ x: Math.max(0, x), animated });
   }, []);
 
   /** 指定のカンバンが見える位置までスクロールする */
   const scrollToColumn = useCallback(
     (index: number) => {
-      const current = nearestOffsetIndex(geo.offsets, scrollXRef.current);
-      if (geo.compact) return scrollToX(geo.offsets[Math.min(index, geo.offsets.length - 1)] ?? 0);
-      if (index < current) scrollToX(geo.offsets[index] ?? 0);
-      else if (index > current + geo.visible - 1) scrollToX(geo.offsets[Math.min(index - geo.visible + 1, geo.offsets.length - 1)] ?? 0);
+      const current = nearestOffsetIndex(offsets, scrollXRef.current);
+      if (geo.compact) return scrollToX(offsets[Math.min(index, offsets.length - 1)] ?? 0);
+      if (index < current) scrollToX(offsets[index] ?? 0);
+      else if (index > current + geo.visible - 1) scrollToX(offsets[Math.min(index - geo.visible + 1, offsets.length - 1)] ?? 0);
     },
-    [geo, scrollToX],
+    [geo, offsets, scrollToX],
   );
 
   useImperativeHandle(ref, () => ({ scrollToColumn }), [scrollToColumn]);
+
+  // メニューの開閉は、このスクロール位置だけで決まる（メニューが開いている = 左端付近）
+  useEffect(() => {
+    if (!pane) return;
+    const isOpen = () => scrollXRef.current < menuWidth / 2;
+    const open = () => scrollToX(0);
+    const close = () => scrollToX(closedXRef.current);
+    return registerBoardMenu({ open, close, toggle: () => (isOpen() ? close() : open()) });
+  }, [pane, menuWidth, scrollToX]);
+
+  // 最初は、メニューを閉じた位置（最初のカンバンが左に揃う位置）から始める。位置が決まるまで表示しない
+  useEffect(() => {
+    if (!pane) return setPositioned(true);
+    if (size.width === 0) return;
+    setPositioned(false);
+    const id = requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ x: closedXRef.current, animated: false });
+      scrollXRef.current = closedXRef.current;
+      setPositioned(true);
+    });
+    return () => cancelAnimationFrame(id);
+  }, [pane, size.width, menuWidth]);
 
   // キーボードのカーソルが画面外のカンバンに移ったら、そこまでスクロールする
   useEffect(() => {
@@ -96,16 +145,24 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
     setBlurSignal((n) => n + 1);
   };
 
-  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    scrollXRef.current = e.nativeEvent.contentOffset.x;
-    setScrollX(e.nativeEvent.contentOffset.x);
+  const onScrollEvent = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const x = e.nativeEvent.contentOffset.x;
+    scrollXRef.current = x;
+    setScrollX(x);
   };
+  // スクロール位置をアニメーション値に渡す（ヘッダーをカンバンと同じ動きで動かすため。ネイティブ側で処理するのでずれない）
+  const onScroll = Animated.event([{ nativeEvent: { contentOffset: { x: scrollAnim } } }], { useNativeDriver: true, listener: onScrollEvent });
+  // メニューを開くほど（スクロール位置が左端に近いほど）、ヘッダーを右へずらす
+  const headerShift = useMemo(
+    () => scrollAnim.interpolate({ inputRange: [0, Math.max(1, closedX)], outputRange: [closedX, 0], extrapolate: 'clamp' }),
+    [scrollAnim, closedX],
+  );
 
   const onLayout = (e: LayoutChangeEvent) => setSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height });
 
   // ---- ドラッグ ----
   const updateHover = () => {
-    const idx = columnIndexAt(pointer.current.x, scrollXRef.current, geo, columns.length);
+    const idx = columnIndexAt(pointer.current.x, scrollXRef.current, { ...geo, padding: geo.padding + menuShift }, columns.length);
     if (idx !== hoverRef.current) {
       hoverRef.current = idx;
       setHoverIndex(idx);
@@ -143,7 +200,7 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
     const target = columns[idx];
     if (!target) return;
     if (info.kind === 'column') return props.onColumnDrop(info.column, idx);
-    // お気に入りの横線より上に落としたらお気に入り、下ならお気に入りから外す
+    // ピン留めの横線より上に落としたらピン留め、下ならピン解除
     const dividerY = await dividers.current.get(target.id)?.();
     const favorite = dividerY === null || dividerY === undefined ? info.task.isFavorite && target.id === info.task.columnId : pointerY < dividerY;
     props.onTaskDrop(info.task, target, favorite);
@@ -165,7 +222,7 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
         return;
       }
       if (now - edge.current.since >= GESTURE.edgeDwellMs) {
-        const next = adjacentOffset(geo.offsets, scrollXRef.current, side);
+        const next = adjacentOffset(offsets, scrollXRef.current, side);
         if (next !== null) scrollToX(next);
         edge.current = { side, since: now };
         setTimeout(updateHover, 350);
@@ -173,26 +230,28 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
     }, 100);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dragInfo, size.width, geo.offsets]);
+  }, [dragInfo, size.width, offsets]);
 
   const taskDragHandlers = (task: Task): DragHandlers => ({ begin: (x, y) => begin({ kind: 'task', task }, x, y), move, end });
   const columnDragHandlers = (column: KanbanColumn): DragHandlers => ({ begin: (x, y) => begin({ kind: 'column', column }, x, y), move, end });
 
-  const page = nearestOffsetIndex(geo.offsets, scrollX);
+  const page = nearestOffsetIndex(offsets, scrollX);
   const showButtons = geo.peek > 0;
-  const maxOffset = geo.offsets[geo.offsets.length - 1] ?? 0;
-  const columnHeight = Math.max(0, size.height - (geo.compact && columns.length > 1 ? 32 : 0) - BOARD.boardPadding * 2);
+  const maxOffset = offsets[offsets.length - 1] ?? 0;
+  const columnHeight = Math.max(0, size.height - headerOffset - (geo.compact && columns.length > 1 ? 32 : 0) - BOARD.boardPadding * 2);
 
   return (
-    <View ref={containerRef} style={styles.fill} onLayout={onLayout} collapsable={false}>
-      {columns.length === 0 ? (
+    <View style={styles.fill}>
+      {!pane ? header : null}
+      <View ref={containerRef} style={styles.fill} onLayout={onLayout} collapsable={false}>
+      {columns.length === 0 && !pane ? (
         <EmptyState title={t('column.empty')} hint={t('column.emptyHint')} />
       ) : size.width > 0 ? (
         <>
-          <ScrollView
+          <Animated.ScrollView
             ref={scrollRef}
             horizontal
-            snapToOffsets={geo.offsets.length > 1 ? geo.offsets : undefined}
+            snapToOffsets={snapOffsets.length > 1 ? snapOffsets : undefined}
             decelerationRate="fast"
             disableIntervalMomentum={geo.compact}
             showsHorizontalScrollIndicator={!geo.compact}
@@ -202,8 +261,19 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
             onScrollBeginDrag={blurInputs}
             scrollEventThrottle={16}
             scrollEnabled={!dragInfo}
-            contentContainerStyle={{ paddingVertical: BOARD.boardPadding, paddingHorizontal: geo.padding, gap: BOARD.columnGap }}
+            style={{ opacity: positioned ? 1 : 0 }}
+            contentContainerStyle={{ paddingTop: headerOffset + BOARD.boardPadding, paddingBottom: BOARD.boardPadding, paddingHorizontal: geo.padding, gap: BOARD.columnGap }}
           >
+            {pane ? (
+              <View style={[styles.menuPane, { width: menuWidth, height: size.height, marginLeft: -geo.padding, marginTop: -(headerOffset + BOARD.boardPadding), marginBottom: -BOARD.boardPadding }]}>
+                <Sidebar width={menuWidth} showMenuIcon onToggle={closeBoardMenu} onNavigate={closeBoardMenu} />
+              </View>
+            ) : null}
+            {columns.length === 0 ? (
+              <View style={{ width: geo.columnWidth, height: columnHeight, justifyContent: 'center' }}>
+                <EmptyState title={t('column.empty')} hint={t('column.emptyHint')} />
+              </View>
+            ) : null}
             {columns.map((column, index) => (
               <ColumnView
                 key={column.id}
@@ -231,18 +301,18 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                 onRefresh={props.onRefresh}
               />
             ))}
-          </ScrollView>
+          </Animated.ScrollView>
 
           {showButtons ? (
             <>
-              {scrollX > 1 ? (
+              {scrollX > (offsets[0] ?? 0) + 1 ? (
                 <View pointerEvents="box-none" style={[styles.navBtn, styles.navLeft, { width: geo.peek }]}>
                   <IconButton
                     icon="left"
                     label={t('board.prev')}
                     box={34}
-                    onPress={() => scrollToX(adjacentOffset(geo.offsets, scrollXRef.current, -1) ?? 0)}
-                    style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }}
+                    onPress={() => scrollToX(adjacentOffset(offsets, scrollXRef.current, -1) ?? 0)}
+                    style={{ backgroundColor: colors.surface, borderWidth: BORDER_WIDTH, borderColor: colors.border }}
                   />
                 </View>
               ) : null}
@@ -252,18 +322,18 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                     icon="right"
                     label={t('board.next')}
                     box={34}
-                    onPress={() => scrollToX(adjacentOffset(geo.offsets, scrollXRef.current, 1) ?? maxOffset)}
-                    style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }}
+                    onPress={() => scrollToX(adjacentOffset(offsets, scrollXRef.current, 1) ?? maxOffset)}
+                    style={{ backgroundColor: colors.surface, borderWidth: BORDER_WIDTH, borderColor: colors.border }}
                   />
                 </View>
               ) : null}
             </>
           ) : null}
 
-          {geo.compact && columns.length > 1 ? (
+          {geo.compact && columns.length > 1 && !menuVisible ? (
             <View style={styles.dots}>
               {columns.map((c, i) => (
-                <Pressable key={c.id} accessibilityRole="button" accessibilityLabel={c.title} onPress={() => scrollToX(geo.offsets[i] ?? 0)} hitSlop={8}>
+                <Pressable key={c.id} accessibilityRole="button" accessibilityLabel={c.title} onPress={() => scrollToX(offsets[i] ?? 0)} hitSlop={8}>
                   <View style={[styles.dot, { backgroundColor: i === page ? colors.text : colors.border }]} />
                 </Pressable>
               ))}
@@ -289,12 +359,20 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
           </AppText>
         </Animated.View>
       ) : null}
+
+      {/* スマホ: ヘッダーは、メニューを開くと画面全体といっしょに右へずれる */}
+      {pane && header ? (
+        <Animated.View style={[styles.headerOverlay, { height: BOARD.headerHeight, transform: [{ translateX: headerShift }] }]}>{header}</Animated.View>
+      ) : null}
+      </View>
     </View>
   );
 });
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  menuPane: { flexDirection: 'row' },
+  headerOverlay: { position: 'absolute', left: 0, right: 0, top: 0 },
   navBtn: { position: 'absolute', top: 0, bottom: 0, justifyContent: 'center', alignItems: 'center' },
   navLeft: { left: 2 },
   navRight: { right: 2 },

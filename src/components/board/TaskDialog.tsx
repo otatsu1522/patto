@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { LIMITS } from '@/config/limits';
 import { formatDue, parseDue } from '@/domain/due';
@@ -18,6 +18,7 @@ import { useFeedback } from '../ui/FeedbackProvider';
 import { Icon } from '../ui/Icon';
 import { IconButton } from '../ui/IconButton';
 import { TextField } from '../ui/TextField';
+import { BORDER_WIDTH } from '@/theme/tokens';
 
 export interface TaskFormValues {
   title: string;
@@ -56,6 +57,11 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
   const [selectOpen, setSelectOpen] = useState(false);
   const titleInput = useFocusOnOpen(visible);
   const [submitted, setSubmitted] = useState(false);
+
+  // 閉じるアニメーション中に表示が切り替わらないよう、開いている間のタスクを覚えておく
+  const lastTask = useRef<Task | null>(task);
+  if (visible) lastTask.current = task;
+  const shownTask = visible ? task : lastTask.current;
 
   const initialColumn = task?.columnId ?? defaultColumnId;
 
@@ -105,9 +111,9 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
     <>
       <Dialog
         visible={visible}
-        title={task ? t('task.edit') : t('task.create')}
+        title={shownTask ? t('task.edit') : t('task.create')}
         onClose={requestClose}
-        footer={<Button label={t('common.confirm')} onPress={submit} fullWidth />}
+        footer={<Button label={t('common.confirm')} variant="accent" onPress={submit} fullWidth />}
       >
         <TextField label={t('task.title')} value={title} onChangeText={setTitle} error={titleError} ref={titleInput} onSubmitEditing={submit} returnKeyType="done" />
 
@@ -172,13 +178,13 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
               ) : null}
             </View>
 
-            {task ? (
+            {shownTask ? (
               <View style={styles.dates}>
                 <AppText variant="caption" muted>
-                  {t('task.createdAt')}: {formatDateTime(task.createdAt)}
+                  {t('task.createdAt')}: {formatDateTime(shownTask.createdAt)}
                 </AppText>
                 <AppText variant="caption" muted>
-                  {t('task.updatedAt')}: {formatDateTime(task.updatedAt)}
+                  {t('task.updatedAt')}: {formatDateTime(shownTask.updatedAt)}
                 </AppText>
               </View>
             ) : null}
@@ -204,8 +210,8 @@ const styles = StyleSheet.create({
   dueRow: { flexDirection: 'row', alignItems: 'flex-end', gap: SPACING.sm },
   dueButton: { marginBottom: 2 },
   field: { gap: SPACING.xs },
-  select: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, borderWidth: 1, paddingHorizontal: SPACING.md, minHeight: 44 },
-  list: { borderWidth: 1 },
+  select: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, borderWidth: BORDER_WIDTH, paddingHorizontal: SPACING.md, minHeight: 44 },
+  list: { borderWidth: BORDER_WIDTH },
   option: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, minHeight: 44, paddingHorizontal: SPACING.md },
   checkSlot: { width: 22, alignItems: 'center' },
   optionsToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44 },
