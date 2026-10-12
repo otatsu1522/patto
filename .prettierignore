@@ -1,0 +1,7 @@
+node_modules/
+.expo/
+dist/
+web-build/
+coverage/
+supabase/.temp/
+pnpm-lock.yaml
