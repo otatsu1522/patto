@@ -72,6 +72,13 @@ create table if not exists public.tasks (
   server_seq bigint not null default nextval('public.patto_seq')
 );
 
+-- テーブルとシーケンスに対する権限設定が追加
+grant select, insert, update, delete
+on public.projects, public.kanban_columns, public.tasks
+to authenticated;
+
+grant usage, select on sequence public.patto_seq to authenticated;
+
 -- 親子の外部キーは付けない: 端末ごとに届く順番が違っても同期が止まらないようにするため
 create index if not exists projects_owner_seq on public.projects (owner_id, server_seq);
 create index if not exists columns_owner_seq on public.kanban_columns (owner_id, server_seq);
