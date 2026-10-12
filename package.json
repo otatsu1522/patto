@@ -46,7 +46,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "export:web": "expo export --platform web"
+    "export:web": "expo export --platform web && node scripts/fix-web-assets.mjs"
   },
   "description": "Patto - offline-first kanban TODO app",
   "license": "MIT"
