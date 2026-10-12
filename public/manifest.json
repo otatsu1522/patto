@@ -1,0 +1,26 @@
+{
+  "id": "/",
+  "name": "Patto",
+  "short_name": "Patto",
+  "description": "カンバン式タスク管理アプリ",
+  "start_url": "/login",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#111111",
+  "background_color": "#FAFAFA",
+  "icons": [
+    {
+      "src": "/pwa-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
