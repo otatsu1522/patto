@@ -72,7 +72,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       isDark,
       fontScale,
       fs: (size: number) => Math.round(size * fontScale),
-      taskColor: (key) => map[key],
+      taskColor: (key) => map[key] ?? '#888888',
     };
   }, [mode, system, scaleKey]);
 

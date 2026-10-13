@@ -72,7 +72,8 @@ export function exportBoards(data: { projects: Project[]; columns: KanbanColumn[
 
 const COLOR_ALIASES: Record<string, TaskColorKey | null> = {
   black: 'slate',
-  grey: 'gray',
+  grey: 'slate',
+  gray: 'slate',
 };
 
 const toColor = (v: unknown): TaskColorKey | null => {

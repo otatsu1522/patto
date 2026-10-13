@@ -34,8 +34,14 @@ interface Props {
 export function TaskCard({ task, done, compact, isLast, canAdvance, focused, grabbed, dragging, menuItems, onAdvance, drag }: Props) {
   const { colors, taskColor } = useTheme();
   const lastDragEnd = useRef(0);
+  const cardRef = useRef<View>(null);
   const gesture = useDragGesture({
     ...drag,
+    // つかんだ瞬間に、カードの位置と大きさを測って、指の位置とカードの位置を合わせる
+    begin: (x, y) => {
+      if (!cardRef.current) return drag.begin(x, y);
+      cardRef.current.measureInWindow((cx, cy, w, h) => drag.begin(x, y, { ox: x - cx, oy: y - cy, w, h }));
+    },
     end: (cancelled) => {
       lastDragEnd.current = Date.now();
       drag.end(cancelled);
@@ -49,6 +55,8 @@ export function TaskCard({ task, done, compact, isLast, canAdvance, focused, gra
 
   return (
     <View
+      ref={cardRef}
+      collapsable={false}
       style={[
         styles.card,
         SHADOW.card,

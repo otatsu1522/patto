@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { t } from '@/i18n';
+import { useSettingsStore } from '@/store/settingsStore';
 import { RADIUS, SHADOW, SPACING, useTheme } from '@/theme';
 import { AppText } from './AppText';
 import { Button } from './Button';
@@ -24,7 +25,8 @@ interface Toast {
 
 interface Feedback {
   confirm: (o: ConfirmOptions) => Promise<ConfirmResult>;
-  toast: (message: string, action?: { label: string; onPress: () => void }) => void;
+  /** force: true は、設定でトーストをOFFにしていても出す（失敗の知らせなど） */
+  toast: (message: string, action?: { label: string; onPress: () => void }, options?: { force?: boolean }) => void;
 }
 
 const Ctx = createContext<Feedback | null>(null);
@@ -58,7 +60,8 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     resolver.current = null;
   };
 
-  const showToast = useCallback((message: string, action?: { label: string; onPress: () => void }) => {
+  const showToast = useCallback((message: string, action?: { label: string; onPress: () => void }, options?: { force?: boolean }) => {
+    if (!options?.force && !useSettingsStore.getState().settings.toastEnabled) return;
     if (timer.current) clearTimeout(timer.current);
     setToast({ message, actionLabel: action?.label, onAction: action?.onPress });
     timer.current = setTimeout(() => setToast(null), TOAST_MS);

@@ -1,5 +1,5 @@
 /**
- * タスク・カンバン・プロジェクトの色パレット（16色）。
+ * タスク・カンバン・プロジェクトの色パレット（15色）。
  * ライトテーマは濃いめ、ダークテーマは明るめにして、どちらの背景でも見えるようにしている。
  * キーの一部は Trello のラベル色名と同じ（インポート/エクスポート用）。
  */
@@ -18,7 +18,6 @@ export const TASK_COLORS = {
   pink: '#D01884',
   rose: '#E11D48',
   brown: '#8D6E63',
-  gray: '#757575',
   slate: '#37474F',
 } as const;
 
@@ -39,7 +38,6 @@ export const TASK_COLORS_DARK: Record<TaskColorKey, string> = {
   pink: '#FF8BCB',
   rose: '#FF8FA8',
   brown: '#BCAAA4',
-  gray: '#BDBDBD',
   slate: '#CFD8DC',
 };
 

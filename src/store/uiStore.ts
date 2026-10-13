@@ -5,6 +5,8 @@ interface UiState {
   dialogCount: number;
   sidebarCollapsed: boolean;
   helpOpen: boolean;
+  /** スマホ: メニューが画面に見えている（ヘッダーのメニューアイコンを隠す） */
+  menuVisible: boolean;
   /** 検索欄にフォーカスさせたいときに増やす */
   searchFocusTick: number;
   boardSearchFocusTick: number;
@@ -23,6 +25,7 @@ export const useUiStore = create<UiState>((set) => ({
   dialogCount: 0,
   sidebarCollapsed: false,
   helpOpen: false,
+  menuVisible: false,
   searchFocusTick: 0,
   boardSearchFocusTick: 0,
   newProjectOpen: false,

@@ -3,7 +3,7 @@
   "name": "Patto",
   "short_name": "Patto",
   "description": "カンバン式タスク管理アプリ",
-  "start_url": "/login",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",

@@ -13,10 +13,12 @@ interface Props extends Omit<TextInputProps, 'style'> {
   secure?: boolean;
   /** 複数行入力の行数 */
   lines?: number;
+  /** 指定すると、入力があるときに右端に×を出し、押すとこれを呼ぶ（クリア用） */
+  onClear?: () => void;
 }
 
 export const TextField = forwardRef<TextInput, Props>(function TextField(
-  { label, error, secure, lines, ...rest },
+  { label, error, secure, lines, onClear, ...rest },
   ref,
 ) {
   const { colors, fs } = useTheme();
@@ -44,6 +46,9 @@ export const TextField = forwardRef<TextInput, Props>(function TextField(
             multiline && { textAlignVertical: 'top' },
           ]}
         />
+        {onClear && !secure && typeof rest.value === 'string' && rest.value.length > 0 ? (
+          <IconButton icon="close" label={t('task.dueClear')} onPress={onClear} box={32} size={18} color={colors.textMuted} />
+        ) : null}
         {secure ? (
           <IconButton
             icon={hidden ? 'eye' : 'eyeOff'}

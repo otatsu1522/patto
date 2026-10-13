@@ -6,6 +6,7 @@ import { visibleProjects } from '@/domain/selectors';
 import { popUndo } from '@/features/undo';
 import { toggleBoardMenu, openBoardMenu } from '@/hooks/boardMenu';
 import { sidebarWidthFor, useLayoutMode } from '@/hooks/useLayout';
+import { useProjectNavigation } from '@/hooks/useProjectNavigation';
 import { useShortcuts } from '@/shortcuts/useShortcuts';
 import { useDataStore } from '@/store/dataStore';
 import { useSettingsStore } from '@/store/settingsStore';
@@ -13,6 +14,8 @@ import { useUiStore } from '@/store/uiStore';
 import { syncNow } from '@/sync/controller';
 import { useTheme } from '@/theme';
 import { ProjectDialog } from '../board/NameDialogs';
+import { useFeedback } from '../ui/FeedbackProvider';
+import { t } from '@/i18n';
 import { ReauthBanner } from './ReauthBanner';
 import { ShortcutHelp } from './ShortcutHelp';
 import { Sidebar } from './Sidebar';
@@ -28,6 +31,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { width: windowWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const navigateToProject = useProjectNavigation();
+  const { toast } = useFeedback();
   const pathname = usePathname();
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
   const toggleCollapsed = useUiStore((s) => s.toggleSidebarCollapsed);
@@ -43,8 +48,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     const current = pathname.startsWith('/project/') ? pathname.split('/')[2] : null;
     const i = list.findIndex((p) => p.id === current);
     const next = list[(i + delta + list.length) % list.length]!;
-    useSettingsStore.getState().update({ lastProjectId: next.id });
-    router.push({ pathname: '/project/[id]', params: { id: next.id } });
+    navigateToProject(next.id);
   };
 
   useShortcuts({
@@ -87,8 +91,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         onSubmit={async (v) => {
           setNewProjectOpen(false);
           const p = await useDataStore.getState().createProject(v);
-          useSettingsStore.getState().update({ lastProjectId: p.id });
-          router.push({ pathname: '/project/[id]', params: { id: p.id } });
+          toast(t('toast.projectCreated'));
+          navigateToProject(p.id);
         }}
       />
     </View>

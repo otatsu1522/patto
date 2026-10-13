@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { GestureDetector } from 'react-native-gesture-handler';
 import { GESTURE } from '@/config/layout';
@@ -27,8 +27,6 @@ export interface ColumnViewProps {
   /** ドラッグ中にこのカンバンが落とし先として強調されるか */
   dropTarget: boolean;
   draggingTaskId: string | null;
-  /** いずれかのタスクをドラッグ中（お気に入りの置き場を表示する） */
-  taskDragActive: boolean;
   draggingColumn: boolean;
   menuItems: MenuItem[];
   taskMenu: (task: Task) => MenuItem[];
@@ -37,8 +35,6 @@ export interface ColumnViewProps {
   onAddTask: () => void;
   taskDrag: (task: Task) => DragHandlers;
   columnDrag: DragHandlers;
-  /** お気に入りとそれ以外の境目の画面上のY座標を調べる関数を登録する（ドロップ判定用） */
-  registerDivider: (columnId: string, measure: (() => Promise<number | null>) | null) => void;
   /** 横スクロールなど他の操作が始まったら増える。入力欄のフォーカスを外す合図 */
   blurSignal: number;
   onRefresh?: () => Promise<void>;
@@ -48,26 +44,18 @@ export interface ColumnViewProps {
 export function ColumnView(p: ColumnViewProps) {
   const { colors, taskColor, isDark } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
-  const headerGesture = useDragGesture(p.columnDrag);
-  const divider = useRef<View>(null);
+  const headerGesture = useDragGesture({
+    ...p.columnDrag,
+    begin: (x, y) => {
+      if (!headerRef.current) return p.columnDrag.begin(x, y);
+      headerRef.current.measureInWindow((cx, cy, w, h) => p.columnDrag.begin(x, y, { ox: x - cx, oy: y - cy, w, h }));
+    },
+  });
+  const headerRef = useRef<View>(null);
 
   const favorites = p.tasks.filter((x) => x.isFavorite);
   const others = p.tasks.filter((x) => !x.isFavorite);
-  const showDivider = favorites.length > 0 && (others.length > 0 || p.taskDragActive);
-  const showZone = favorites.length === 0 && p.taskDragActive;
-
-  const { registerDivider, column } = p;
-  useEffect(() => {
-    registerDivider(
-      column.id,
-      () =>
-        new Promise((resolve) => {
-          if (!divider.current) return resolve(null);
-          divider.current.measureInWindow((_x, y, _w, h) => resolve(y + h));
-        }),
-    );
-    return () => registerDivider(column.id, null);
-  }, [registerDivider, column.id]);
+  const showDivider = favorites.length > 0 && others.length > 0;
 
   const card = (task: Task) => {
     const i = p.tasks.indexOf(task);
@@ -105,7 +93,7 @@ export function ColumnView(p: ColumnViewProps) {
     >
       <View style={[styles.header, headerFocused && { borderColor: colors.focus, borderWidth: 2 }, p.grabbed && headerFocused && { backgroundColor: colors.border }]}>
         <GestureDetector gesture={headerGesture}>
-          <View style={styles.titleWrap}>
+          <View ref={headerRef} collapsable={false} style={styles.titleWrap}>
             {p.column.color ? <View style={[styles.dot, { backgroundColor: taskColor(p.column.color) }]} /> : null}
             <AppText bold numberOfLines={1} style={styles.title}>
               {p.column.title}
@@ -144,15 +132,8 @@ export function ColumnView(p: ColumnViewProps) {
           ) : undefined
         }
       >
-        {showZone ? (
-          <View ref={divider} style={[styles.zone, { borderColor: colors.divider }]}>
-            <AppText variant="caption" muted>
-              {t('board.favoriteZone')}
-            </AppText>
-          </View>
-        ) : null}
         {favorites.map(card)}
-        {showDivider ? <View ref={divider} style={[styles.divider, { backgroundColor: colors.divider }]} /> : null}
+        {showDivider ? <View style={[styles.divider, { backgroundColor: colors.divider }]} /> : null}
         {others.map(card)}
 
         <Pressable
@@ -180,6 +161,5 @@ const styles = StyleSheet.create({
   list: { flex: 1 },
   listContent: { padding: SPACING.sm, gap: SPACING.sm },
   divider: { height: BORDER_WIDTH, marginVertical: SPACING.xs, marginHorizontal: SPACING.xs },
-  zone: { minHeight: 36, borderWidth: BORDER_WIDTH, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
   add: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, padding: SPACING.md },
 });

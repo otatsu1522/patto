@@ -28,7 +28,9 @@ export function BoardHeader({ title, right, search, menu = true }: Props) {
   const { mode } = useLayoutMode();
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
   const permanent = mode === 'expanded';
-  const showMenu = menu && (!permanent || collapsed);
+  const menuVisible = useUiStore((s) => s.menuVisible);
+  // スマホでメニューが見えている間は、メニュー側のアイコンと重ならないよう隠す
+  const showMenu = menu && (!permanent || collapsed) && !menuVisible;
   const input = useRef<TextInput>(null);
 
   useEffect(() => {

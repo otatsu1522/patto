@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { LIMITS } from '@/config/limits';
-import { formatDue, parseDue } from '@/domain/due';
+import { formatDueInput, parseDue } from '@/domain/due';
 import type { Task } from '@/domain/types';
 import { firstError, validateMaxLength, validateTitle } from '@/domain/validation';
 import { useFocusOnOpen } from '@/hooks/useFocusOnOpen';
 import { t } from '@/i18n';
 import { formatDateTime } from '@/lib/dates';
-import { SPACING, useTheme } from '@/theme';
+import { BORDER_WIDTH, SPACING, useTheme } from '@/theme';
 import type { TaskColorKey } from '@/theme/taskColors';
 import { AppText } from '../ui/AppText';
 import { Button } from '../ui/Button';
@@ -18,7 +18,6 @@ import { useFeedback } from '../ui/FeedbackProvider';
 import { Icon } from '../ui/Icon';
 import { IconButton } from '../ui/IconButton';
 import { TextField } from '../ui/TextField';
-import { BORDER_WIDTH } from '@/theme/tokens';
 
 export interface TaskFormValues {
   title: string;
@@ -40,10 +39,13 @@ interface Props {
   onSubmit: (values: TaskFormValues) => void;
 }
 
-const dueText = (task: Task | null): string =>
-  task && task.dueAt !== null ? formatDue({ dueAt: task.dueAt, dueHasTime: false }) : '';
+const dueText = (task: Task | null): string => (task && task.dueAt !== null ? formatDueInput(task.dueAt) : '');
 
-/** タスクの作成・編集ダイアログ（作成と編集で共通）。複製・アーカイブ・削除・お気に入りはタスクのメニューから行う。 */
+/**
+ * タスクの作成・編集ダイアログ（共通）。
+ * 最初に見えるのは「タスク名」と「色」。説明・期限・場所は「オプション」を開くと出る。
+ * 複製・アーカイブ・削除・ピン留めは、タスクをタップしたときのメニューから行う。
+ */
 export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, onSubmit }: Props) {
   const { confirm } = useFeedback();
   const { colors } = useTheme();
@@ -55,8 +57,8 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
   const [calendar, setCalendar] = useState(false);
   const [options, setOptions] = useState(false);
   const [selectOpen, setSelectOpen] = useState(false);
-  const titleInput = useFocusOnOpen(visible);
   const [submitted, setSubmitted] = useState(false);
+  const titleInput = useFocusOnOpen(visible);
 
   // 閉じるアニメーション中に表示が切り替わらないよう、開いている間のタスクを覚えておく
   const lastTask = useRef<Task | null>(task);
@@ -113,9 +115,24 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
         visible={visible}
         title={shownTask ? t('task.edit') : t('task.create')}
         onClose={requestClose}
-        footer={<Button label={t('common.confirm')} variant="accent" onPress={submit} fullWidth />}
+        footer={
+          <>
+            {shownTask ? (
+              <View style={styles.dates}>
+                <AppText variant="caption" muted>
+                  {t('task.createdAt')}: {formatDateTime(shownTask.createdAt)}
+                </AppText>
+                <AppText variant="caption" muted>
+                  {t('task.updatedAt')}: {formatDateTime(shownTask.updatedAt)}
+                </AppText>
+              </View>
+            ) : null}
+            <Button label={t('common.confirm')} variant="accent" onPress={submit} fullWidth />
+          </>
+        }
       >
         <TextField label={t('task.title')} value={title} onChangeText={setTitle} error={titleError} ref={titleInput} onSubmitEditing={submit} returnKeyType="done" />
+        <ColorPicker label={t('task.color')} value={color} onChange={setColor} />
 
         <Pressable
           accessibilityRole="button"
@@ -132,11 +149,21 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
         {options ? (
           <>
             <TextField label={t('task.description')} value={description} onChangeText={setDescription} error={descError} lines={4} />
-            <ColorPicker label={t('task.color')} value={color} onChange={setColor} />
 
             <View style={styles.dueRow}>
               <View style={styles.flex}>
-                <TextField label={t('task.due')} value={due} onChangeText={setDue} placeholder={t('task.dueHint')} error={dueError} autoCapitalize="none" autoCorrect={false} />
+                <TextField
+                  label={t('task.due')}
+                  value={due}
+                  onChangeText={(v) => setDue(v.replace(/\D/g, '').slice(0, 8))}
+                  onClear={() => setDue('')}
+                  placeholder={t('task.dueHint')}
+                  error={dueError}
+                  keyboardType="number-pad"
+                  maxLength={8}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
               </View>
               <IconButton icon="calendar" label={t('task.dueOpen')} onPress={() => setCalendar(true)} style={styles.dueButton} />
             </View>
@@ -177,17 +204,6 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
                 </View>
               ) : null}
             </View>
-
-            {shownTask ? (
-              <View style={styles.dates}>
-                <AppText variant="caption" muted>
-                  {t('task.createdAt')}: {formatDateTime(shownTask.createdAt)}
-                </AppText>
-                <AppText variant="caption" muted>
-                  {t('task.updatedAt')}: {formatDateTime(shownTask.updatedAt)}
-                </AppText>
-              </View>
-            ) : null}
           </>
         ) : null}
       </Dialog>
@@ -197,7 +213,7 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
         value={parsedDue && parsedDue !== 'invalid' ? parsedDue.dueAt : null}
         onClose={() => setCalendar(false)}
         onSelect={(ts) => {
-          setDue(ts === null ? '' : formatDue({ dueAt: ts, dueHasTime: false }));
+          setDue(ts === null ? '' : formatDueInput(ts));
           setCalendar(false);
         }}
       />
@@ -210,10 +226,11 @@ const styles = StyleSheet.create({
   dueRow: { flexDirection: 'row', alignItems: 'flex-end', gap: SPACING.sm },
   dueButton: { marginBottom: 2 },
   field: { gap: SPACING.xs },
-  select: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, borderWidth: BORDER_WIDTH, paddingHorizontal: SPACING.md, minHeight: 44 },
+  select: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, borderWidth: 1, paddingHorizontal: SPACING.md, minHeight: 44 },
   list: { borderWidth: BORDER_WIDTH },
   option: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, minHeight: 44, paddingHorizontal: SPACING.md },
   checkSlot: { width: 22, alignItems: 'center' },
   optionsToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44 },
-  dates: { gap: 2, alignItems: 'flex-end' },
+  /** 作成日と更新日: 横に並べて中央寄せ、間に余白 */
+  dates: { flexDirection: 'row', justifyContent: 'center', gap: SPACING.xl },
 });

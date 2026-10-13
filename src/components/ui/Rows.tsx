@@ -6,13 +6,18 @@ import { AppText } from './AppText';
 import { Icon } from './Icon';
 import { BORDER_WIDTH } from '@/theme/tokens';
 
-export function Section({ title, children }: { title?: string; children: React.ReactNode }) {
+export function Section({ title, description, children }: { title?: string; description?: string; children: React.ReactNode }) {
   const { colors } = useTheme();
   return (
     <View style={styles.section}>
       {title ? (
         <AppText variant="label" muted style={styles.sectionTitle}>
           {title}
+        </AppText>
+      ) : null}
+      {description ? (
+        <AppText variant="caption" muted style={styles.sectionTitle}>
+          {description}
         </AppText>
       ) : null}
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>{children}</View>
@@ -28,9 +33,11 @@ interface LinkRowProps {
   destructive?: boolean;
   chevron?: boolean;
   disabled?: boolean;
+  /** 項目名の下に出す説明文 */
+  description?: string;
 }
 
-export function LinkRow({ label, onPress, icon, value, destructive, chevron = true, disabled }: LinkRowProps) {
+export function LinkRow({ label, onPress, icon, value, destructive, chevron = true, disabled, description }: LinkRowProps) {
   const { colors } = useTheme();
   return (
     <Pressable
@@ -43,9 +50,14 @@ export function LinkRow({ label, onPress, icon, value, destructive, chevron = tr
       ]}
     >
       {icon ? <Icon name={icon} size={20} color={destructive ? colors.danger : colors.textMuted} /> : null}
-      <AppText color={destructive ? colors.danger : colors.text} style={styles.flex}>
-        {label}
-      </AppText>
+      <View style={styles.flex}>
+        <AppText color={destructive ? colors.danger : colors.text}>{label}</AppText>
+        {description ? (
+          <AppText variant="caption" muted>
+            {description}
+          </AppText>
+        ) : null}
+      </View>
       {value ? <AppText muted>{value}</AppText> : null}
       {chevron ? <Icon name="right" size={18} color={colors.textMuted} /> : null}
     </Pressable>

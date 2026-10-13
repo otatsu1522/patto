@@ -9,6 +9,7 @@ import { ColumnDialog } from '@/components/board/NameDialogs';
 import { SearchResults } from '@/components/board/SearchResults';
 import { TaskDialog, type TaskFormValues } from '@/components/board/TaskDialog';
 import { AppText } from '@/components/ui/AppText';
+import { useFeedback } from '@/components/ui/FeedbackProvider';
 import { DropdownMenu, type MenuItem } from '@/components/ui/DropdownMenu';
 import { IconButton } from '@/components/ui/IconButton';
 import { isSupabaseConfigured } from '@/config/env';
@@ -34,6 +35,7 @@ export default function ProjectScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors } = useTheme();
   const boardRef = useRef<BoardViewHandle>(null);
+  const { toast } = useFeedback();
   const { mode } = useLayoutMode();
   const pane = mode !== 'expanded';
 
@@ -69,6 +71,16 @@ export default function ProjectScreen() {
   useEffect(() => {
     if (project && isActive(project) && id) useSettingsStore.getState().update({ lastProjectId: id });
   }, [project, id]);
+
+  // プロジェクトが切り替わったら、操作中の状態（カーソル・検索・ダイアログ）をリセットする
+  useEffect(() => {
+    setCursor(null);
+    setQuery('');
+    setSearching(false);
+    setTaskDialog(null);
+    setColumnDialog(null);
+    setArchiveKind(null);
+  }, [id]);
 
   // 検索ショートカット（/）で検索を開く
   useEffect(() => {
@@ -216,15 +228,15 @@ export default function ProjectScreen() {
       onPress: () => void store.updateColumn(column.id, { sortMode: m }),
     })),
     { label: column.isDoneColumn ? t('column.unsetDone') : t('column.setDone'), icon: 'doneMode', separator: true, onPress: () => void store.updateColumn(column.id, { isDoneColumn: !column.isDoneColumn }) },
-    { label: t('common.duplicate'), icon: 'copy', onPress: () => void store.duplicateColumn(column.id) },
+    { label: t('common.duplicate'), icon: 'copy', onPress: () => { void store.duplicateColumn(column.id); toast(t('toast.duplicated')); } },
     { label: t('common.delete'), icon: 'trash', destructive: true, separator: true, onPress: () => void actions.deleteColumn(column) },
   ];
 
   /** タスクをタップしたときのメニュー */
   const taskMenu = (task: Task): MenuItem[] => [
     { label: t('task.edit'), icon: 'edit', onPress: () => setTaskDialog({ mode: 'edit', taskId: task.id }) },
-    { label: task.isFavorite ? t('common.unfavorite') : t('common.favorite'), icon: task.isFavorite ? 'unpin' : 'pin', onPress: () => void store.updateTask(task.id, { isFavorite: !task.isFavorite }) },
-    { label: t('common.duplicate'), icon: 'copy', onPress: () => void store.duplicateTask(task.id) },
+    { label: task.isFavorite ? t('common.unfavorite') : t('common.favorite'), icon: task.isFavorite ? 'unpin' : 'pin', onPress: () => { void store.updateTask(task.id, { isFavorite: !task.isFavorite }); toast(t(task.isFavorite ? 'toast.unpinned' : 'toast.pinned')); } },
+    { label: t('common.duplicate'), icon: 'copy', onPress: () => { void store.duplicateTask(task.id); toast(t('toast.duplicated')); } },
     { label: t('common.archive'), icon: 'archive', onPress: () => void actions.archiveTask(task) },
     { label: t('common.delete'), icon: 'trash', destructive: true, separator: true, onPress: () => void actions.deleteTask(task) },
   ];
@@ -241,8 +253,10 @@ export default function ProjectScreen() {
       const task = tasks.find((x) => x.id === dialog.taskId);
       const target = cols.find((c) => c.id === v.columnId);
       if (task && target && task.columnId !== target.id) await store.moveTask(task.id, target.id);
+      toast(t('toast.taskUpdated'));
     } else {
       await store.createTask({ projectId: project.id, columnId: v.columnId, ...fields });
+      toast(t('toast.taskCreated'));
     }
   };
 
@@ -259,6 +273,7 @@ export default function ProjectScreen() {
       <View style={styles.fill}>
         <BoardView
           header={header}
+          resetKey={id}
           ref={boardRef}
           columns={cols}
           tasksOf={(columnId) => tasksByColumn.get(columnId) ?? []}
@@ -267,7 +282,7 @@ export default function ProjectScreen() {
           menuItemsFor={columnMenu}
           taskMenuFor={taskMenu}
           onAdvance={(task) => void actions.advance(task)}
-          onTaskDrop={(task, target, favorite) => void actions.dropTask(task, target, favorite)}
+          onTaskDrop={(task, target) => void actions.moveTask(task, target)}
           onColumnDrop={(column, toIndex) => void store.moveColumn(column.id, toIndex)}
           onAddTask={(column) => openCreateTask(column.id)}
           onRefresh={syncEnabled ? async () => void (await syncNow()) : undefined}
@@ -315,6 +330,7 @@ export default function ProjectScreen() {
           setColumnDialog(null);
           if (target) await store.updateColumn(target.id, v);
           else await store.createColumn({ projectId: project.id, ...v });
+          toast(t(target ? 'toast.columnUpdated' : 'toast.columnCreated'));
         }}
       />
       <ArchiveDialog

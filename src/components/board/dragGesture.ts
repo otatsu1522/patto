@@ -4,8 +4,16 @@ import { Platform } from 'react-native';
 import { Gesture } from 'react-native-gesture-handler';
 import { GESTURE } from '@/config/layout';
 
+/** つかんだカードの大きさと、カードの左上から見た指の位置（ドラッグ中の見た目を指に合わせるため） */
+export interface GrabInfo {
+  ox: number;
+  oy: number;
+  w: number;
+  h: number;
+}
+
 export interface DragHandlers {
-  begin: (absX: number, absY: number) => void;
+  begin: (absX: number, absY: number, grab?: GrabInfo) => void;
   move: (absX: number, absY: number) => void;
   end: (cancelled: boolean) => void;
 }

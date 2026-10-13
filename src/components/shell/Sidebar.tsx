@@ -8,9 +8,9 @@ import { BOARD } from '@/config/layout';
 import { archivedProjects, searchTasks, visibleProjects } from '@/domain/selectors';
 import type { Project } from '@/domain/types';
 import { pushUndo } from '@/features/undo';
+import { useProjectNavigation } from '@/hooks/useProjectNavigation';
 import { t } from '@/i18n';
 import { useDataStore } from '@/store/dataStore';
-import { useSettingsStore } from '@/store/settingsStore';
 import { useUiStore } from '@/store/uiStore';
 import { syncNow } from '@/sync/controller';
 import { FONT, SPACING, useTheme } from '@/theme';
@@ -46,12 +46,12 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate }: Props) {
   const projects = useDataStore((s) => s.projects);
   const columns = useDataStore((s) => s.columns);
   const tasks = useDataStore((s) => s.tasks);
-  const updateSettings = useSettingsStore((s) => s.update);
   const searchTick = useUiStore((s) => s.searchFocusTick);
 
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<Project | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [searchFocused, setSearchFocused] = useState(false);
   const searchRef = useRef<TextInput>(null);
   const mountedTick = useRef(searchTick);
 
@@ -76,11 +76,7 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate }: Props) {
   const results = useMemo(() => searchTasks({ projects, columns, tasks }, query), [projects, columns, tasks, query]);
   const currentId = pathname.startsWith('/project/') ? pathname.split('/')[2] : null;
 
-  const open = (id: string) => {
-    updateSettings({ lastProjectId: id });
-    router.push({ pathname: '/project/[id]', params: { id } });
-    onNavigate();
-  };
+  const open = useProjectNavigation();
 
   const store = useDataStore.getState();
 
@@ -111,8 +107,8 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate }: Props) {
         <DropdownMenu
           items={[
             { label: t('project.edit'), icon: 'edit', onPress: () => setEditing(p) },
-            { label: p.isFavorite ? t('common.unfavorite') : t('common.favorite'), icon: p.isFavorite ? 'unpin' : 'pin', onPress: () => void store.updateProject(p.id, { isFavorite: !p.isFavorite }) },
-            { label: t('common.duplicate'), icon: 'copy', onPress: () => void store.duplicateProject(p.id) },
+            { label: p.isFavorite ? t('common.unfavorite') : t('common.favorite'), icon: p.isFavorite ? 'unpin' : 'pin', onPress: () => { void store.updateProject(p.id, { isFavorite: !p.isFavorite }); toast(t(p.isFavorite ? 'toast.unpinned' : 'toast.pinned')); } },
+            { label: t('common.duplicate'), icon: 'copy', onPress: () => { void store.duplicateProject(p.id); toast(t('toast.duplicated')); } },
             { label: p.archivedAt ? t('project.unarchiveAction') : t('project.archiveAction'), icon: 'archive', onPress: () => void store.setProjectArchived(p.id, p.archivedAt === null) },
             { label: t('common.delete'), icon: 'trash', destructive: true, separator: true, onPress: () => void removeProject(p) },
           ]}
@@ -134,7 +130,7 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate }: Props) {
         </AppText>
       </View>
 
-      <View style={[styles.search, { borderBottomColor: colors.divider }]}>
+      <View style={[styles.search, { borderBottomColor: searchFocused ? colors.text : 'transparent' }]}>
         <Icon name="search" size={18} color={colors.textMuted} />
         <TextInput
           ref={searchRef}
@@ -143,6 +139,8 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate }: Props) {
           placeholder={t('menu.search')}
           placeholderTextColor={colors.textMuted}
           accessibilityLabel={t('menu.search')}
+          onFocus={() => setSearchFocused(true)}
+          onBlur={() => setSearchFocused(false)}
           style={[styles.searchInput, { color: colors.text, fontSize: fs(FONT.body) }]}
         />
         {query ? <IconButton icon="close" label={t('common.close')} onPress={() => setQuery('')} box={32} size={16} /> : null}
@@ -161,9 +159,6 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate }: Props) {
           />
         ) : (
           <View style={styles.listContent}>
-            <AppText variant="label" muted style={styles.sectionTitle}>
-              {t('menu.projects')}
-            </AppText>
             {list.length === 0 ? (
               <AppText muted style={styles.hint}>
                 {t('menu.noProjects')}
@@ -222,8 +217,8 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate }: Props) {
           onPress={() => void syncNow()}
           style={styles.footerRow}
         >
-          <Icon name={sync.icon} size={18} color={sync.color} />
-          <AppText variant="caption" color={sync.color} numberOfLines={1} style={styles.flex}>
+          <Icon name={sync.icon} size={20} color={sync.color} />
+          <AppText color={sync.color} numberOfLines={1} style={styles.flex}>
             {identity?.mode === 'guest' ? `${t('menu.guestBadge')} · ` : ''}
             {sync.label}
           </AppText>
@@ -237,7 +232,10 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate }: Props) {
         onSubmit={async (v) => {
           const target = editing;
           setEditing(null);
-          if (target) await store.updateProject(target.id, v);
+          if (target) {
+            await store.updateProject(target.id, v);
+            toast(t('toast.projectUpdated'));
+          }
         }}
       />
     </View>
@@ -248,7 +246,7 @@ const styles = StyleSheet.create({
   root: { borderRightWidth: BORDER_WIDTH, flexShrink: 0 },
   flex: { flex: 1 },
   brandName: { paddingLeft: SPACING.sm + SPACING.xs },
-  brand: { flexDirection: 'row', alignItems: 'center', height: 56, paddingHorizontal: SPACING.sm, gap: SPACING.xs, marginBottom: SPACING.md },
+  brand: { flexDirection: 'row', alignItems: 'center', height: 56, paddingHorizontal: SPACING.sm, gap: SPACING.xs },
   search: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginHorizontal: SPACING.lg, borderBottomWidth: BORDER_WIDTH, minHeight: 44, marginBottom: SPACING.sm },
   searchInput: { flex: 1, paddingVertical: SPACING.sm, backgroundColor: 'transparent', outlineStyle: 'none' } as never,
   listContent: { paddingVertical: SPACING.sm },
@@ -258,7 +256,7 @@ const styles = StyleSheet.create({
   itemMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACING.md, minHeight: BOARD.touchTarget, paddingLeft: SPACING.lg, paddingRight: SPACING.sm },
   dot: { width: 12, height: 12, borderRadius: 6, borderWidth: BORDER_WIDTH },
   divider: { height: BORDER_WIDTH, marginVertical: SPACING.xs, marginHorizontal: SPACING.lg },
-  rule: { height: BORDER_WIDTH, marginHorizontal: SPACING.lg },
+  rule: { height: BORDER_WIDTH },
   archiveToggle: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs, padding: SPACING.lg },
   footer: { paddingVertical: SPACING.xs },
   footerRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, minHeight: BOARD.touchTarget, paddingHorizontal: SPACING.lg },

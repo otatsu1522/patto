@@ -38,12 +38,6 @@ export function useBoardActions(projectId: string) {
         await this.moveTask(task, cols[i + 1] ?? cols[0]!);
       },
 
-      /** ドラッグで落としたとき: カンバンの移動と、お気に入りの出し入れ。 */
-      async dropTask(task: Task, target: KanbanColumn, favorite: boolean) {
-        await this.moveTask(task, target);
-        if (favorite !== task.isFavorite) await store().updateTask(task.id, { isFavorite: favorite });
-      },
-
       async deleteTask(task: Task, askFirst = true) {
         if (askFirst) {
           const r = await confirm({ title: t('task.deleteTitle'), message: t('task.deleteMessage', { name: task.title }), confirmLabel: t('common.delete'), destructive: true });
@@ -104,7 +98,7 @@ export function useBoardActions(projectId: string) {
         });
         if (r !== 'confirm') return;
         const res = await clearBucket(kind, projectId);
-        toast(res.ok ? t('board.clearDone', { count: res.count }) : res.message);
+        toast(res.ok ? t('board.clearDone', { count: res.count }) : res.message, undefined, { force: !res.ok });
       },
     };
   }, [projectId, confirm, toast]);

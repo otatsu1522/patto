@@ -24,8 +24,10 @@ export function ColorPicker({ label, value, onChange }: Props) {
           accessibilityRole="button"
           accessibilityLabel={t('common.none')}
           onPress={() => onChange(null)}
-          style={[styles.swatch, { borderColor: value === null ? colors.primary : colors.border, backgroundColor: colors.surface }]}
-        />
+          style={[styles.swatch, { borderColor: value === null ? colors.text : colors.border, backgroundColor: colors.surface }]}
+        >
+          <View style={[styles.slash, { backgroundColor: colors.textMuted }]} />
+        </Pressable>
         {TASK_COLOR_KEYS.map((key) => (
           <Pressable
             key={key}
@@ -45,5 +47,6 @@ export function ColorPicker({ label, value, onChange }: Props) {
 const styles = StyleSheet.create({
   wrap: { gap: SPACING.xs },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
+  slash: { position: 'absolute', width: 44, height: 2, transform: [{ rotate: '-45deg' }] },
   swatch: { width: 34, height: 34, borderRadius: RADIUS.pill, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
 });

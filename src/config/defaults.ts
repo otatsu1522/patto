@@ -18,6 +18,8 @@ export interface AppSettings {
   cardDensity: CardDensity;
   /** この端末の同期モード。off=同期しない / manual=画面を引いた時・ボタンのみ / auto=自動 */
   syncMode: SyncMode;
+  /** 操作結果のトースト（画面下の短い通知）を出すか */
+  toastEnabled: boolean;
   trashAutoDelete: boolean;
   trashRetentionDays: number;
   shortcutsEnabled: boolean;
@@ -32,6 +34,7 @@ export const defaultSettings = (isWeb: boolean, retentionDays: number): AppSetti
   fontScale: 'normal',
   cardDensity: 'normal',
   syncMode: isWeb ? 'auto' : 'manual',
+  toastEnabled: true,
   trashAutoDelete: true,
   trashRetentionDays: retentionDays,
   shortcutsEnabled: true,

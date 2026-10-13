@@ -3,6 +3,7 @@ import { Animated, Keyboard, Pressable, ScrollView, StyleSheet, View, type Layou
 import { BOARD, GESTURE } from '@/config/layout';
 import type { KanbanColumn, Task } from '@/domain/types';
 import { registerBoardMenu, closeBoardMenu } from '@/hooks/boardMenu';
+import { useUiStore } from '@/store/uiStore';
 import { adjacentOffset, boardGeometry, columnIndexAt, nearestOffsetIndex, sidebarWidthFor, useLayoutMode } from '@/hooks/useLayout';
 import { t } from '@/i18n';
 import type { Cursor } from '@/shortcuts/cursor';
@@ -13,7 +14,7 @@ import { EmptyState } from '../ui/EmptyState';
 import { IconButton } from '../ui/IconButton';
 import type { MenuItem } from '../ui/DropdownMenu';
 import { ColumnView } from './ColumnView';
-import type { DragHandlers } from './dragGesture';
+import type { DragHandlers, GrabInfo } from './dragGesture';
 
 export interface BoardViewHandle {
   scrollToColumn: (index: number) => void;
@@ -27,8 +28,8 @@ interface Props {
   menuItemsFor: (column: KanbanColumn, index: number) => MenuItem[];
   taskMenuFor: (task: Task) => MenuItem[];
   onAdvance: (task: Task) => void;
-  /** ドラッグで落としたとき。favorite は落とした位置（ピン留めの横線の上か下か） */
-  onTaskDrop: (task: Task, target: KanbanColumn, favorite: boolean) => void;
+  /** ドラッグで落としたとき（ピン留めの状態は移動先でも変わらない） */
+  onTaskDrop: (task: Task, target: KanbanColumn) => void;
   onColumnDrop: (column: KanbanColumn, toIndex: number) => void;
   onAddTask: (column: KanbanColumn) => void;
   onRefresh?: () => Promise<void>;
@@ -37,9 +38,11 @@ interface Props {
    * PCでは、ボードの上にそのまま表示する。
    */
   header?: ReactNode;
+  /** この値が変わったら（プロジェクトの切り替えなど）、スクロールを最初の位置に戻す */
+  resetKey?: string;
 }
 
-type DragInfo = { kind: 'task'; task: Task } | { kind: 'column'; column: KanbanColumn };
+type DragInfo = ({ kind: 'task'; task: Task } | { kind: 'column'; column: KanbanColumn }) & { grab?: GrabInfo };
 
 /**
  * カンバンを横に並べるボード。
@@ -68,7 +71,6 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
   const edge = useRef({ side: 0, since: 0 });
   const dragRef = useRef<DragInfo | null>(null);
   const hoverRef = useRef<number | null>(null);
-  const dividers = useRef(new Map<string, () => Promise<number | null>>());
   const pos = useRef(new Animated.ValueXY()).current;
 
   const geo = useMemo(() => boardGeometry(size.width, mode, columns.length), [size.width, mode, columns.length]);
@@ -89,11 +91,6 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
   const menuVisible = pane && scrollX < closedX - 2;
   const closedXRef = useRef(closedX);
   closedXRef.current = closedX;
-
-  const registerDivider = useCallback((columnId: string, measure: (() => Promise<number | null>) | null) => {
-    if (measure) dividers.current.set(columnId, measure);
-    else dividers.current.delete(columnId);
-  }, []);
 
   const scrollToX = useCallback((x: number, animated = true) => {
     scrollRef.current?.scrollTo({ x: Math.max(0, x), animated });
@@ -133,6 +130,19 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
     });
     return () => cancelAnimationFrame(id);
   }, [pane, size.width, menuWidth]);
+
+  // メニューが見えているかを、ヘッダーのメニューアイコンの表示に反映する
+  useEffect(() => {
+    useUiStore.setState({ menuVisible });
+    return () => useUiStore.setState({ menuVisible: false });
+  }, [menuVisible]);
+
+  // プロジェクトが切り替わったら、最初の位置（メニューを閉じた位置）に戻す
+  useEffect(() => {
+    if (!positioned) return;
+    scrollRef.current?.scrollTo({ x: pane ? closedXRef.current : 0, animated: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.resetKey]);
 
   // キーボードのカーソルが画面外のカンバンに移ったら、そこまでスクロールする
   useEffect(() => {
@@ -191,7 +201,6 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
   const end = async (cancelled: boolean) => {
     const info = dragRef.current;
     const idx = hoverRef.current;
-    const pointerY = origin.current.y + pointer.current.y;
     dragRef.current = null;
     hoverRef.current = null;
     setDragInfo(null);
@@ -200,10 +209,7 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
     const target = columns[idx];
     if (!target) return;
     if (info.kind === 'column') return props.onColumnDrop(info.column, idx);
-    // ピン留めの横線より上に落としたらピン留め、下ならピン解除
-    const dividerY = await dividers.current.get(target.id)?.();
-    const favorite = dividerY === null || dividerY === undefined ? info.task.isFavorite && target.id === info.task.columnId : pointerY < dividerY;
-    props.onTaskDrop(info.task, target, favorite);
+    props.onTaskDrop(info.task, target);
   };
 
   // 画面の左右端に一定時間留まると、隣のカンバンへスクロールする
@@ -232,8 +238,8 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dragInfo, size.width, offsets]);
 
-  const taskDragHandlers = (task: Task): DragHandlers => ({ begin: (x, y) => begin({ kind: 'task', task }, x, y), move, end });
-  const columnDragHandlers = (column: KanbanColumn): DragHandlers => ({ begin: (x, y) => begin({ kind: 'column', column }, x, y), move, end });
+  const taskDragHandlers = (task: Task): DragHandlers => ({ begin: (x, y, grab) => begin({ kind: 'task', task, grab }, x, y), move, end });
+  const columnDragHandlers = (column: KanbanColumn): DragHandlers => ({ begin: (x, y, grab) => begin({ kind: 'column', column, grab }, x, y), move, end });
 
   const page = nearestOffsetIndex(offsets, scrollX);
   const showButtons = geo.peek > 0;
@@ -288,7 +294,6 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                 grabbed={!!cursor?.grabbed}
                 dropTarget={dragInfo !== null && hoverIndex === index && !(dragInfo.kind === 'column' && dragInfo.column.id === column.id)}
                 draggingTaskId={dragInfo?.kind === 'task' ? dragInfo.task.id : null}
-                taskDragActive={dragInfo?.kind === 'task'}
                 draggingColumn={dragInfo?.kind === 'column' && dragInfo.column.id === column.id}
                 menuItems={props.menuItemsFor(column, index)}
                 taskMenu={props.taskMenuFor}
@@ -296,7 +301,6 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                 onAddTask={() => props.onAddTask(column)}
                 taskDrag={taskDragHandlers}
                 columnDrag={columnDragHandlers(column)}
-                registerDivider={registerDivider}
                 blurSignal={blurSignal}
                 onRefresh={props.onRefresh}
               />
@@ -351,7 +355,14 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
           style={[
             styles.ghost,
             SHADOW.float,
-            { backgroundColor: colors.surface, borderColor: colors.accent, transform: [{ translateX: Animated.subtract(pos.x, 70) }, { translateY: Animated.subtract(pos.y, 20) }] },
+            {
+              width: dragInfo.grab?.w ?? 140,
+              minHeight: dragInfo.grab?.h ?? 44,
+              backgroundColor: colors.surface,
+              borderColor: colors.accent,
+              // つかんだ位置が指の下になるよう、カードの左上から見た指の位置ぶんずらす
+              transform: [{ translateX: Animated.subtract(pos.x, dragInfo.grab?.ox ?? 70) }, { translateY: Animated.subtract(pos.y, dragInfo.grab?.oy ?? 20) }],
+            },
           ]}
         >
           <AppText bold numberOfLines={2}>
@@ -379,5 +390,5 @@ const styles = StyleSheet.create({
   dots: { height: 32, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.sm, position: 'absolute', bottom: 0, left: 0, right: 0 },
   dot: { width: 8, height: 8, borderRadius: 4 },
   pageText: { marginLeft: SPACING.sm },
-  ghost: { position: 'absolute', left: 0, top: 0, width: 140, borderWidth: 2, borderRadius: RADIUS.md, padding: SPACING.sm, zIndex: 50 },
+  ghost: { position: 'absolute', left: 0, top: 0, borderWidth: 2, borderRadius: RADIUS.md, padding: SPACING.md, zIndex: 50 },
 });

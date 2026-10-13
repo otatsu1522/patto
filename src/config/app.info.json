@@ -9,5 +9,26 @@
   "copyrightHolder": "Patto",
   "iosBundleId": "dev.patto.app",
   "androidPackage": "dev.patto.app",
-  "links": { "terms": "", "privacy": "", "contact": "" }
+  "links": {
+    "terms": "",
+    "privacy": "",
+    "contact": ""
+  },
+  "tech": [
+    {
+      "name": "Expo",
+      "url": "https://expo.dev",
+      "descriptionKey": "about.tech.expo"
+    },
+    {
+      "name": "Supabase",
+      "url": "https://supabase.com/dashboard",
+      "descriptionKey": "about.tech.supabase"
+    },
+    {
+      "name": "Cloudflare",
+      "url": "https://pages.cloudflare.com/",
+      "descriptionKey": "about.tech.cloudflare"
+    }
+  ]
 }
