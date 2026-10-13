@@ -1,5 +1,5 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Animated, Keyboard, Pressable, ScrollView, StyleSheet, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { Animated, Keyboard, Platform, Pressable, ScrollView, StyleSheet, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { BOARD, GESTURE } from '@/config/layout';
 import type { KanbanColumn, Task } from '@/domain/types';
 import { registerBoardMenu, closeBoardMenu } from '@/hooks/boardMenu';
@@ -161,7 +161,7 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
     setScrollX(x);
   };
   // スクロール位置をアニメーション値に渡す（ヘッダーをカンバンと同じ動きで動かすため。ネイティブ側で処理するのでずれない）
-  const onScroll = Animated.event([{ nativeEvent: { contentOffset: { x: scrollAnim } } }], { useNativeDriver: true, listener: onScrollEvent });
+  const onScroll = Animated.event( [{ nativeEvent: { contentOffset: { x: scrollAnim } } }], {useNativeDriver: Platform.OS !== 'web',listener: onScrollEvent,},);
   // メニューを開くほど（スクロール位置が左端に近いほど）、ヘッダーを右へずらす
   const headerShift = useMemo(
     () => scrollAnim.interpolate({ inputRange: [0, Math.max(1, closedX)], outputRange: [closedX, 0], extrapolate: 'clamp' }),
