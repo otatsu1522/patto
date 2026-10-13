@@ -25,6 +25,11 @@ const config: ExpoConfig = {
     ['expo-splash-screen', { image: './assets/splash-icon.png', imageWidth: 200, backgroundColor: '#FFFFFF' }],
   ],
   experiments: { typedRoutes: false },
+  extra: {
+    eas: {
+      projectId: 'a2f9e536-0aa9-4307-b82d-8f2cd433cd72',
+    },
+  },
 };
 
 export default config;
