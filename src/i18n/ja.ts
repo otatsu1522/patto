@@ -80,7 +80,7 @@ export const ja = {
   'auth.error.signupFailed':
     'アカウントを作成できませんでした。Supabase の「Confirm email」がオフか確認してください。',
   'auth.error.upgradeBlocked':
-    'メール確認なしではアカウントに切り替えられませんでした。Supabase の設定（docs/SUPABASE.md）を確認してください。',
+    'メール確認なしではアカウントに切り替えられませんでした。Supabase の設定（docs/BACKEND.md）を確認してください。',
   'sync.guest': 'ゲスト',
   'sync.off': '同期オフ',
   'sync.localOnly': 'この端末のみ',

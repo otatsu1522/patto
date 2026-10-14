@@ -1,4 +1,4 @@
-# Supabase のセットアップ
+# バックエンドの設定（Supabase のセットアップ）
 
 Patto は Supabase の Auth（メール+パスワード、匿名）と PostgreSQL を使う。以下は無料枠で動く。
 

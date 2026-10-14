@@ -122,7 +122,7 @@
 2. メールが反映されたことを確認してから、パスワードを設定する（`updateUser({ password })`）。
 3. **ユーザーIDは変わらない**ので、端末内・サーバー上のデータはそのまま引き継がれる。以降はアカウントと同じ動作。
 
-メール確認が必要な設定のままだと手順1で反映されず、「メール確認なしでは切り替えられない」旨を表示して中断する。確認方法は `docs/SUPABASE.md`。
+メール確認が必要な設定のままだと手順1で反映されず、「メール確認なしでは切り替えられない」旨を表示して中断する。確認方法は `docs/BACKEND.md`。
 
 ### 4.5 ゲストからログイン画面へ戻る
 
@@ -428,5 +428,5 @@ Git管理するもの: `.env.example`、`pnpm-lock.yaml`、`supabase/migrations/
 
 ## 14. Supabase とWeb公開
 
-- Supabase のセットアップ（テーブル・RLS・認証設定・Edge Function）: `docs/SUPABASE.md`
+- Supabase のセットアップ（テーブル・RLS・認証設定・Edge Function）: `docs/BACKEND.md`
 - Cloudflare Pages での公開（ビルド設定・環境変数・ヘッダー・WASM）: `docs/DEPLOY.md`
