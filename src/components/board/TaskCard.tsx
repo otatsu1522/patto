@@ -89,7 +89,7 @@ export function TaskCard({
         items={menuItems}
         anchorStyle={styles.anchor}
         trigger={(open) => (
-          <GestureDetector gesture={gesture} touchAction="pan-y" enableContextMenu={false}>
+          <GestureDetector gesture={gesture} touchAction="manipulation" enableContextMenu={false}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={task.title}

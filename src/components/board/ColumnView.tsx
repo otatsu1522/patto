@@ -101,7 +101,11 @@ export function ColumnView(p: ColumnViewProps) {
           p.grabbed && headerFocused && { backgroundColor: colors.border },
         ]}
       >
-        <GestureDetector gesture={headerGesture} touchAction="pan-y" enableContextMenu={false}>
+        <GestureDetector
+          gesture={headerGesture}
+          touchAction="manipulation"
+          enableContextMenu={false}
+        >
           <View ref={headerRef} collapsable={false} style={styles.titleWrap}>
             {p.column.color ? (
               <View style={[styles.dot, { backgroundColor: taskColor(p.column.color) }]} />
