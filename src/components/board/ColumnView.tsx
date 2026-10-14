@@ -38,6 +38,8 @@ export interface ColumnViewProps {
   columnDrag: DragHandlers;
   /** 横スクロールなど他の操作が始まったら増える。入力欄のフォーカスを外す合図 */
   blurSignal: number;
+  /** スマホのWeb版で列内からの横スワイプをボードへ転送する */
+  onColumnTouchStart?: (x: number, y: number) => void;
   onRefresh?: () => Promise<void>;
 }
 
@@ -83,6 +85,12 @@ export function ColumnView(p: ColumnViewProps) {
   const headerFocused = p.cursorTaskIndex === -1;
   return (
     <View
+      onTouchStart={(event) => {
+        const touch = event.nativeEvent.touches[0];
+        if (!touch) return;
+
+        p.onColumnTouchStart?.(touch.pageX, touch.pageY);
+      }}
       style={[
         styles.column,
         {

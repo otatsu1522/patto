@@ -108,6 +108,7 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
   const edge = useRef({ side: 0, since: 0 });
   const dragRef = useRef<DragInfo | null>(null);
   const hoverRef = useRef<number | null>(null);
+  const webTouchCleanup = useRef<(() => void) | null>(null);
   const pos = useRef(new Animated.ValueXY()).current;
 
   const geo = useMemo(
@@ -334,6 +335,77 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
       BOARD.boardPadding * 2,
   );
 
+  // スマホのWeb版: 列内からの横スワイプをボードのスクロールに転送する
+  const beginColumnTouch = useCallback(
+    (startX: number, startY: number) => {
+      if (Platform.OS !== 'web' || !isTouchWeb || typeof document === 'undefined') {
+        return;
+      }
+
+      webTouchCleanup.current?.();
+
+      let lastX = startX;
+      let currentScrollX = scrollXRef.current;
+      let axis: 'x' | 'y' | null = null;
+
+      const onMove = (event: TouchEvent) => {
+        // タスクやカンバンのドラッグ中は、通常の横スクロールを行わない
+        if (dragRef.current) return;
+
+        const touch = event.touches[0];
+        if (!touch) return;
+
+        const dx = touch.pageX - startX;
+        const dy = touch.pageY - startY;
+
+        // 最初の移動方向で、横スクロールと縦スクロールを区別する
+        if (axis === null) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) < 6) return;
+
+          axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+
+          if (axis === 'x') {
+            currentScrollX = scrollXRef.current;
+          }
+        }
+
+        if (axis !== 'x') return;
+
+        event.preventDefault();
+
+        const deltaX = touch.pageX - lastX;
+        lastX = touch.pageX;
+
+        currentScrollX = Math.max(0, Math.min(maxOffset, currentScrollX - deltaX));
+
+        scrollXRef.current = currentScrollX;
+        setScrollX(currentScrollX);
+        scrollToX(currentScrollX, false);
+      };
+
+      const cleanup = () => {
+        document.removeEventListener('touchmove', onMove);
+        document.removeEventListener('touchend', cleanup);
+        document.removeEventListener('touchcancel', cleanup);
+
+        if (webTouchCleanup.current === cleanup) {
+          webTouchCleanup.current = null;
+        }
+      };
+
+      document.addEventListener('touchmove', onMove, { passive: false });
+      document.addEventListener('touchend', cleanup, { once: true });
+      document.addEventListener('touchcancel', cleanup, { once: true });
+
+      webTouchCleanup.current = cleanup;
+    },
+    [maxOffset, scrollToX],
+  );
+
+  useEffect(() => {
+    return () => webTouchCleanup.current?.();
+  }, []);
+
   return (
     <View style={styles.fill}>
       {!pane ? header : null}
@@ -429,6 +501,7 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                   columnDrag={columnDragHandlers(column)}
                   blurSignal={blurSignal}
                   onRefresh={props.onRefresh}
+                  onColumnTouchStart={beginColumnTouch}
                 />
               ))}
             </Animated.ScrollView>
