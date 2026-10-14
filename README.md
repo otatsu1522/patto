@@ -10,13 +10,13 @@
 
 詳しい仕様は [docs/SPEC.md](docs/SPEC.md) を参照してください。
 
-## 1. 必要なもの
+## 1. 環境構築
 
-| もの | バージョン | 確認コマンド |
+| 対象 | バージョン | 確認コマンド |
 | --- | --- | --- |
 | Node.js | 24.18.0 | `node -v` |
 | pnpm | 12.4.1 | `pnpm -v` |
-| （スマホで試す場合）Expo Go アプリ | 最新 | ストアからインストール |
+| Expo Go アプリ（スマホで試す場合） | 最新 | ストアからインストール |
 
 ### Scoop によるインストール（Windows）
 
@@ -30,14 +30,43 @@ scoop install nodejs-lts@24.18.0
 scoop install pnpm@12.4.1
 ```
 
+### Homebrew によるインストール（macOS）
+
+Homebrew が未導入の場合は、[Homebrew の公式サイト](https://brew.sh/ja/) の手順でインストールしてください。
+
+Node.js はバージョン管理ツール `fnm` を使用して指定バージョンをインストールします。
+
+```bash
+# 1) fnm をインストール
+brew install fnm
+
+# 2) fnm を zsh で使用できるように設定
+echo 'eval "$(fnm env --use-on-cd --shell zsh)"' >> ~/.zshrc
+
+# 3) 設定を反映
+source ~/.zshrc
+
+# 4) Node.js を指定バージョンでインストール
+fnm install 24.18.0
+fnm default 24.18.0
+fnm use 24.18.0
+
+# 5) pnpm を指定バージョンでインストール
+npm install --global pnpm@12.4.1
+```
+
+### 確認
+
 インストール後、バージョンを確認します。
 
-```powershell
+```bash
 node -v
 pnpm -v
 ```
 
 それぞれ `v24.18.0`、`12.4.1` と表示されることを確認してください。
+
+`fnm` は Node.js のバージョンを管理するツールです。`fnm default` で既定のバージョンを設定し、以降のターミナルでも同じ Node.js バージョンを使用します。
 
 ## 2. セットアップ
 
