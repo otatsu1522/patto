@@ -37,7 +37,11 @@ export function applyDrawer(open: boolean, animated = true): void {
     return;
   }
   if (!animated) return drawerProgress.setValue(open ? 1 : 0);
-  Animated.timing(drawerProgress, { toValue: open ? 1 : 0, duration: 200, useNativeDriver: false }).start();
+  Animated.timing(drawerProgress, {
+    toValue: open ? 1 : 0,
+    duration: 200,
+    useNativeDriver: false,
+  }).start();
 }
 
 /** 指に合わせてメニューを動かす（progress は 0〜1）。 */
