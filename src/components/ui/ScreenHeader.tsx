@@ -11,8 +11,16 @@ export function ScreenHeader({ title, onBack }: { title: string; onBack?: () => 
   const router = useRouter();
   const { colors } = useTheme();
   return (
-    <View style={[styles.bar, { borderBottomColor: colors.border, backgroundColor: colors.surface }]}>
-      <IconButton icon="back" label={t('common.back')} onPress={onBack ?? (() => (router.canGoBack() ? router.back() : router.replace('/settings')))} />
+    <View
+      style={[styles.bar, { borderBottomColor: colors.border, backgroundColor: colors.surface }]}
+    >
+      <IconButton
+        icon="back"
+        label={t('common.back')}
+        onPress={
+          onBack ?? (() => (router.canGoBack() ? router.back() : router.replace('/settings')))
+        }
+      />
       <AppText variant="title" numberOfLines={1} style={styles.title}>
         {title}
       </AppText>
@@ -22,7 +30,13 @@ export function ScreenHeader({ title, onBack }: { title: string; onBack?: () => 
 }
 
 const styles = StyleSheet.create({
-  bar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.sm, borderBottomWidth: BORDER_WIDTH, minHeight: 56 },
+  bar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.sm,
+    borderBottomWidth: BORDER_WIDTH,
+    minHeight: 56,
+  },
   title: { flex: 1, textAlign: 'center' },
   spacer: { width: 44 },
 });

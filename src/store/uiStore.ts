@@ -33,7 +33,8 @@ export const useUiStore = create<UiState>((set) => ({
   popDialog: () => set((s) => ({ dialogCount: Math.max(0, s.dialogCount - 1) })),
   toggleSidebarCollapsed: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
   setHelpOpen: (v) => set({ helpOpen: v }),
-  focusSidebarSearch: () => set((s) => ({ searchFocusTick: s.searchFocusTick + 1, sidebarCollapsed: false })),
+  focusSidebarSearch: () =>
+    set((s) => ({ searchFocusTick: s.searchFocusTick + 1, sidebarCollapsed: false })),
   focusBoardSearch: () => set((s) => ({ boardSearchFocusTick: s.boardSearchFocusTick + 1 })),
   requestNewProject: () => set({ newProjectOpen: true }),
   setNewProjectOpen: (v) => set({ newProjectOpen: v }),

@@ -37,7 +37,10 @@ export function ReauthBanner() {
         placeholderTextColor={colors.textMuted}
         onSubmitEditing={submit}
         accessibilityLabel={t('auth.password')}
-        style={[styles.input, { backgroundColor: colors.surface, color: colors.text, fontSize: fs(FONT.body) }]}
+        style={[
+          styles.input,
+          { backgroundColor: colors.surface, color: colors.text, fontSize: fs(FONT.body) },
+        ]}
       />
       <Button label={t('auth.reauthSubmit')} onPress={submit} loading={busy} variant="secondary" />
     </View>
@@ -45,7 +48,20 @@ export function ReauthBanner() {
 }
 
 const styles = StyleSheet.create({
-  bar: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: SPACING.sm, padding: SPACING.sm },
+  bar: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    padding: SPACING.sm,
+  },
   text: { flexGrow: 1, flexBasis: 200 },
-  input: { minWidth: 160, flexGrow: 1, borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, minHeight: 44, outlineStyle: 'none' } as never,
+  input: {
+    minWidth: 160,
+    flexGrow: 1,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.md,
+    minHeight: 44,
+    outlineStyle: 'none',
+  } as never,
 });

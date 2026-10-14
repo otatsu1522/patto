@@ -120,9 +120,17 @@ export const useAuthStore = create<AuthState>((set, get) => {
       const client = getSupabase();
       if (!client) return notConfigured();
       try {
-        const { data, error } = await client.auth.signInWithPassword({ email: normalizeEmail(email), password });
+        const { data, error } = await client.auth.signInWithPassword({
+          email: normalizeEmail(email),
+          password,
+        });
         if (error) return { ok: false, message: mapAuthError(error) };
-        await enter({ mode: 'account', userId: data.user.id, email: data.user.email ?? '', displayName: displayNameOf(data.user) });
+        await enter({
+          mode: 'account',
+          userId: data.user.id,
+          email: data.user.email ?? '',
+          displayName: displayNameOf(data.user),
+        });
         return { ok: true };
       } catch (e) {
         return fail(e);
@@ -139,8 +147,17 @@ export const useAuthStore = create<AuthState>((set, get) => {
           options: { data: { display_name: displayName.trim() } },
         });
         if (error) return { ok: false, message: mapAuthError(error) };
-        if (!data.session || !data.user) return { ok: false, message: t('auth.error.signupFailed') };
-        await enter({ mode: 'account', userId: data.user.id, email: data.user.email ?? '', displayName: displayName.trim() }, { seedTutorial: true });
+        if (!data.session || !data.user)
+          return { ok: false, message: t('auth.error.signupFailed') };
+        await enter(
+          {
+            mode: 'account',
+            userId: data.user.id,
+            email: data.user.email ?? '',
+            displayName: displayName.trim(),
+          },
+          { seedTutorial: true },
+        );
         return { ok: true };
       } catch (e) {
         return fail(e);
@@ -151,14 +168,20 @@ export const useAuthStore = create<AuthState>((set, get) => {
       const client = getSupabase();
       // Supabase 未設定: 端末内だけで使うゲスト
       if (!client) {
-        await enter({ mode: 'guest', userId: LOCAL_USER_ID, email: '', displayName: '', local: true }, { seedTutorial: true });
+        await enter(
+          { mode: 'guest', userId: LOCAL_USER_ID, email: '', displayName: '', local: true },
+          { seedTutorial: true },
+        );
         return { ok: true };
       }
       try {
         // 初回だけ通信して匿名ユーザーを作る。以降はオフラインでも使える
         const { data, error } = await client.auth.signInAnonymously();
         if (error || !data.user) return { ok: false, message: mapAuthError(error) };
-        await enter({ mode: 'guest', userId: data.user.id, email: '', displayName: '' }, { seedTutorial: true });
+        await enter(
+          { mode: 'guest', userId: data.user.id, email: '', displayName: '' },
+          { seedTutorial: true },
+        );
         return { ok: true };
       } catch (e) {
         return fail(e);
@@ -168,11 +191,15 @@ export const useAuthStore = create<AuthState>((set, get) => {
     async upgradeGuest(email, password, displayName) {
       const client = getSupabase();
       const identity = get().identity;
-      if (!client || !identity || identity.mode !== 'guest' || identity.local) return notConfigured();
+      if (!client || !identity || identity.mode !== 'guest' || identity.local)
+        return notConfigured();
       try {
         const mail = normalizeEmail(email);
         // 1) 匿名ユーザーにメールアドレスを紐付ける
-        const step1 = await client.auth.updateUser({ email: mail, data: { display_name: displayName.trim() } });
+        const step1 = await client.auth.updateUser({
+          email: mail,
+          data: { display_name: displayName.trim() },
+        });
         if (step1.error) return { ok: false, message: mapAuthError(step1.error) };
         // メール確認が必要な設定だと、メールが反映されずに「確認待ち」のままになる
         const applied = step1.data.user.email === mail && !step1.data.user.new_email;
@@ -180,7 +207,12 @@ export const useAuthStore = create<AuthState>((set, get) => {
         // 2) パスワードを設定する
         const step2 = await client.auth.updateUser({ password });
         if (step2.error) return { ok: false, message: mapAuthError(step2.error) };
-        const next: Identity = { mode: 'account', userId: identity.userId, email: mail, displayName: displayName.trim() };
+        const next: Identity = {
+          mode: 'account',
+          userId: identity.userId,
+          email: mail,
+          displayName: displayName.trim(),
+        };
         await persist(next);
         set({ identity: next, status: 'account' });
         return { ok: true };
@@ -221,7 +253,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
       const identity = get().identity;
       if (!client || !identity?.email) return notConfigured();
       try {
-        const check = await client.auth.signInWithPassword({ email: identity.email, password: current });
+        const check = await client.auth.signInWithPassword({
+          email: identity.email,
+          password: current,
+        });
         if (check.error) return { ok: false, message: mapAuthError(check.error) };
         const { error } = await client.auth.updateUser({ password: next });
         return error ? { ok: false, message: mapAuthError(error) } : { ok: true };

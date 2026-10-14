@@ -40,15 +40,22 @@ const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(v,
  * - スマホ縦: 現在のカンバンを中央に、前後が見える。いちばん左・右では余白を詰めて、反対側の隣が多く見える。
  * - それ以外: カンバンが3つ以下なら、その数で画面いっぱいに並べる。4つ以上なら3つ表示し、左右に隣が少し見える。
  */
-export function boardGeometry(containerWidth: number, mode: LayoutMode, count: number): BoardGeometry {
+export function boardGeometry(
+  containerWidth: number,
+  mode: LayoutMode,
+  count: number,
+): BoardGeometry {
   const { boardPadding: p, columnGap: gap, minColumnWidth, visibleColumns } = BOARD;
   const n = Math.max(1, count);
 
   if (mode === 'compact') {
-    const columnWidth = n === 1 ? containerWidth - p * 2 : Math.round(containerWidth * COMPACT_RATIO);
+    const columnWidth =
+      n === 1 ? containerWidth - p * 2 : Math.round(containerWidth * COMPACT_RATIO);
     const step = columnWidth + gap;
     const max = Math.max(0, p * 2 + n * columnWidth + (n - 1) * gap - containerWidth);
-    const offsets = Array.from({ length: n }, (_, k) => clamp(p + k * step - (containerWidth - columnWidth) / 2, 0, max));
+    const offsets = Array.from({ length: n }, (_, k) =>
+      clamp(p + k * step - (containerWidth - columnWidth) / 2, 0, max),
+    );
     return { visible: 1, columnWidth, step, padding: p, offsets, peek: 0, compact: true };
   }
 
@@ -56,12 +63,22 @@ export function boardGeometry(containerWidth: number, mode: LayoutMode, count: n
   const limit = Math.min(visibleColumns, fit);
   if (n <= limit) {
     const columnWidth = (containerWidth - p * 2 - gap * (n - 1)) / n;
-    return { visible: n, columnWidth, step: columnWidth + gap, padding: p, offsets: [0], peek: 0, compact: false };
+    return {
+      visible: n,
+      columnWidth,
+      step: columnWidth + gap,
+      padding: p,
+      offsets: [0],
+      peek: 0,
+      compact: false,
+    };
   }
   const columnWidth = (containerWidth - p * 2 - gap * (limit - 1) - PEEK_PX * 2) / limit;
   const step = columnWidth + gap;
   const max = Math.max(0, p * 2 + n * columnWidth + (n - 1) * gap - containerWidth);
-  const offsets = Array.from({ length: n - limit + 1 }, (_, k) => clamp(k * step - PEEK_PX, 0, max));
+  const offsets = Array.from({ length: n - limit + 1 }, (_, k) =>
+    clamp(k * step - PEEK_PX, 0, max),
+  );
   return { visible: limit, columnWidth, step, padding: p, offsets, peek: PEEK_PX, compact: false };
 }
 
@@ -76,7 +93,8 @@ export function nearestOffsetIndex(offsets: number[], x: number): number {
 
 /** 現在位置から見て、前（-1）/ 次（+1）の「止まる位置」。なければ null */
 export function adjacentOffset(offsets: number[], x: number, dir: -1 | 1): number | null {
-  const found = dir === 1 ? offsets.find((o) => o > x + 1) : [...offsets].reverse().find((o) => o < x - 1);
+  const found =
+    dir === 1 ? offsets.find((o) => o > x + 1) : [...offsets].reverse().find((o) => o < x - 1);
   return found ?? null;
 }
 
@@ -88,4 +106,6 @@ export function columnIndexAt(x: number, scrollX: number, g: BoardGeometry, coun
 
 /** メニューの幅: PCは画面の約1/4、スマホは画面の約8割。 */
 export const sidebarWidthFor = (windowWidth: number, permanent: boolean): number =>
-  permanent ? Math.round(Math.min(400, Math.max(220, windowWidth * 0.25))) : Math.round(Math.min(340, Math.max(260, windowWidth * 0.82)));
+  permanent
+    ? Math.round(Math.min(400, Math.max(220, windowWidth * 0.25)))
+    : Math.round(Math.min(340, Math.max(260, windowWidth * 0.82)));

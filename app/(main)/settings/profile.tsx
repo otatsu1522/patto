@@ -10,7 +10,13 @@ import { TextField } from '@/components/ui/TextField';
 import { isSupabaseConfigured } from '@/config/env';
 import { BOARD } from '@/config/layout';
 import { LIMITS } from '@/config/limits';
-import { firstError, validateEmail, validateMaxLength, validatePassword, validatePasswordMatch } from '@/domain/validation';
+import {
+  firstError,
+  validateEmail,
+  validateMaxLength,
+  validatePassword,
+  validatePasswordMatch,
+} from '@/domain/validation';
 import { t } from '@/i18n';
 import { useDataStore } from '@/store/dataStore';
 import { SPACING, useTheme } from '@/theme';
@@ -27,7 +33,13 @@ export default function ProfileScreen() {
     <View style={styles.fill}>
       <ScreenHeader title={t('settings.profile')} />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.inner}>{identity?.mode === 'guest' ? <GuestSection local={!!identity.local} /> : <AccountSections />}</View>
+        <View style={styles.inner}>
+          {identity?.mode === 'guest' ? (
+            <GuestSection local={!!identity.local} />
+          ) : (
+            <AccountSections />
+          )}
+        </View>
       </ScrollView>
     </View>
   );
@@ -71,7 +83,12 @@ function GuestSection({ local }: { local: boolean }) {
   };
 
   const leave = async () => {
-    const r = await confirm({ title: t('settings.guestLeaveTitle'), message: t('settings.guestLeaveMessage'), confirmLabel: t('settings.guestLeaveConfirm'), destructive: true });
+    const r = await confirm({
+      title: t('settings.guestLeaveTitle'),
+      message: t('settings.guestLeaveMessage'),
+      confirmLabel: t('settings.guestLeaveConfirm'),
+      destructive: true,
+    });
     if (r === 'confirm') await useAuthStore.getState().leaveGuest();
   };
 
@@ -83,16 +100,54 @@ function GuestSection({ local }: { local: boolean }) {
             <AppText variant="caption" muted>
               {t('settings.createAccountHint')}
             </AppText>
-            <TextField label={t('auth.displayName')} value={name} onChangeText={setName} error={submitted ? errors.name : null} />
-            <TextField label={t('auth.email')} value={email} onChangeText={setEmail} error={submitted ? errors.email : null} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" />
-            <TextField label={t('auth.password')} value={password} onChangeText={setPassword} error={submitted ? errors.password : null} secure autoCapitalize="none" />
-            <TextField label={t('auth.passwordConfirm')} value={confirmPw} onChangeText={setConfirmPw} error={submitted ? errors.confirm : null} secure autoCapitalize="none" />
+            <TextField
+              label={t('auth.displayName')}
+              value={name}
+              onChangeText={setName}
+              error={submitted ? errors.name : null}
+            />
+            <TextField
+              label={t('auth.email')}
+              value={email}
+              onChangeText={setEmail}
+              error={submitted ? errors.email : null}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+            />
+            <TextField
+              label={t('auth.password')}
+              value={password}
+              onChangeText={setPassword}
+              error={submitted ? errors.password : null}
+              secure
+              autoCapitalize="none"
+            />
+            <TextField
+              label={t('auth.passwordConfirm')}
+              value={confirmPw}
+              onChangeText={setConfirmPw}
+              error={submitted ? errors.confirm : null}
+              secure
+              autoCapitalize="none"
+            />
             <Message text={message} />
-            <Button label={t('settings.createAccountSubmit')} onPress={create} loading={busy} fullWidth />
+            <Button
+              label={t('settings.createAccountSubmit')}
+              onPress={create}
+              loading={busy}
+              fullWidth
+            />
           </View>
         </Section>
       ) : null}
-      <Button label={t('settings.backToLogin')} variant="danger" icon="logout" onPress={leave} fullWidth />
+      <Button
+        label={t('settings.backToLogin')}
+        variant="danger"
+        icon="logout"
+        onPress={leave}
+        fullWidth
+      />
     </>
   );
 }
@@ -111,7 +166,11 @@ function AccountSections() {
   const [typed, setTyped] = useState('');
   const [deleteMessage, setDeleteMessage] = useState<string | null>(null);
 
-  const pwErrors = { current: current ? null : t('validation.required'), next: validatePassword(next), confirm: validatePasswordMatch(next, confirmPw) };
+  const pwErrors = {
+    current: current ? null : t('validation.required'),
+    next: validatePassword(next),
+    confirm: validatePasswordMatch(next, confirmPw),
+  };
 
   const saveName = async () => {
     if (validateMaxLength(name, LIMITS.displayNameMax)) return;
@@ -139,7 +198,8 @@ function AccountSections() {
     const pending = pendingCount();
     const r = await confirm({
       title: t('settings.logoutTitle'),
-      message: pending > 0 ? t('settings.logoutPending', { count: pending }) : t('settings.logoutMessage'),
+      message:
+        pending > 0 ? t('settings.logoutPending', { count: pending }) : t('settings.logoutMessage'),
       confirmLabel: t('settings.logoutNow'),
       destructive: true,
     });
@@ -151,7 +211,10 @@ function AccountSections() {
     const pending = pendingCount();
     const r = await confirm({
       title: t('settings.deleteAccount'),
-      message: pending > 0 ? `${t('settings.deleteAccountWarning')}\n${t('settings.deleteAccountPending')}` : t('settings.deleteAccountWarning'),
+      message:
+        pending > 0
+          ? `${t('settings.deleteAccountWarning')}\n${t('settings.deleteAccountPending')}`
+          : t('settings.deleteAccountWarning'),
       confirmLabel: t('common.delete'),
       destructive: true,
     });
@@ -169,7 +232,15 @@ function AccountSections() {
             {t('settings.emailLabel')}
           </AppText>
           <AppText>{identity?.email}</AppText>
-          <TextField label={t('auth.displayName')} value={name} onChangeText={(v) => { setName(v); setNameMessage(null); }} error={validateMaxLength(name, LIMITS.displayNameMax)} />
+          <TextField
+            label={t('auth.displayName')}
+            value={name}
+            onChangeText={(v) => {
+              setName(v);
+              setNameMessage(null);
+            }}
+            error={validateMaxLength(name, LIMITS.displayNameMax)}
+          />
           <Message text={nameMessage} ok />
           <Button label={t('settings.saveProfile')} variant="secondary" onPress={saveName} />
         </View>
@@ -177,24 +248,61 @@ function AccountSections() {
 
       <Section title={t('settings.changePassword')}>
         <View style={styles.form}>
-          <TextField label={t('auth.password')} value={current} onChangeText={setCurrent} error={pwSubmitted ? pwErrors.current : null} secure autoCapitalize="none" />
-          <TextField label={t('settings.newPassword')} value={next} onChangeText={setNext} error={pwSubmitted ? pwErrors.next : null} secure autoCapitalize="none" />
-          <TextField label={t('auth.passwordConfirm')} value={confirmPw} onChangeText={setConfirmPw} error={pwSubmitted ? pwErrors.confirm : null} secure autoCapitalize="none" />
+          <TextField
+            label={t('auth.password')}
+            value={current}
+            onChangeText={setCurrent}
+            error={pwSubmitted ? pwErrors.current : null}
+            secure
+            autoCapitalize="none"
+          />
+          <TextField
+            label={t('settings.newPassword')}
+            value={next}
+            onChangeText={setNext}
+            error={pwSubmitted ? pwErrors.next : null}
+            secure
+            autoCapitalize="none"
+          />
+          <TextField
+            label={t('auth.passwordConfirm')}
+            value={confirmPw}
+            onChangeText={setConfirmPw}
+            error={pwSubmitted ? pwErrors.confirm : null}
+            secure
+            autoCapitalize="none"
+          />
           <Message text={pwMessage?.text ?? null} ok={pwMessage?.ok} />
           <Button label={t('settings.changePassword')} onPress={changePassword} loading={pwBusy} />
         </View>
       </Section>
 
-      <Button label={t('settings.logout')} variant="secondary" icon="logout" onPress={logout} fullWidth />
+      <Button
+        label={t('settings.logout')}
+        variant="secondary"
+        icon="logout"
+        onPress={logout}
+        fullWidth
+      />
 
       <Section title={t('settings.deleteAccount')}>
         <View style={styles.form}>
           <AppText variant="caption" muted>
             {t('settings.deleteAccountWarning')}
           </AppText>
-          <TextField label={t('settings.deleteAccountType', { word: t('settings.deleteAccountWord') })} value={typed} onChangeText={setTyped} autoCapitalize="none" />
+          <TextField
+            label={t('settings.deleteAccountType', { word: t('settings.deleteAccountWord') })}
+            value={typed}
+            onChangeText={setTyped}
+            autoCapitalize="none"
+          />
           <Message text={deleteMessage} />
-          <Button label={t('settings.deleteAccount')} variant="danger" disabled={typed !== t('settings.deleteAccountWord')} onPress={deleteAccount} />
+          <Button
+            label={t('settings.deleteAccount')}
+            variant="danger"
+            disabled={typed !== t('settings.deleteAccountWord')}
+            onPress={deleteAccount}
+          />
         </View>
       </Section>
     </>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { LIMITS } from '@/config/limits';
 import type { KanbanColumn, Project } from '@/domain/types';
 import { validateTitle } from '@/domain/validation';
@@ -20,14 +20,15 @@ interface ColumnDialogProps {
 /** カンバンの作成・名前変更ダイアログ。 */
 export function ColumnDialog({ visible, column, onClose, onSubmit }: ColumnDialogProps) {
   // 閉じるアニメーション中にタイトルが切り替わらないよう、開いている間の値を覚えておく
-  const lastColumn = useRef(column);
-  if (visible) lastColumn.current = column;
-  const shownColumn = visible ? column : lastColumn.current;
+  const [lastColumn, setLastColumn] = useState(column);
+  if (visible && lastColumn !== column) setLastColumn(column);
+  const shownColumn = visible ? column : lastColumn;
   const [title, setTitle] = useState('');
   const [color, setColor] = useState<TaskColorKey | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const titleInput = useFocusOnOpen(visible);
 
+  /* eslint-disable react-hooks/set-state-in-effect -- ダイアログを開くたびに、入力欄を元の値に戻す */
   useEffect(() => {
     if (!visible) return;
     setTitle(column?.title ?? '');
@@ -35,6 +36,7 @@ export function ColumnDialog({ visible, column, onClose, onSubmit }: ColumnDialo
     setSubmitted(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, column?.id]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const error = submitted ? validateTitle(title, LIMITS.columnTitleMax) : null;
   const submit = () => {
@@ -44,8 +46,21 @@ export function ColumnDialog({ visible, column, onClose, onSubmit }: ColumnDialo
   };
 
   return (
-    <Dialog visible={visible} title={shownColumn ? t('column.rename') : t('column.create')} onClose={onClose} footer={<Button label={t('common.confirm')} variant="accent" onPress={submit} fullWidth />}>
-      <TextField label={t('column.title')} value={title} onChangeText={setTitle} error={error} ref={titleInput} onSubmitEditing={submit} returnKeyType="done" />
+    <Dialog
+      visible={visible}
+      title={shownColumn ? t('column.rename') : t('column.create')}
+      onClose={onClose}
+      footer={<Button label={t('common.confirm')} variant="accent" onPress={submit} fullWidth />}
+    >
+      <TextField
+        label={t('column.title')}
+        value={title}
+        onChangeText={setTitle}
+        error={error}
+        ref={titleInput}
+        onSubmitEditing={submit}
+        returnKeyType="done"
+      />
       <ColorPicker label={t('column.color')} value={color} onChange={setColor} />
     </Dialog>
   );
@@ -60,14 +75,15 @@ interface ProjectDialogProps {
 
 /** プロジェクトの作成・編集ダイアログ（タイトルと色のみ）。 */
 export function ProjectDialog({ visible, project, onClose, onSubmit }: ProjectDialogProps) {
-  const lastProject = useRef(project);
-  if (visible) lastProject.current = project;
-  const shownProject = visible ? project : lastProject.current;
+  const [lastProject, setLastProject] = useState(project);
+  if (visible && lastProject !== project) setLastProject(project);
+  const shownProject = visible ? project : lastProject;
   const [title, setTitle] = useState('');
   const [color, setColor] = useState<TaskColorKey | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const titleInput = useFocusOnOpen(visible);
 
+  /* eslint-disable react-hooks/set-state-in-effect -- ダイアログを開くたびに、入力欄を元の値に戻す */
   useEffect(() => {
     if (!visible) return;
     setTitle(project?.title ?? '');
@@ -75,6 +91,7 @@ export function ProjectDialog({ visible, project, onClose, onSubmit }: ProjectDi
     setSubmitted(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, project?.id]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const titleError = submitted ? validateTitle(title, LIMITS.projectTitleMax) : null;
   const submit = () => {
@@ -84,8 +101,21 @@ export function ProjectDialog({ visible, project, onClose, onSubmit }: ProjectDi
   };
 
   return (
-    <Dialog visible={visible} title={shownProject ? t('project.edit') : t('project.create')} onClose={onClose} footer={<Button label={t('common.confirm')} variant="accent" onPress={submit} fullWidth />}>
-      <TextField label={t('project.title')} value={title} onChangeText={setTitle} error={titleError} ref={titleInput} onSubmitEditing={submit} returnKeyType="done" />
+    <Dialog
+      visible={visible}
+      title={shownProject ? t('project.edit') : t('project.create')}
+      onClose={onClose}
+      footer={<Button label={t('common.confirm')} variant="accent" onPress={submit} fullWidth />}
+    >
+      <TextField
+        label={t('project.title')}
+        value={title}
+        onChangeText={setTitle}
+        error={titleError}
+        ref={titleInput}
+        onSubmitEditing={submit}
+        returnKeyType="done"
+      />
       <ColorPicker label={t('project.color')} value={color} onChange={setColor} />
     </Dialog>
   );

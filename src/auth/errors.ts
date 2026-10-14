@@ -5,11 +5,16 @@ export function mapAuthError(error: unknown): string {
   const e = error as { message?: string; status?: number; code?: string } | null;
   const msg = (e?.message ?? '').toLowerCase();
   const code = (e?.code ?? '').toLowerCase();
-  if (code === 'invalid_credentials' || msg.includes('invalid login credentials')) return t('auth.error.invalidCredentials');
-  if (code === 'anonymous_provider_disabled' || msg.includes('anonymous sign-ins are disabled')) return t('auth.error.guestDisabled');
-  if (code === 'user_already_exists' || msg.includes('already registered')) return t('auth.error.userExists');
-  if (e?.status === 429 || code.includes('rate_limit') || msg.includes('rate limit')) return t('auth.error.rateLimit');
-  if (msg.includes('network') || msg.includes('fetch') || msg.includes('failed to')) return t('auth.error.network');
+  if (code === 'invalid_credentials' || msg.includes('invalid login credentials'))
+    return t('auth.error.invalidCredentials');
+  if (code === 'anonymous_provider_disabled' || msg.includes('anonymous sign-ins are disabled'))
+    return t('auth.error.guestDisabled');
+  if (code === 'user_already_exists' || msg.includes('already registered'))
+    return t('auth.error.userExists');
+  if (e?.status === 429 || code.includes('rate_limit') || msg.includes('rate limit'))
+    return t('auth.error.rateLimit');
+  if (msg.includes('network') || msg.includes('fetch') || msg.includes('failed to'))
+    return t('auth.error.network');
   return t('auth.error.unknown');
 }
 

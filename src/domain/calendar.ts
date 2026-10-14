@@ -19,7 +19,11 @@ export function monthGrid(year: number, month: number): CalendarCell[][] {
 }
 
 /** 月を前後に動かす（年またぎに対応）。 */
-export function shiftMonth(year: number, month: number, delta: number): { year: number; month: number } {
+export function shiftMonth(
+  year: number,
+  month: number,
+  delta: number,
+): { year: number; month: number } {
   const index = year * 12 + (month - 1) + delta;
   return { year: Math.floor(index / 12), month: (index % 12) + 1 };
 }

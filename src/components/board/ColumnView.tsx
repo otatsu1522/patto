@@ -12,6 +12,7 @@ import { IconButton } from '../ui/IconButton';
 import { useDragGesture, type DragHandlers } from './dragGesture';
 import { TaskCard } from './TaskCard';
 import { BORDER_WIDTH } from '@/theme/tokens';
+import { canHover } from '@/lib/hover';
 
 export interface ColumnViewProps {
   column: KanbanColumn;
@@ -48,7 +49,9 @@ export function ColumnView(p: ColumnViewProps) {
     ...p.columnDrag,
     begin: (x, y) => {
       if (!headerRef.current) return p.columnDrag.begin(x, y);
-      headerRef.current.measureInWindow((cx, cy, w, h) => p.columnDrag.begin(x, y, { ox: x - cx, oy: y - cy, w, h }));
+      headerRef.current.measureInWindow((cx, cy, w, h) =>
+        p.columnDrag.begin(x, y, { ox: x - cx, oy: y - cy, w, h }),
+      );
     },
   });
   const headerRef = useRef<View>(null);
@@ -91,22 +94,34 @@ export function ColumnView(p: ColumnViewProps) {
         },
       ]}
     >
-      <View style={[styles.header, headerFocused && { borderColor: colors.focus, borderWidth: 2 }, p.grabbed && headerFocused && { backgroundColor: colors.border }]}>
-        <GestureDetector gesture={headerGesture}>
+      <View
+        style={[
+          styles.header,
+          headerFocused && { borderColor: colors.focus, borderWidth: 2 },
+          p.grabbed && headerFocused && { backgroundColor: colors.border },
+        ]}
+      >
+        <GestureDetector gesture={headerGesture} touchAction="pan-y" enableContextMenu={false}>
           <View ref={headerRef} collapsable={false} style={styles.titleWrap}>
-            {p.column.color ? <View style={[styles.dot, { backgroundColor: taskColor(p.column.color) }]} /> : null}
+            {p.column.color ? (
+              <View style={[styles.dot, { backgroundColor: taskColor(p.column.color) }]} />
+            ) : null}
             <AppText bold numberOfLines={1} style={styles.title}>
               {p.column.title}
             </AppText>
             <AppText variant="caption" muted>
               {t('column.taskCount', { count: p.tasks.length })}
             </AppText>
-            {p.column.isDoneColumn ? <Icon name="doneMode" size={22} color={colors.success} /> : null}
+            {p.column.isDoneColumn ? (
+              <Icon name="doneMode" size={22} color={colors.success} />
+            ) : null}
           </View>
         </GestureDetector>
         <DropdownMenu
           items={p.menuItems}
-          trigger={(open) => <IconButton icon="more" label={p.column.title} onPress={open} box={40} size={22} />}
+          trigger={(open) => (
+            <IconButton icon="more" label={p.column.title} onPress={open} box={40} size={22} />
+          )}
         />
       </View>
 
@@ -133,7 +148,9 @@ export function ColumnView(p: ColumnViewProps) {
         }
       >
         {favorites.map(card)}
-        {showDivider ? <View style={[styles.divider, { backgroundColor: colors.divider }]} /> : null}
+        {showDivider ? (
+          <View style={[styles.divider, { backgroundColor: colors.divider }]} />
+        ) : null}
         {others.map(card)}
 
         <Pressable
@@ -141,7 +158,7 @@ export function ColumnView(p: ColumnViewProps) {
           onPress={p.onAddTask}
           style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
             styles.add,
-            { backgroundColor: pressed || hovered ? colors.hover : 'transparent' },
+            { backgroundColor: pressed || (hovered && canHover) ? colors.hover : 'transparent' },
           ]}
         >
           <Icon name="add" size={20} color={colors.textMuted} />
@@ -154,8 +171,21 @@ export function ColumnView(p: ColumnViewProps) {
 
 const styles = StyleSheet.create({
   column: { borderRadius: RADIUS.lg, borderWidth: BORDER_WIDTH, overflow: 'hidden' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingLeft: SPACING.md, paddingRight: SPACING.xs, margin: 2 },
-  titleWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, minHeight: GESTURE.edgeZone, cursor: 'grab' } as never,
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: SPACING.md,
+    paddingRight: SPACING.xs,
+    margin: 2,
+  },
+  titleWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    minHeight: GESTURE.edgeZone,
+    cursor: 'grab',
+  } as never,
   dot: { width: 12, height: 12, borderRadius: 6 },
   title: { flex: 1 },
   list: { flex: 1 },

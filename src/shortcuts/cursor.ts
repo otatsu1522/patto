@@ -21,7 +21,10 @@ export function clampCursor(c: Cursor, counts: number[]): Cursor {
 export function moveCursor(c: Cursor, dir: Direction, counts: number[]): Cursor {
   if (counts.length === 0) return c;
   if (dir === 'left' || dir === 'right') {
-    const columnIndex = Math.max(0, Math.min(c.columnIndex + (dir === 'left' ? -1 : 1), counts.length - 1));
+    const columnIndex = Math.max(
+      0,
+      Math.min(c.columnIndex + (dir === 'left' ? -1 : 1), counts.length - 1),
+    );
     return clampCursor({ ...c, columnIndex }, counts);
   }
   const taskIndex = c.taskIndex + (dir === 'up' ? -1 : 1);

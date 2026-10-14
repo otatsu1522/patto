@@ -23,6 +23,7 @@ import { Icon } from '../ui/Icon';
 import { IconButton } from '../ui/IconButton';
 import { useSyncLabel } from './SyncIndicator';
 import { BORDER_WIDTH } from '@/theme/tokens';
+import { canHover } from '@/lib/hover';
 
 interface Props {
   width: number;
@@ -68,12 +69,16 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate }: Props) {
     const liveColumns = new Set(columns.filter((c) => c.deletedAt === null).map((c) => c.id));
     const counts = new Map<string, number>();
     for (const task of tasks) {
-      if (task.deletedAt !== null || task.archivedAt !== null || !liveColumns.has(task.columnId)) continue;
+      if (task.deletedAt !== null || task.archivedAt !== null || !liveColumns.has(task.columnId))
+        continue;
       counts.set(task.projectId, (counts.get(task.projectId) ?? 0) + 1);
     }
     return counts;
   }, [columns, tasks]);
-  const results = useMemo(() => searchTasks({ projects, columns, tasks }, query), [projects, columns, tasks, query]);
+  const results = useMemo(
+    () => searchTasks({ projects, columns, tasks }, query),
+    [projects, columns, tasks, query],
+  );
   const currentId = pathname.startsWith('/project/') ? pathname.split('/')[2] : null;
 
   const open = useProjectNavigation();
@@ -81,7 +86,12 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate }: Props) {
   const store = useDataStore.getState();
 
   const removeProject = async (p: Project) => {
-    const r = await confirm({ title: t('project.deleteTitle'), message: t('project.deleteMessage', { name: p.title }), confirmLabel: t('common.delete'), destructive: true });
+    const r = await confirm({
+      title: t('project.deleteTitle'),
+      message: t('project.deleteMessage', { name: p.title }),
+      confirmLabel: t('common.delete'),
+      destructive: true,
+    });
     if (r !== 'confirm') return;
     await store.deleteProject(p.id);
     const undo = pushUndo(() => store.restoreItem('project', p.id));
@@ -94,10 +104,27 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate }: Props) {
     const selected = currentId === p.id;
     const fg = selected ? colors.onPrimary : colors.text;
     return (
-      <View key={p.id} style={[styles.item, { backgroundColor: selected ? colors.primary : 'transparent' }]}>
+      <View
+        key={p.id}
+        style={[styles.item, { backgroundColor: selected ? colors.primary : 'transparent' }]}
+      >
         <Pressable accessibilityRole="button" onPress={() => open(p.id)} style={styles.itemMain}>
-          <View style={[styles.dot, { backgroundColor: p.color ? taskColor(p.color) : 'transparent', borderColor: p.color ? 'transparent' : selected ? colors.onPrimary : colors.border }]} />
-          <AppText numberOfLines={1} ellipsizeMode="tail" bold={selected} color={fg} style={styles.flex}>
+          <View
+            style={[
+              styles.dot,
+              {
+                backgroundColor: p.color ? taskColor(p.color) : 'transparent',
+                borderColor: p.color ? 'transparent' : selected ? colors.onPrimary : colors.border,
+              },
+            ]}
+          />
+          <AppText
+            numberOfLines={1}
+            ellipsizeMode="tail"
+            bold={selected}
+            color={fg}
+            style={styles.flex}
+          >
             {p.title}
           </AppText>
           <AppText variant="caption" color={selected ? colors.onPrimary : colors.textMuted}>
@@ -107,13 +134,45 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate }: Props) {
         <DropdownMenu
           items={[
             { label: t('project.edit'), icon: 'edit', onPress: () => setEditing(p) },
-            { label: p.isFavorite ? t('common.unfavorite') : t('common.favorite'), icon: p.isFavorite ? 'unpin' : 'pin', onPress: () => { void store.updateProject(p.id, { isFavorite: !p.isFavorite }); toast(t(p.isFavorite ? 'toast.unpinned' : 'toast.pinned')); } },
-            { label: t('common.duplicate'), icon: 'copy', onPress: () => { void store.duplicateProject(p.id); toast(t('toast.duplicated')); } },
-            { label: p.archivedAt ? t('project.unarchiveAction') : t('project.archiveAction'), icon: 'archive', onPress: () => void store.setProjectArchived(p.id, p.archivedAt === null) },
-            { label: t('common.delete'), icon: 'trash', destructive: true, separator: true, onPress: () => void removeProject(p) },
+            {
+              label: p.isFavorite ? t('common.unfavorite') : t('common.favorite'),
+              icon: p.isFavorite ? 'unpin' : 'pin',
+              onPress: () => {
+                void store.updateProject(p.id, { isFavorite: !p.isFavorite });
+                toast(t(p.isFavorite ? 'toast.unpinned' : 'toast.pinned'));
+              },
+            },
+            {
+              label: t('common.duplicate'),
+              icon: 'copy',
+              onPress: () => {
+                void store.duplicateProject(p.id);
+                toast(t('toast.duplicated'));
+              },
+            },
+            {
+              label: p.archivedAt ? t('project.unarchiveAction') : t('project.archiveAction'),
+              icon: 'archive',
+              onPress: () => void store.setProjectArchived(p.id, p.archivedAt === null),
+            },
+            {
+              label: t('common.delete'),
+              icon: 'trash',
+              destructive: true,
+              separator: true,
+              onPress: () => void removeProject(p),
+            },
           ]}
           trigger={(openMenu) => (
-            <IconButton icon="more" label={p.title} color={fg} hoverColor={selected ? withAlpha(colors.onPrimary, 0.25) : undefined} onPress={openMenu} box={40} size={20} />
+            <IconButton
+              icon="more"
+              label={p.title}
+              color={fg}
+              hoverColor={selected ? withAlpha(colors.onPrimary, 0.25) : undefined}
+              onPress={openMenu}
+              box={40}
+              size={20}
+            />
           )}
         />
       </View>
@@ -121,16 +180,27 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate }: Props) {
   };
 
   return (
-    <View style={[styles.root, { width, backgroundColor: colors.surface, borderRightColor: colors.border, }]}>
+    <View
+      style={[
+        styles.root,
+        { width, backgroundColor: colors.surface, borderRightColor: colors.border },
+      ]}
+    >
       {/* 画面上部のバーと同じ位置にメニューアイコンを置く（押すと閉じる） */}
       <View style={styles.brand}>
         {showMenuIcon ? <IconButton icon="menu" label={t('menu.open')} onPress={onToggle} /> : null}
-        <AppText variant="title" numberOfLines={1} style={[styles.flex, !showMenuIcon && styles.brandName]}>
+        <AppText
+          variant="title"
+          numberOfLines={1}
+          style={[styles.flex, !showMenuIcon && styles.brandName]}
+        >
           {APP_NAME}
         </AppText>
       </View>
 
-      <View style={[styles.search, { borderBottomColor: searchFocused ? colors.text : 'transparent' }]}>
+      <View
+        style={[styles.search, { borderBottomColor: searchFocused ? colors.text : 'transparent' }]}
+      >
         <Icon name="search" size={18} color={colors.textMuted} />
         <TextInput
           ref={searchRef}
@@ -143,7 +213,15 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate }: Props) {
           onBlur={() => setSearchFocused(false)}
           style={[styles.searchInput, { color: colors.text, fontSize: fs(FONT.body) }]}
         />
-        {query ? <IconButton icon="close" label={t('common.close')} onPress={() => setQuery('')} box={32} size={16} /> : null}
+        {query ? (
+          <IconButton
+            icon="close"
+            label={t('common.close')}
+            onPress={() => setQuery('')}
+            box={32}
+            size={16}
+          />
+        ) : null}
       </View>
 
       <ScrollView style={styles.flex} keyboardShouldPersistTaps="handled" persistentScrollbar>
@@ -165,7 +243,9 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate }: Props) {
               </AppText>
             ) : null}
             {favorites.map(row)}
-            {favorites.length > 0 && normals.length > 0 ? <View style={[styles.divider, { backgroundColor: colors.divider }]} /> : null}
+            {favorites.length > 0 && normals.length > 0 ? (
+              <View style={[styles.divider, { backgroundColor: colors.divider }]} />
+            ) : null}
             {normals.map(row)}
 
             <Pressable
@@ -174,7 +254,12 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate }: Props) {
                 useUiStore.getState().requestNewProject();
                 onNavigate();
               }}
-              style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [styles.itemMain, { backgroundColor: pressed || hovered ? colors.hover : 'transparent' }]}
+              style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
+                styles.itemMain,
+                {
+                  backgroundColor: pressed || (hovered && canHover) ? colors.hover : 'transparent',
+                },
+              ]}
             >
               <Icon name="add" size={20} color={colors.textMuted} />
               <AppText muted numberOfLines={1} style={styles.flex}>
@@ -184,7 +269,11 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate }: Props) {
 
             {archived.length > 0 ? (
               <>
-                <Pressable accessibilityRole="button" onPress={() => setShowArchived((v) => !v)} style={styles.archiveToggle}>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setShowArchived((v) => !v)}
+                  style={styles.archiveToggle}
+                >
                   <Icon name={showArchived ? 'down' : 'right'} size={14} color={colors.textMuted} />
                   <AppText variant="caption" muted>
                     {t('menu.archivedProjects')} ({archived.length})
@@ -246,18 +335,56 @@ const styles = StyleSheet.create({
   root: { borderRightWidth: BORDER_WIDTH, flexShrink: 0 },
   flex: { flex: 1 },
   brandName: { paddingLeft: SPACING.sm + SPACING.xs },
-  brand: { flexDirection: 'row', alignItems: 'center', height: 56, paddingHorizontal: SPACING.sm, gap: SPACING.xs },
-  search: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginHorizontal: SPACING.lg, borderBottomWidth: BORDER_WIDTH, minHeight: 44, marginBottom: SPACING.sm },
-  searchInput: { flex: 1, paddingVertical: SPACING.sm, backgroundColor: 'transparent', outlineStyle: 'none' } as never,
+  brand: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 56,
+    paddingHorizontal: SPACING.sm,
+    gap: SPACING.xs,
+  },
+  search: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginHorizontal: SPACING.lg,
+    borderBottomWidth: BORDER_WIDTH,
+    minHeight: 44,
+    marginBottom: SPACING.sm,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: SPACING.sm,
+    backgroundColor: 'transparent',
+    outlineStyle: 'none',
+  } as never,
   listContent: { paddingVertical: SPACING.sm },
   sectionTitle: { paddingHorizontal: SPACING.lg, paddingVertical: SPACING.xs },
   hint: { padding: SPACING.lg },
   item: { flexDirection: 'row', alignItems: 'center', paddingRight: 2 },
-  itemMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACING.md, minHeight: BOARD.touchTarget, paddingLeft: SPACING.lg, paddingRight: SPACING.sm },
+  itemMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    minHeight: BOARD.touchTarget,
+    paddingLeft: SPACING.lg,
+    paddingRight: SPACING.sm,
+  },
   dot: { width: 12, height: 12, borderRadius: 6, borderWidth: BORDER_WIDTH },
   divider: { height: BORDER_WIDTH, marginVertical: SPACING.xs, marginHorizontal: SPACING.lg },
   rule: { height: BORDER_WIDTH },
-  archiveToggle: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs, padding: SPACING.lg },
+  archiveToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    padding: SPACING.lg,
+  },
   footer: { paddingVertical: SPACING.xs },
-  footerRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, minHeight: BOARD.touchTarget, paddingHorizontal: SPACING.lg },
+  footerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    minHeight: BOARD.touchTarget,
+    paddingHorizontal: SPACING.lg,
+  },
 });

@@ -7,6 +7,7 @@ export default function Index() {
   const status = useAuthStore((s) => s.status);
   const lastProjectId = useSettingsStore((s) => s.settings.lastProjectId);
   if (status === 'signedOut') return <Redirect href="/login" />;
-  if (lastProjectId) return <Redirect href={{ pathname: '/project/[id]', params: { id: lastProjectId } }} />;
+  if (lastProjectId)
+    return <Redirect href={{ pathname: '/project/[id]', params: { id: lastProjectId } }} />;
   return <Redirect href="/home" />;
 }

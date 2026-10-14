@@ -4,7 +4,8 @@
  */
 export const ja = {
   // 起動
-  'app.webNotIsolated': 'この環境では Web 版を動かせません。ページに COOP / COEP ヘッダーが付いていません（docs/DEPLOY.md の「HTTPヘッダーとWASM」を確認してください）。',
+  'app.webNotIsolated':
+    'この環境では Web 版を動かせません。ページに COOP / COEP ヘッダーが付いていません（docs/DEPLOY.md の「HTTPヘッダーとWASM」を確認してください）。',
 
   // 共通
   'common.ok': 'OK',
@@ -66,21 +67,29 @@ export const ja = {
 
   // 同期
   'auth.needOnlineFirst': '初回のログイン（ゲスト開始を含む）にはインターネット接続が必要です。',
-  'auth.guestNote': 'ゲストでも使えます。初回だけインターネット接続が必要で、以降はオフラインでも使えます。',
+  'auth.guestNote':
+    'ゲストでも使えます。初回だけインターネット接続が必要で、以降はオフラインでも使えます。',
   'auth.reauthNeeded': 'ログインの有効期限が切れました。パスワードを入力すると同期が再開します。',
   'auth.reauthSubmit': '再ログイン',
   'auth.notConfigured': 'Supabase が未設定です。.env.local を設定してください。',
-  'auth.notConfiguredGuest': 'Supabase が未設定のため、ゲストはこの端末の中だけで使えます（同期なし）。',
+  'auth.notConfiguredGuest':
+    'Supabase が未設定のため、ゲストはこの端末の中だけで使えます（同期なし）。',
   'auth.error.userExists': 'このメールアドレスは既に登録されています。',
-  'auth.error.guestDisabled': 'ゲスト機能が無効です。Supabase の Anonymous sign-ins を有効にしてください。',
-  'auth.error.signupFailed': 'アカウントを作成できませんでした。Supabase の「Confirm email」がオフか確認してください。',
-  'auth.error.upgradeBlocked': 'メール確認なしではアカウントに切り替えられませんでした。Supabase の設定（docs/SUPABASE.md）を確認してください。',
+  'auth.error.guestDisabled':
+    'ゲスト機能が無効です。Supabase の Anonymous sign-ins を有効にしてください。',
+  'auth.error.signupFailed':
+    'アカウントを作成できませんでした。Supabase の「Confirm email」がオフか確認してください。',
+  'auth.error.upgradeBlocked':
+    'メール確認なしではアカウントに切り替えられませんでした。Supabase の設定（docs/SUPABASE.md）を確認してください。',
   'sync.guest': 'ゲスト',
   'sync.off': '同期オフ',
   'sync.localOnly': 'この端末のみ',
-  'settings.guestDescription': 'ゲストで使用中です。アカウントを作成すると、同じデータのままアカウントで使えます。',
-  'settings.createAccountHint': 'メールアドレスとパスワードを登録します。データはそのまま引き継がれます。',
-  'settings.guestLeaveMessage': 'ゲストのデータはこの端末とサーバーから削除され、元に戻せません。必要ならエクスポートしてから戻ってください。',
+  'settings.guestDescription':
+    'ゲストで使用中です。アカウントを作成すると、同じデータのままアカウントで使えます。',
+  'settings.createAccountHint':
+    'メールアドレスとパスワードを登録します。データはそのまま引き継がれます。',
+  'settings.guestLeaveMessage':
+    'ゲストのデータはこの端末とサーバーから削除され、元に戻せません。必要ならエクスポートしてから戻ってください。',
   'settings.syncMode.off': 'オフ',
   'settings.syncMode.manual': '手動',
   'settings.syncMode.auto': '自動',
@@ -171,7 +180,8 @@ export const ja = {
   'board.clearArchive': 'アーカイブのクリア',
   'board.openTrash': 'ごみ箱を見る',
   'board.clearTrash': 'ごみ箱のクリア',
-  'board.clearArchiveMessage': 'アーカイブ済みのタスク {count} 件を完全に削除します。元に戻せません。',
+  'board.clearArchiveMessage':
+    'アーカイブ済みのタスク {count} 件を完全に削除します。元に戻せません。',
   'board.clearTrashMessage': 'ごみ箱の中身 {count} 件を完全に削除します。元に戻せません。',
   'board.clearNothing': 'クリアするものはありません',
   'board.clearNeedsSync': 'クリアは同期を行ってから実行します。インターネットに接続してください。',
@@ -207,7 +217,8 @@ export const ja = {
   'settings.guestLeaveConfirm': 'データを削除して戻る',
   'settings.logout': 'ログアウト',
   'settings.logoutTitle': 'ログアウトしますか？',
-  'settings.logoutPending': '未送信の変更が {count} 件あります。ログアウトすると、この端末の未送信データは失われます。',
+  'settings.logoutPending':
+    '未送信の変更が {count} 件あります。ログアウトすると、この端末の未送信データは失われます。',
   'settings.logoutMessage': 'この端末内のデータは削除されます（サーバーのデータは残ります）。',
   'settings.logoutSyncFirst': '同期してからログアウト',
   'settings.logoutNow': 'そのままログアウト',
@@ -220,7 +231,8 @@ export const ja = {
   'settings.profileSaved': '保存しました。',
   'settings.onlineOnly': 'この操作にはインターネット接続が必要です。',
   'settings.deleteAccount': 'アカウントを削除',
-  'settings.deleteAccountWarning': 'プロジェクト・カンバン・タスクなど、サーバー上のすべてのデータと、この端末のデータが削除されます。元に戻せません。先にエクスポートすることをおすすめします。',
+  'settings.deleteAccountWarning':
+    'プロジェクト・カンバン・タスクなど、サーバー上のすべてのデータと、この端末のデータが削除されます。元に戻せません。先にエクスポートすることをおすすめします。',
   'settings.deleteAccountType': '確認のため「{word}」と入力してください',
   'settings.deleteAccountWord': '削除',
   'settings.deleteAccountPending': '未送信の変更があります。削除すると同期されません。',
@@ -321,27 +333,38 @@ export const ja = {
   'sync.tapToSync': 'タップして同期',
   'defaults.tutorial.project': 'TUTORIAL',
   'tutorial.todo1.title': 'タスクを右へ移動する',
-  'tutorial.todo1.desc': '各タスクの右端のボタンで、次のカンバンへ移動できます。いちばん右のカンバンでは、最初のカンバンへ戻ります。',
+  'tutorial.todo1.desc':
+    '各タスクの右端のボタンで、次のカンバンへ移動できます。いちばん右のカンバンでは、最初のカンバンへ戻ります。',
   'tutorial.todo2.title': '長押しでタスクをつかむ',
-  'tutorial.todo2.desc': 'スマホはタスクを長押し、PCはドラッグで、カンバンの間を移動できます。ピン留めの横線の上に置くとピン留めになり、下に置くと外れます。',
+  'tutorial.todo2.desc':
+    'スマホはタスクを長押し、PCはドラッグで、カンバンの間を移動できます。ピン留めの横線の上に置くとピン留めになり、下に置くと外れます。',
   'tutorial.todo3.title': 'ピン留めで上にまとめる',
-  'tutorial.todo3.desc': 'タスクをタップして「ピン留めする」を選ぶと、カンバンの上にまとまり、横線で区切られます。プロジェクトも同じです。',
+  'tutorial.todo3.desc':
+    'タスクをタップして「ピン留めする」を選ぶと、カンバンの上にまとまり、横線で区切られます。プロジェクトも同じです。',
   'tutorial.todo4.title': 'タスクの内容を編集する',
-  'tutorial.todo4.desc': 'タスクをタップして「編集」を選びます。タイトル・説明・色・期限（カレンダーから選択）・カンバンの場所を変えられます。',
+  'tutorial.todo4.desc':
+    'タスクをタップして「編集」を選びます。タイトル・説明・色・期限（カレンダーから選択）・カンバンの場所を変えられます。',
   'tutorial.todo5.title': 'カンバンを追加・並び替える',
-  'tutorial.todo5.desc': '右上の「…」メニューから新しいカンバンを追加できます。カンバンのタイトルを長押し（PCはドラッグ）すると並び替えできます。',
+  'tutorial.todo5.desc':
+    '右上の「…」メニューから新しいカンバンを追加できます。カンバンのタイトルを長押し（PCはドラッグ）すると並び替えできます。',
   'tutorial.todo6.title': '検索する',
-  'tutorial.todo6.desc': 'メニューの検索欄はすべてのプロジェクトが対象です。右上の「…」メニューの「カンバン内を検索」は、開いているプロジェクトのタスクを探します。',
+  'tutorial.todo6.desc':
+    'メニューの検索欄はすべてのプロジェクトが対象です。右上の「…」メニューの「カンバン内を検索」は、開いているプロジェクトのタスクを探します。',
   'tutorial.todo7.title': 'オフラインと同期',
-  'tutorial.todo7.desc': '通信がなくても使えます。設定のシステム設定で、同期を「オフ・手動・自動」から選べます。メニュー下部の同期の表示をタップすると、今すぐ同期します。',
+  'tutorial.todo7.desc':
+    '通信がなくても使えます。設定のシステム設定で、同期を「オフ・手動・自動」から選べます。メニュー下部の同期の表示をタップすると、今すぐ同期します。',
   'tutorial.todo8.title': 'アーカイブとごみ箱',
-  'tutorial.todo8.desc': 'タスクのメニューから「アーカイブ」できます。DONEモードのカンバンは、右上の「…」メニューからまとめてアーカイブできます。「クリア」で完全に削除します。',
+  'tutorial.todo8.desc':
+    'タスクのメニューから「アーカイブ」できます。DONEモードのカンバンは、右上の「…」メニューからまとめてアーカイブできます。「クリア」で完全に削除します。',
   'tutorial.todo9.title': 'PCではキーボードで操作する',
-  'tutorial.todo9.desc': 'h j k l で移動、g でつかむ、e で編集、n で新規作成、? で一覧を表示します（設定で変更できます）。',
+  'tutorial.todo9.desc':
+    'h j k l で移動、g でつかむ、e で編集、n で新規作成、? で一覧を表示します（設定で変更できます）。',
   'tutorial.todo10.title': 'ゲストからアカウントを作る',
-  'tutorial.todo10.desc': 'ゲストで使っているときは、設定のプロフィール編集からアカウントを作成できます。データはそのまま引き継がれます。',
+  'tutorial.todo10.desc':
+    'ゲストで使っているときは、設定のプロフィール編集からアカウントを作成できます。データはそのまま引き継がれます。',
   'tutorial.doing1.title': 'チュートリアルをやってみる',
-  'tutorial.doing1.desc': 'このタスクを右へ移動して、DONE に入れてみましょう。DONE のタスクには横線が入ります。',
+  'tutorial.doing1.desc':
+    'このタスクを右へ移動して、DONE に入れてみましょう。DONE のタスクには横線が入ります。',
   'tutorial.done1.title': 'アプリを始める',
   'tutorial.done1.desc': 'Patto へようこそ。',
   'tutorial.done2.title': 'TUTORIAL プロジェクトを開く',
@@ -357,37 +380,54 @@ export const ja = {
   'toast.pinned': 'ピン留めしました',
   'toast.unpinned': 'ピン解除しました',
   'toast.duplicated': '複製しました',
-  'settings.appearanceHint': 'テーマ、文字サイズ、カードの表示量を変えます。変更はすぐに反映され、この端末だけに保存されます。',
-  'settings.syncHint': '同期は、この端末のデータをサーバー（Supabase）と合わせる機能です。この設定は端末ごとなので、スマホとWebで別々に選べます。',
+  'settings.appearanceHint':
+    'テーマ、文字サイズ、カードの表示量を変えます。変更はすぐに反映され、この端末だけに保存されます。',
+  'settings.syncHint':
+    '同期は、この端末のデータをサーバー（Supabase）と合わせる機能です。この設定は端末ごとなので、スマホとWebで別々に選べます。',
   'settings.syncModeOffDesc': 'オフ: 同期しません。データはこの端末の中だけに保存されます。',
-  'settings.syncModeManualDesc': '手動: 画面を下に引いたとき、同期アイコンやメニュー下部の同期表示をタップしたときだけ同期します。',
-  'settings.syncModeAutoDesc': '自動: 変更の数秒後、一定の間隔、ネットに戻ったとき・アプリを開いたときに自動で同期します。Webではサーバー側の変更もすぐ反映します。',
-  'settings.trashHint': '削除したものは、いったん「ごみ箱」に入り、復元できます。「ごみ箱を自動で削除する」をONにすると、設定した日数が過ぎたものを自動で完全に削除します。「クリア」は、今すぐ完全に削除します（元に戻せません）。アーカイブは、完了したタスクなどを隠して残しておく機能で、クリアで完全に削除できます。',
+  'settings.syncModeManualDesc':
+    '手動: 画面を下に引いたとき、同期アイコンやメニュー下部の同期表示をタップしたときだけ同期します。',
+  'settings.syncModeAutoDesc':
+    '自動: 変更の数秒後、一定の間隔、ネットに戻ったとき・アプリを開いたときに自動で同期します。Webではサーバー側の変更もすぐ反映します。',
+  'settings.trashHint':
+    '削除したものは、いったん「ごみ箱」に入り、復元できます。「ごみ箱を自動で削除する」をONにすると、設定した日数が過ぎたものを自動で完全に削除します。「クリア」は、今すぐ完全に削除します（元に戻せません）。アーカイブは、完了したタスクなどを隠して残しておく機能で、クリアで完全に削除できます。',
   'settings.trashRetentionDays': '{days} 日後に削除',
   'settings.toastSection': '通知',
-  'settings.toastHint': 'タスクの作成・更新などの操作結果を、画面の下に短く表示します（「元に戻す」付きの通知も含みます）。OFFにしても、失敗の知らせは表示されます。',
+  'settings.toastHint':
+    'タスクの作成・更新などの操作結果を、画面の下に短く表示します（「元に戻す」付きの通知も含みます）。OFFにしても、失敗の知らせは表示されます。',
   'settings.toast': 'トーストを表示する',
-  'settings.dataHint': 'Trello形式のファイルで、ほかのアプリとデータをやり取りします。アプリを移行するときに使います。エクスポートはすべてのプロジェクトを書き出し、インポートはファイルのプロジェクトを追加します（いまのデータは消えません）。',
+  'settings.dataHint':
+    'Trello形式のファイルで、ほかのアプリとデータをやり取りします。アプリを移行するときに使います。エクスポートはすべてのプロジェクトを書き出し、インポートはファイルのプロジェクトを追加します（いまのデータは消えません）。',
   'settings.exportConfirmTitle': 'エクスポートしますか？',
   'settings.exportConfirmMessage': 'すべてのプロジェクトを、Trello形式のファイルに書き出します。',
   'settings.exportConfirm': 'エクスポート',
   'shortcut.emptySlot': 'キーを追加',
   'shortcut.infoTitle': 'キーボードショートカットの設定',
   'shortcut.info1': 'Esc は常に「キャンセル」に使われ、変更できません。',
-  'shortcut.info2': '各操作の行には、割り当てられたキーが四角で並びます。四角をタップ（クリック）すると、そのキーが削除されます。',
-  'shortcut.info3': 'キーがなくなっても、点線の四角が残ります。点線の四角か「＋」アイコンをタップして、続けてキーを押すと追加できます。',
+  'shortcut.info2':
+    '各操作の行には、割り当てられたキーが四角で並びます。四角をタップ（クリック）すると、そのキーが削除されます。',
+  'shortcut.info3':
+    'キーがなくなっても、点線の四角が残ります。点線の四角か「＋」アイコンをタップして、続けてキーを押すと追加できます。',
   'shortcut.info4': '1つの操作に、複数のキーを割り当てられます（例: 編集に e と Enter）。',
-  'shortcut.info5': 'すでに別の操作で使われているキーは追加できません。その行に理由が表示されます。',
-  'shortcut.info6': '「元に戻す」アイコンで、その操作だけ初期のキーに戻します。画面下の「すべて初期設定に戻す」で全部を戻せます。',
+  'shortcut.info5':
+    'すでに別の操作で使われているキーは追加できません。その行に理由が表示されます。',
+  'shortcut.info6':
+    '「元に戻す」アイコンで、その操作だけ初期のキーに戻します。画面下の「すべて初期設定に戻す」で全部を戻せます。',
   'shortcut.info7': 'この設定画面を開いている間は、キーボードショートカットは動きません。',
-  'about.body1': 'Patto は、オフラインでも使えるシンプルなカンバン式のTODOアプリです。プロジェクトの中にカンバン（列）を並べ、タスクのカードを動かして、いまやることを整理できます。',
-  'about.body2': '操作はまず端末の中のデータベースに保存されるので、電波のない場所でも待たされずに使えます。ログインしたあとは、通信がなくても再ログインは要りません。',
-  'about.body3': '同じアカウントなら、スマホとWebでデータを共有できます。同期は、手動（画面を下に引く）と自動から選べ、スマホとWebで別々に設定できます。競合したときは、項目ごとに新しい変更を採用してマージします。',
-  'about.body4': 'アカウントを作らなくても「ゲスト」で使い始められ、あとから同じデータのままアカウントに切り替えられます。タスクはピン留め、期限（カレンダー選択）、色、DONEモード、アーカイブ、ごみ箱、検索に対応しています。',
-  'about.body5': 'PCではキーボードだけでも操作できます（設定でキーを変更できます）。ほかのアプリへ移すときのために、Trello形式のインポート・エクスポートも用意しています。',
+  'about.body1':
+    'Patto は、オフラインでも使えるシンプルなカンバン式のTODOアプリです。プロジェクトの中にカンバン（列）を並べ、タスクのカードを動かして、いまやることを整理できます。',
+  'about.body2':
+    '操作はまず端末の中のデータベースに保存されるので、電波のない場所でも待たされずに使えます。ログインしたあとは、通信がなくても再ログインは要りません。',
+  'about.body3':
+    '同じアカウントなら、スマホとWebでデータを共有できます。同期は、手動（画面を下に引く）と自動から選べ、スマホとWebで別々に設定できます。競合したときは、項目ごとに新しい変更を採用してマージします。',
+  'about.body4':
+    'アカウントを作らなくても「ゲスト」で使い始められ、あとから同じデータのままアカウントに切り替えられます。タスクはピン留め、期限（カレンダー選択）、色、DONEモード、アーカイブ、ごみ箱、検索に対応しています。',
+  'about.body5':
+    'PCではキーボードだけでも操作できます（設定でキーを変更できます）。ほかのアプリへ移すときのために、Trello形式のインポート・エクスポートも用意しています。',
   'about.tech': '使用技術',
   'about.tech.expo': 'アプリ本体（Android・iOS・Web）の開発基盤',
-  'about.tech.supabase': 'アカウントとデータの保存・同期。無料プランは7日間使わないと停止するので、止まったときはダッシュボードから再開します',
+  'about.tech.supabase':
+    'アカウントとデータの保存・同期。無料プランは7日間使わないと停止するので、止まったときはダッシュボードから再開します',
   'about.tech.cloudflare': 'Web版の公開（Cloudflare Pages）',
 } as const;
 

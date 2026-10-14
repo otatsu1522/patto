@@ -12,7 +12,10 @@ export function AuthLayout({ children, subtitle }: { children: ReactNode; subtit
   const { colors } = useTheme();
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: colors.bg }]}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.root}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.root}
+      >
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.brand}>
             <Logo size={72} />
@@ -23,7 +26,15 @@ export function AuthLayout({ children, subtitle }: { children: ReactNode; subtit
               </AppText>
             ) : null}
           </View>
-          <View style={[styles.card, SHADOW.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>{children}</View>
+          <View
+            style={[
+              styles.card,
+              SHADOW.card,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
+            {children}
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -32,8 +43,21 @@ export function AuthLayout({ children, subtitle }: { children: ReactNode; subtit
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  scroll: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.lg, gap: SPACING.xl },
+  scroll: {
+    flexGrow: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: SPACING.lg,
+    gap: SPACING.xl,
+  },
   brand: { alignItems: 'center', gap: SPACING.sm },
   center: { textAlign: 'center' },
-  card: { width: '100%', maxWidth: 420, borderRadius: RADIUS.lg, borderWidth: BORDER_WIDTH, padding: SPACING.xl, gap: SPACING.md },
+  card: {
+    width: '100%',
+    maxWidth: 420,
+    borderRadius: RADIUS.lg,
+    borderWidth: BORDER_WIDTH,
+    padding: SPACING.xl,
+    gap: SPACING.md,
+  },
 });

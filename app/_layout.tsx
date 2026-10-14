@@ -22,9 +22,15 @@ import { ThemeProvider, useTheme } from '@/theme';
  * 本番は public/_headers のヘッダーで満たされる。開発サーバーは「/」だけヘッダーが付かないため、
  * 分離されていない状態で「/」を開いたときは、ヘッダーの付く /login から読み込み直す（1回だけ）。
  */
-const isolated = (): boolean => (globalThis as { crossOriginIsolated?: boolean }).crossOriginIsolated !== false;
+const isolated = (): boolean =>
+  (globalThis as { crossOriginIsolated?: boolean }).crossOriginIsolated !== false;
 const RETRY_KEY = 'patto:isolation-retry';
-if (Platform.OS === 'web' && typeof window !== 'undefined' && !isolated() && window.location.pathname === '/') {
+if (
+  Platform.OS === 'web' &&
+  typeof window !== 'undefined' &&
+  !isolated() &&
+  window.location.pathname === '/'
+) {
   if (!window.sessionStorage.getItem(RETRY_KEY)) {
     window.sessionStorage.setItem(RETRY_KEY, '1');
     window.location.replace('/login');
@@ -43,14 +49,22 @@ function Boot() {
   const retention = useSettingsStore((s) => s.settings.trashRetentionDays);
 
   useEffect(() => {
-    void useSettingsStore.getState().load().then(() => useAuthStore.getState().bootstrap());
+    void useSettingsStore
+      .getState()
+      .load()
+      .then(() => useAuthStore.getState().bootstrap());
   }, []);
 
   useEffect(() => {
     configureSync({
       isEnabled: () => {
         const identity = useAuthStore.getState().identity;
-        return !!identity && !identity.local && isSupabaseConfigured && useSettingsStore.getState().settings.syncMode !== 'off';
+        return (
+          !!identity &&
+          !identity.local &&
+          isSupabaseConfigured &&
+          useSettingsStore.getState().settings.syncMode !== 'off'
+        );
       },
       onAuthRequired: () => useAuthStore.getState().setNeedsReauth(true),
     });
@@ -58,7 +72,14 @@ function Boot() {
 
   // 自動同期（モードが「自動」のときだけ動く。ゲストも同期がオンならサーバーに保存する）
   useEffect(() => {
-    if ((status !== 'account' && status !== 'guest') || !ready || !ownerId || isLocal || !isSupabaseConfigured) return;
+    if (
+      (status !== 'account' && status !== 'guest') ||
+      !ready ||
+      !ownerId ||
+      isLocal ||
+      !isSupabaseConfigured
+    )
+      return;
     return startAutoSync(ownerId);
   }, [status, ready, ownerId, isLocal, syncMode]);
 

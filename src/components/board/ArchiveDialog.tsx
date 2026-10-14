@@ -48,7 +48,13 @@ export function ArchiveDialog({ kind, projectId, onClose, onClear }: Props) {
         ? trashItems({ projects, columns, tasks }, projectId).map((item) => ({
             key: item.record.id,
             title: item.record.title,
-            kindLabel: t(item.kind === 'task' ? 'board.kind.task' : item.kind === 'column' ? 'board.kind.column' : 'board.kind.project'),
+            kindLabel: t(
+              item.kind === 'task'
+                ? 'board.kind.task'
+                : item.kind === 'column'
+                  ? 'board.kind.column'
+                  : 'board.kind.project',
+            ),
             at: item.record.deletedAt,
             restore: () => void store.restoreItem(item.kind, item.record.id),
           }))
@@ -60,7 +66,17 @@ export function ArchiveDialog({ kind, projectId, onClose, onClear }: Props) {
       wide
       title={kind === 'trash' ? t('board.trashTitle') : t('board.archiveTitle')}
       onClose={onClose}
-      footer={rows.length > 0 ? <Button label={kind === 'trash' ? t('board.clearTrash') : t('board.clearArchive')} variant="danger" icon="trash" onPress={onClear} fullWidth /> : undefined}
+      footer={
+        rows.length > 0 ? (
+          <Button
+            label={kind === 'trash' ? t('board.clearTrash') : t('board.clearArchive')}
+            variant="danger"
+            icon="trash"
+            onPress={onClear}
+            fullWidth
+          />
+        ) : undefined
+      }
     >
       {rows.length === 0 ? (
         <EmptyState title={t('board.listEmpty')} />
@@ -83,6 +99,15 @@ export function ArchiveDialog({ kind, projectId, onClose, onClear }: Props) {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, borderWidth: BORDER_WIDTH, borderRadius: RADIUS.md, paddingLeft: SPACING.md, paddingRight: SPACING.xs, paddingVertical: SPACING.xs },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    borderWidth: BORDER_WIDTH,
+    borderRadius: RADIUS.md,
+    paddingLeft: SPACING.md,
+    paddingRight: SPACING.xs,
+    paddingVertical: SPACING.xs,
+  },
   texts: { flex: 1 },
 });

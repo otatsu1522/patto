@@ -8,12 +8,28 @@ import { Divider, Section, SwitchRow } from '@/components/ui/Rows';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { BOARD } from '@/config/layout';
 import { t, type StringKey } from '@/i18n';
-import { SHORTCUT_ACTIONS, displayKey, findConflict, isModifierOnly, keyToString, resolveBindings, type ActionId } from '@/shortcuts/actions';
+import {
+  SHORTCUT_ACTIONS,
+  displayKey,
+  findConflict,
+  isModifierOnly,
+  keyToString,
+  resolveBindings,
+  type ActionId,
+} from '@/shortcuts/actions';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useUiStore } from '@/store/uiStore';
 import { BORDER_WIDTH, RADIUS, SPACING, useTheme } from '@/theme';
 
-const INFO_KEYS: StringKey[] = ['shortcut.info1', 'shortcut.info2', 'shortcut.info3', 'shortcut.info4', 'shortcut.info5', 'shortcut.info6', 'shortcut.info7'];
+const INFO_KEYS: StringKey[] = [
+  'shortcut.info1',
+  'shortcut.info2',
+  'shortcut.info3',
+  'shortcut.info4',
+  'shortcut.info5',
+  'shortcut.info6',
+  'shortcut.info7',
+];
 
 /** キーボードショートカットの確認・変更（Web版）。 */
 export default function ShortcutSettings() {
@@ -45,9 +61,17 @@ export default function ShortcutSettings() {
       const conflict = findConflict(bindings, capturing, key);
       if (conflict) {
         const label = SHORTCUT_ACTIONS.find((a) => a.id === conflict)!.labelKey;
-        setMessage({ id: capturing, text: t('settings.shortcutsConflict', { key: displayKey(key), action: t(label) }) });
+        setMessage({
+          id: capturing,
+          text: t('settings.shortcutsConflict', { key: displayKey(key), action: t(label) }),
+        });
       } else if (!bindings[capturing].includes(key)) {
-        update({ shortcutOverrides: { ...settings.shortcutOverrides, [capturing]: [...bindings[capturing], key] } });
+        update({
+          shortcutOverrides: {
+            ...settings.shortcutOverrides,
+            [capturing]: [...bindings[capturing], key],
+          },
+        });
         setMessage(null);
       }
       setCapturing(null);
@@ -57,7 +81,8 @@ export default function ShortcutSettings() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [capturing]);
 
-  const setKeys = (id: ActionId, keys: string[]) => update({ shortcutOverrides: { ...settings.shortcutOverrides, [id]: keys } });
+  const setKeys = (id: ActionId, keys: string[]) =>
+    update({ shortcutOverrides: { ...settings.shortcutOverrides, [id]: keys } });
   const reset = (id: ActionId) => {
     const next = { ...settings.shortcutOverrides };
     delete next[id];
@@ -75,14 +100,25 @@ export default function ShortcutSettings() {
         <View style={styles.inner}>
           {Platform.OS !== 'web' ? <AppText muted>{t('settings.shortcutsWebOnly')}</AppText> : null}
           <Section>
-            <SwitchRow label={t('settings.shortcutsEnabled')} value={settings.shortcutsEnabled} onChange={(v) => update({ shortcutsEnabled: v })} />
+            <SwitchRow
+              label={t('settings.shortcutsEnabled')}
+              value={settings.shortcutsEnabled}
+              onChange={(v) => update({ shortcutsEnabled: v })}
+            />
           </Section>
 
           <View style={styles.infoRow}>
             <AppText variant="caption" muted style={styles.flex}>
               {t('settings.shortcutsFixed')}
             </AppText>
-            <IconButton icon="info" label={t('shortcut.infoTitle')} onPress={() => setInfo(true)} box={36} size={20} color={colors.textMuted} />
+            <IconButton
+              icon="info"
+              label={t('shortcut.infoTitle')}
+              onPress={() => setInfo(true)}
+              box={36}
+              size={20}
+              color={colors.textMuted}
+            />
           </View>
 
           <Section>
@@ -97,8 +133,16 @@ export default function ShortcutSettings() {
                         key={k}
                         accessibilityRole="button"
                         accessibilityLabel={`${t('settings.shortcutsRemove')}: ${displayKey(k)}`}
-                        onPress={() => setKeys(a.id, bindings[a.id].filter((x) => x !== k))}
-                        style={[styles.key, { borderColor: colors.border, backgroundColor: colors.hover }]}
+                        onPress={() =>
+                          setKeys(
+                            a.id,
+                            bindings[a.id].filter((x) => x !== k),
+                          )
+                        }
+                        style={[
+                          styles.key,
+                          { borderColor: colors.border, backgroundColor: colors.hover },
+                        ]}
                       >
                         <AppText variant="caption" bold>
                           {displayKey(k)}
@@ -110,7 +154,10 @@ export default function ShortcutSettings() {
                         accessibilityRole="button"
                         accessibilityLabel={t('shortcut.emptySlot')}
                         onPress={() => startCapture(a.id)}
-                        style={[styles.slot, { borderColor: capturing === a.id ? colors.accent : colors.divider }]}
+                        style={[
+                          styles.slot,
+                          { borderColor: capturing === a.id ? colors.accent : colors.divider },
+                        ]}
                       >
                         {capturing === a.id ? (
                           <AppText variant="caption" color={colors.accent}>
@@ -119,8 +166,20 @@ export default function ShortcutSettings() {
                         ) : null}
                       </Pressable>
                     ) : null}
-                    <IconButton icon="add" label={t('settings.shortcutsAdd')} onPress={() => startCapture(a.id)} box={34} size={18} />
-                    <IconButton icon="restore" label={t('settings.shortcutsReset')} onPress={() => reset(a.id)} box={34} size={18} />
+                    <IconButton
+                      icon="add"
+                      label={t('settings.shortcutsAdd')}
+                      onPress={() => startCapture(a.id)}
+                      box={34}
+                      size={18}
+                    />
+                    <IconButton
+                      icon="restore"
+                      label={t('settings.shortcutsReset')}
+                      onPress={() => reset(a.id)}
+                      box={34}
+                      size={18}
+                    />
                   </View>
                 </View>
                 {message?.id === a.id ? (
@@ -131,7 +190,11 @@ export default function ShortcutSettings() {
               </View>
             ))}
           </Section>
-          <Button label={t('settings.shortcutsResetAll')} variant="secondary" onPress={() => update({ shortcutOverrides: {} })} />
+          <Button
+            label={t('settings.shortcutsResetAll')}
+            variant="secondary"
+            onPress={() => update({ shortcutOverrides: {} })}
+          />
         </View>
       </ScrollView>
 
@@ -150,11 +213,40 @@ const styles = StyleSheet.create({
   content: { padding: SPACING.lg, alignItems: 'center' },
   inner: { width: '100%', maxWidth: BOARD.dialogMaxWidth + 120, gap: SPACING.lg },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  row: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, paddingHorizontal: SPACING.lg, paddingVertical: SPACING.xs, minHeight: 52 },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.xs,
+    minHeight: 52,
+  },
   label: { flex: 1 },
-  keys: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '60%' },
-  key: { minWidth: 30, paddingHorizontal: SPACING.sm, paddingVertical: 4, borderRadius: RADIUS.sm, borderWidth: BORDER_WIDTH, alignItems: 'center' },
+  keys: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    maxWidth: '60%',
+  },
+  key: {
+    minWidth: 30,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 4,
+    borderRadius: RADIUS.sm,
+    borderWidth: BORDER_WIDTH,
+    alignItems: 'center',
+  },
   /** キーがない（または追加待ち）の点線の四角 */
-  slot: { minWidth: 44, minHeight: 28, paddingHorizontal: SPACING.sm, borderWidth: BORDER_WIDTH, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
+  slot: {
+    minWidth: 44,
+    minHeight: 28,
+    paddingHorizontal: SPACING.sm,
+    borderWidth: BORDER_WIDTH,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   rowMessage: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.sm },
 });

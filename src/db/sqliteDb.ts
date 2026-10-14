@@ -1,5 +1,5 @@
 import * as SQLite from 'expo-sqlite';
-import { fromLocalRow, TABLE_DEFS, TABLE_NAMES, toLocalRow } from '@/domain/schema';
+import { fromLocalRow, TABLE_DEFS, toLocalRow } from '@/domain/schema';
 import type { AnyRecord, Snapshot, TableName } from '@/domain/types';
 import { MIGRATIONS } from './migrations';
 import { dbNameFor, type LocalDb } from './types';
@@ -26,7 +26,7 @@ export async function openLocalDb(scope: string): Promise<LocalDb> {
   // withTransactionAsync() は排他的ではなく、同じ接続で複数のトランザクションが重なるとエラーになる。
   // そのため、この接続への読み書きはすべて1本の待ち行列に並べて、1つずつ順番に実行する。
   let queue: Promise<unknown> = Promise.resolve();
-  const serial = <T,>(task: () => Promise<T>): Promise<T> => {
+  const serial = <T>(task: () => Promise<T>): Promise<T> => {
     const result = queue.then(task, task);
     queue = result.catch(() => undefined);
     return result;
@@ -35,14 +35,16 @@ export async function openLocalDb(scope: string): Promise<LocalDb> {
   return {
     loadAll: () =>
       serial(async (): Promise<Snapshot> => {
-      const projects = await db.getAllAsync<Record<string, unknown>>('SELECT * FROM projects');
-      const columns = await db.getAllAsync<Record<string, unknown>>('SELECT * FROM kanban_columns');
-      const tasks = await db.getAllAsync<Record<string, unknown>>('SELECT * FROM tasks');
-      return {
-        projects: (projects ?? []).map((r) => fromLocalRow('projects', r)),
-        columns: (columns ?? []).map((r) => fromLocalRow('kanban_columns', r)),
-        tasks: (tasks ?? []).map((r) => fromLocalRow('tasks', r)),
-      } as Snapshot;
+        const projects = await db.getAllAsync<Record<string, unknown>>('SELECT * FROM projects');
+        const columns = await db.getAllAsync<Record<string, unknown>>(
+          'SELECT * FROM kanban_columns',
+        );
+        const tasks = await db.getAllAsync<Record<string, unknown>>('SELECT * FROM tasks');
+        return {
+          projects: (projects ?? []).map((r) => fromLocalRow('projects', r)),
+          columns: (columns ?? []).map((r) => fromLocalRow('kanban_columns', r)),
+          tasks: (tasks ?? []).map((r) => fromLocalRow('tasks', r)),
+        } as Snapshot;
       }),
 
     upsert: (table: TableName, rows: AnyRecord[]) =>
@@ -53,7 +55,10 @@ export async function openLocalDb(scope: string): Promise<LocalDb> {
         await db.withTransactionAsync(async () => {
           for (const rec of rows) {
             const row = toLocalRow(table, rec);
-            await db.runAsync(sql, cols.map((c) => row[c] ?? null));
+            await db.runAsync(
+              sql,
+              cols.map((c) => row[c] ?? null),
+            );
           }
         });
       }),
@@ -68,13 +73,19 @@ export async function openLocalDb(scope: string): Promise<LocalDb> {
 
     getMeta: (key: string) =>
       serial(async () => {
-        const r = await db.getFirstAsync<{ value: string }>('SELECT value FROM sync_meta WHERE key = ?', [key]);
+        const r = await db.getFirstAsync<{ value: string }>(
+          'SELECT value FROM sync_meta WHERE key = ?',
+          [key],
+        );
         return r?.value ?? null;
       }),
 
     setMeta: (key: string, value: string) =>
       serial(async () => {
-        await db.runAsync('INSERT OR REPLACE INTO sync_meta (key, value) VALUES (?, ?)', [key, value]);
+        await db.runAsync('INSERT OR REPLACE INTO sync_meta (key, value) VALUES (?, ?)', [
+          key,
+          value,
+        ]);
       }),
 
     close: () =>

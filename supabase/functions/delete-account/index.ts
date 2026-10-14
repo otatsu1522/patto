@@ -18,12 +18,18 @@ Deno.serve(async (req) => {
     global: { headers: { Authorization: authHeader } },
   });
   const { data, error } = await asCaller.auth.getUser();
-  if (error || !data.user) return new Response('unauthorized', { status: 401, headers: corsHeaders });
+  if (error || !data.user)
+    return new Response('unauthorized', { status: 401, headers: corsHeaders });
 
-  const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+  const admin = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+  );
   // owner_id は auth.users への外部キー（on delete cascade）なので、ユーザーを消せばデータも消える
   const { error: deleteError } = await admin.auth.admin.deleteUser(data.user.id);
   if (deleteError) return new Response(deleteError.message, { status: 500, headers: corsHeaders });
 
-  return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  return new Response(JSON.stringify({ ok: true }), {
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
 });

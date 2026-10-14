@@ -31,10 +31,16 @@ export async function exportProjects(projectIds: string[]): Promise<void> {
 
 /** ファイルを選んで Trello 形式の JSON を取り込む。取り込んだプロジェクト数、キャンセル時は null。 */
 export async function importProjects(): Promise<number | null> {
-  const res = await DocumentPicker.getDocumentAsync({ type: ['application/json', 'text/plain', '*/*'], copyToCacheDirectory: true });
+  const res = await DocumentPicker.getDocumentAsync({
+    type: ['application/json', 'text/plain', '*/*'],
+    copyToCacheDirectory: true,
+  });
   if (res.canceled || !res.assets[0]) return null;
   const asset = res.assets[0];
-  const text = Platform.OS === 'web' && asset.file ? await asset.file.text() : await new File(asset.uri).text();
+  const text =
+    Platform.OS === 'web' && asset.file
+      ? await asset.file.text()
+      : await new File(asset.uri).text();
   const boards = parseTrello(text);
   return useDataStore.getState().importBoards(boards);
 }

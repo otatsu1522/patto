@@ -33,18 +33,23 @@ export function BoardHeader({ title, right, search, menu = true }: Props) {
   const showMenu = menu && (!permanent || collapsed) && !menuVisible;
   const input = useRef<TextInput>(null);
 
+  const searching = !!search;
   useEffect(() => {
-    if (search) setTimeout(() => input.current?.focus(), 50);
-  }, [!!search]);
+    if (searching) setTimeout(() => input.current?.focus(), 50);
+  }, [searching]);
 
   return (
-    <View style={[styles.bar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+    <View
+      style={[styles.bar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}
+    >
       <View style={styles.side}>
         {showMenu ? (
           <IconButton
             icon="menu"
             label={t('menu.open')}
-            onPress={() => (permanent ? useUiStore.getState().toggleSidebarCollapsed() : toggleBoardMenu())}
+            onPress={() =>
+              permanent ? useUiStore.getState().toggleSidebarCollapsed() : toggleBoardMenu()
+            }
           />
         ) : null}
       </View>
@@ -76,18 +81,41 @@ export function BoardHeader({ title, right, search, menu = true }: Props) {
       )}
 
       <View style={styles.side}>
-        {search ? <IconButton icon="close" label={t('board.searchClose')} onPress={search.onClose} /> : right}
+        {search ? (
+          <IconButton icon="close" label={t('board.searchClose')} onPress={search.onClose} />
+        ) : (
+          right
+        )}
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  bar: { flexDirection: 'row', alignItems: 'center', height: BOARD.headerHeight, paddingHorizontal: SPACING.sm, gap: SPACING.xs, borderBottomWidth: BORDER_WIDTH },
+  bar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: BOARD.headerHeight,
+    paddingHorizontal: SPACING.sm,
+    gap: SPACING.xs,
+    borderBottomWidth: BORDER_WIDTH,
+  },
   side: { width: BOARD.touchTarget, alignItems: 'center', justifyContent: 'center' },
-  center: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.xs, minWidth: 0 },
+  center: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.xs,
+    minWidth: 0,
+  },
   title: { flexShrink: 1, textAlign: 'center' },
   sync: { paddingTop: 4 },
   searchRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  searchInput: { flex: 1, height: 48, backgroundColor: 'transparent', outlineStyle: 'none' } as never,
+  searchInput: {
+    flex: 1,
+    height: 48,
+    backgroundColor: 'transparent',
+    outlineStyle: 'none',
+  } as never,
 });

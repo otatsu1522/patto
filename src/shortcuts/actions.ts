@@ -58,11 +58,14 @@ interface KeyLike {
 /** キー入力を "h" / "H" / "Enter" / "ctrl+z" のような文字列にする（Shiftは大文字・記号で表す）。 */
 export function keyToString(e: KeyLike): string {
   const key = e.key === ' ' ? 'Space' : e.key;
-  const mods = [e.ctrlKey ? 'ctrl' : '', e.metaKey ? 'meta' : '', e.altKey ? 'alt' : ''].filter(Boolean);
+  const mods = [e.ctrlKey ? 'ctrl' : '', e.metaKey ? 'meta' : '', e.altKey ? 'alt' : ''].filter(
+    Boolean,
+  );
   return [...mods, key].join('+');
 }
 
-export const isModifierOnly = (key: string): boolean => ['Shift', 'Control', 'Alt', 'Meta'].includes(key);
+export const isModifierOnly = (key: string): boolean =>
+  ['Shift', 'Control', 'Alt', 'Meta'].includes(key);
 
 /** キー → アクションの逆引き表 */
 export function buildKeyMap(bindings: Bindings): Map<string, ActionId> {
@@ -80,4 +83,5 @@ export function findConflict(bindings: Bindings, actionId: ActionId, key: string
 }
 
 /** 表示用（Enter → ↵ など） */
-export const displayKey = (key: string): string => (key === 'Space' ? 'Space' : key === 'Enter' ? 'Enter' : key);
+export const displayKey = (key: string): string =>
+  key === 'Space' ? 'Space' : key === 'Enter' ? 'Enter' : key;

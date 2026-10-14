@@ -2,6 +2,7 @@ import * as NavigationBar from 'expo-navigation-bar';
 import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react';
 import { Appearance, Platform, useColorScheme } from 'react-native';
 import { FONT_SCALES } from '@/config/layout';
+import { isTouchWeb } from '@/lib/hover';
 import { useSettingsStore } from '@/store/settingsStore';
 import { darkPalette, lightPalette, type Palette } from './palette';
 import { TASK_COLORS, TASK_COLORS_DARK, type TaskColorKey } from './taskColors';
@@ -26,7 +27,10 @@ interface Theme {
 
 const ThemeContext = createContext<Theme | null>(null);
 
-/** Web: ブラウザのスクロールバーと標準部品の配色をテーマに合わせる。 */
+/**
+ * Web: ブラウザのスクロールバー・標準部品の配色・アドレスバーの色をテーマに合わせ、
+ * スマホのブラウザでもアプリのように動くよう、ブラウザ特有の挙動（引っ張って更新、選択、拡大など）を抑える。
+ */
 function useWebChrome(isDark: boolean, colors: Palette) {
   useEffect(() => {
     if (Platform.OS !== 'web') return;
@@ -37,12 +41,31 @@ function useWebChrome(isDark: boolean, colors: Palette) {
       style.id = 'patto-scrollbar';
       document.head.appendChild(style);
     }
-    style.textContent = `* { scrollbar-width: thin; scrollbar-color: ${colors.scrollThumb} transparent; }
+    style.textContent = `* { scrollbar-width: thin; scrollbar-color: ${colors.scrollThumb} transparent; overscroll-behavior: none; }
 *::-webkit-scrollbar { width: 8px; height: 8px; }
 *::-webkit-scrollbar-thumb { background: ${colors.scrollThumb}; }
 *::-webkit-scrollbar-track { background: transparent; }`;
     document.body.style.backgroundColor = colors.bg;
+    // スマホのブラウザのアドレスバー・ステータスバーの色（ヘッダーと同じ色）
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', colors.surface);
   }, [isDark, colors]);
+
+  // スマホのブラウザ: キーボードが出て表示領域が小さくなったら、画面の高さもそれに合わせる（iOS は自動で縮まないため）
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !isTouchWeb || !window.visualViewport) return;
+    const viewport = window.visualViewport;
+    const root = document.getElementById('root');
+    const fit = () => {
+      if (root) root.style.height = `${viewport.height}px`;
+      window.scrollTo(0, 0);
+    };
+    fit();
+    viewport.addEventListener('resize', fit);
+    return () => {
+      viewport.removeEventListener('resize', fit);
+      if (root) root.style.height = '';
+    };
+  }, []);
 }
 
 /** Android: 画面下のナビゲーションボタンの色を、背景に対して見える色にする。 */

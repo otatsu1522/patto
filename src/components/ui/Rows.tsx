@@ -5,8 +5,17 @@ import { RADIUS, SPACING, useTheme } from '@/theme';
 import { AppText } from './AppText';
 import { Icon } from './Icon';
 import { BORDER_WIDTH } from '@/theme/tokens';
+import { canHover } from '@/lib/hover';
 
-export function Section({ title, description, children }: { title?: string; description?: string; children: React.ReactNode }) {
+export function Section({
+  title,
+  description,
+  children,
+}: {
+  title?: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
   const { colors } = useTheme();
   return (
     <View style={styles.section}>
@@ -20,7 +29,9 @@ export function Section({ title, description, children }: { title?: string; desc
           {description}
         </AppText>
       ) : null}
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>{children}</View>
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        {children}
+      </View>
     </View>
   );
 }
@@ -37,7 +48,16 @@ interface LinkRowProps {
   description?: string;
 }
 
-export function LinkRow({ label, onPress, icon, value, destructive, chevron = true, disabled, description }: LinkRowProps) {
+export function LinkRow({
+  label,
+  onPress,
+  icon,
+  value,
+  destructive,
+  chevron = true,
+  disabled,
+  description,
+}: LinkRowProps) {
   const { colors } = useTheme();
   return (
     <Pressable
@@ -46,10 +66,15 @@ export function LinkRow({ label, onPress, icon, value, destructive, chevron = tr
       onPress={onPress}
       style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
         styles.row,
-        { backgroundColor: pressed || hovered ? colors.hover : 'transparent', opacity: disabled ? 0.5 : 1 },
+        {
+          backgroundColor: pressed || (hovered && canHover) ? colors.hover : 'transparent',
+          opacity: disabled ? 0.5 : 1,
+        },
       ]}
     >
-      {icon ? <Icon name={icon} size={20} color={destructive ? colors.danger : colors.textMuted} /> : null}
+      {icon ? (
+        <Icon name={icon} size={20} color={destructive ? colors.danger : colors.textMuted} />
+      ) : null}
       <View style={styles.flex}>
         <AppText color={destructive ? colors.danger : colors.text}>{label}</AppText>
         {description ? (
@@ -64,7 +89,17 @@ export function LinkRow({ label, onPress, icon, value, destructive, chevron = tr
   );
 }
 
-export function SwitchRow({ label, value, onChange, hint }: { label: string; value: boolean; onChange: (v: boolean) => void; hint?: string }) {
+export function SwitchRow({
+  label,
+  value,
+  onChange,
+  hint,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+  hint?: string;
+}) {
   return (
     <View style={styles.row}>
       <View style={styles.flex}>
@@ -106,7 +141,10 @@ export function ChoiceRow<T extends string>({
               onPress={() => onChange(o.value)}
               style={[
                 styles.choice,
-                { borderColor: selected ? colors.primary : colors.border, backgroundColor: selected ? colors.primary : colors.surface },
+                {
+                  borderColor: selected ? colors.primary : colors.border,
+                  backgroundColor: selected ? colors.primary : colors.surface,
+                },
               ]}
             >
               <AppText variant="caption" bold color={selected ? colors.onPrimary : colors.text}>
@@ -129,9 +167,21 @@ const styles = StyleSheet.create({
   section: { gap: SPACING.xs },
   sectionTitle: { paddingHorizontal: SPACING.sm },
   card: { borderRadius: RADIUS.lg, borderWidth: BORDER_WIDTH, overflow: 'hidden' },
-  row: { minHeight: BOARD.touchTarget + 4, flexDirection: 'row', alignItems: 'center', gap: SPACING.md, paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm },
+  row: {
+    minHeight: BOARD.touchTarget + 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+  },
   column: { flexDirection: 'column', alignItems: 'flex-start', paddingVertical: SPACING.md },
   flex: { flex: 1 },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
-  choice: { paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, borderRadius: 0, borderWidth: BORDER_WIDTH },
+  choice: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: 0,
+    borderWidth: BORDER_WIDTH,
+  },
 });

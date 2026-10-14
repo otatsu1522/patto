@@ -31,7 +31,12 @@ export const TextField = forwardRef<TextInput, Props>(function TextField(
           {label}
         </AppText>
       ) : null}
-      <View style={[styles.box, { borderColor: error ? colors.danger : colors.border, backgroundColor: colors.surface }]}>
+      <View
+        style={[
+          styles.box,
+          { borderColor: error ? colors.danger : colors.border, backgroundColor: colors.surface },
+        ]}
+      >
         <TextInput
           ref={ref}
           accessibilityLabel={label}
@@ -42,12 +47,25 @@ export const TextField = forwardRef<TextInput, Props>(function TextField(
           {...rest}
           style={[
             styles.input,
-            { color: colors.text, fontSize: fs(FONT.body), minHeight: multiline ? fs(FONT.body) * 1.5 * (lines ?? 1) + SPACING.md : BOARD.touchTarget - 2 },
+            {
+              color: colors.text,
+              fontSize: fs(FONT.body),
+              minHeight: multiline
+                ? fs(FONT.body) * 1.5 * (lines ?? 1) + SPACING.md
+                : BOARD.touchTarget - 2,
+            },
             multiline && { textAlignVertical: 'top' },
           ]}
         />
         {onClear && !secure && typeof rest.value === 'string' && rest.value.length > 0 ? (
-          <IconButton icon="close" label={t('task.dueClear')} onPress={onClear} box={32} size={18} color={colors.textMuted} />
+          <IconButton
+            icon="close"
+            label={t('task.dueClear')}
+            onPress={onClear}
+            box={32}
+            size={18}
+            color={colors.textMuted}
+          />
         ) : null}
         {secure ? (
           <IconButton
@@ -70,6 +88,12 @@ export const TextField = forwardRef<TextInput, Props>(function TextField(
 
 const styles = StyleSheet.create({
   wrap: { gap: SPACING.xs },
-  box: { flexDirection: 'row', alignItems: 'center', borderWidth: BORDER_WIDTH, borderRadius: RADIUS.md, paddingHorizontal: SPACING.md },
+  box: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: BORDER_WIDTH,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.md,
+  },
   input: { flex: 1, paddingVertical: SPACING.sm, outlineStyle: 'none' } as never,
 });

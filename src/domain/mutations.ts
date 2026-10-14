@@ -7,7 +7,11 @@ import type { BaseRecord, KanbanColumn, Project, TableName, Task } from './types
  * 変更した項目だけ fieldUpdatedAt を更新して返す。変更がなければ元のレコードをそのまま返す。
  * すべての更新はこの関数を通すことで、同期時の項目単位マージが正しく働く。
  */
-export function patchRecord<T extends BaseRecord>(rec: T, patch: Partial<NoInfer<T>>, now: number): T {
+export function patchRecord<T extends BaseRecord>(
+  rec: T,
+  patch: Partial<NoInfer<T>>,
+  now: number,
+): T {
   const src = rec as unknown as Record<string, unknown>;
   const changes: Record<string, unknown> = {};
   const stamps: Record<string, number> = {};
@@ -47,7 +51,12 @@ export interface ProjectInput {
   color?: TaskColorKey | null;
 }
 
-export const buildProject = (ownerId: string, now: number, input: ProjectInput, sortKey: string): Project => ({
+export const buildProject = (
+  ownerId: string,
+  now: number,
+  input: ProjectInput,
+  sortKey: string,
+): Project => ({
   ...base('projects', ownerId, now),
   title: input.title.trim(),
   description: input.description ?? '',
@@ -64,7 +73,12 @@ export interface ColumnInput {
   isDoneColumn?: boolean;
 }
 
-export const buildColumn = (ownerId: string, now: number, input: ColumnInput, sortKey: string): KanbanColumn => ({
+export const buildColumn = (
+  ownerId: string,
+  now: number,
+  input: ColumnInput,
+  sortKey: string,
+): KanbanColumn => ({
   ...base('kanban_columns', ownerId, now),
   projectId: input.projectId,
   title: input.title.trim(),
@@ -107,7 +121,11 @@ export const buildTask = (
 });
 
 /** タスクを別のカンバンへ移すときの変更内容（完了列なら完了日時を記録する）。 */
-export const moveTaskPatch = (target: KanbanColumn, now: number, sortKey?: string): Partial<Task> => ({
+export const moveTaskPatch = (
+  target: KanbanColumn,
+  now: number,
+  sortKey?: string,
+): Partial<Task> => ({
   columnId: target.id,
   completedAt: target.isDoneColumn ? now : null,
   ...(sortKey ? { sortKey } : {}),

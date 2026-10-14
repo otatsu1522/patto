@@ -4,6 +4,7 @@ import { t } from '@/i18n';
 import { SPACING, useTheme } from '@/theme';
 import { AppText } from '../ui/AppText';
 import { BORDER_WIDTH } from '@/theme/tokens';
+import { canHover } from '@/lib/hover';
 
 interface Props {
   results: Task[];
@@ -36,7 +37,10 @@ export function SearchResults({ results, projects, columns, onPress }: Props) {
             onPress={() => onPress(task)}
             style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
               styles.item,
-              { borderBottomColor: colors.divider, backgroundColor: pressed || hovered ? colors.hover : 'transparent' },
+              {
+                borderBottomColor: colors.divider,
+                backgroundColor: pressed || (hovered && canHover) ? colors.hover : 'transparent',
+              },
             ]}
           >
             <AppText variant="caption" muted numberOfLines={1}>
@@ -59,5 +63,10 @@ export function SearchResults({ results, projects, columns, onPress }: Props) {
 
 const styles = StyleSheet.create({
   empty: { padding: SPACING.lg },
-  item: { paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md, gap: 2, borderBottomWidth: BORDER_WIDTH },
+  item: {
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    gap: 2,
+    borderBottomWidth: BORDER_WIDTH,
+  },
 });

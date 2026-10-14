@@ -75,10 +75,10 @@ Get-Content .\eas.json
 
 設定の意味：
 
-| 項目 | 意味 |
-| --- | --- |
-| `distribution: "internal"` | ストア公開ではなく、ビルド成果物を直接配布する |
-| `environment: "preview"` | EAS の `preview` 環境変数をビルドで利用する |
+| 項目                       | 意味                                                |
+| -------------------------- | --------------------------------------------------- |
+| `distribution: "internal"` | ストア公開ではなく、ビルド成果物を直接配布する      |
+| `environment: "preview"`   | EAS の `preview` 環境変数をビルドで利用する         |
 | `android.buildType: "apk"` | Android 端末に直接インストールできる APK を生成する |
 
 Google Play 用の標準成果物は通常 AAB だが、今回は直接インストール用の APK を作成する。
@@ -92,12 +92,12 @@ Google Play 用の標準成果物は通常 AAB だが、今回は直接インス
 3. **Project settings → Environment variables** を開き、**Add Variables** を選ぶ。
 4. 変数を 1 つずつ追加し、`Environment(s)` は `preview` を選ぶ。
 
-| 項目 | 変数 1 | 変数 2 |
-| --- | --- | --- |
-| Name | `EXPO_PUBLIC_SUPABASE_URL` | `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` |
-| Value | `.env.local` の同名変数の値 | `.env.local` の同名変数の値 |
-| Environment(s) | `preview` | `preview` |
-| Visibility | `Plain text` | `Plain text` |
+| 項目           | 変数 1                      | 変数 2                                 |
+| -------------- | --------------------------- | -------------------------------------- |
+| Name           | `EXPO_PUBLIC_SUPABASE_URL`  | `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` |
+| Value          | `.env.local` の同名変数の値 | `.env.local` の同名変数の値            |
+| Environment(s) | `preview`                   | `preview`                              |
+| Visibility     | `Plain text`                | `Plain text`                           |
 
 値はローカルの `.env.local` から転記する。値を Markdown、Git、チャット、公開リポジトリへ貼り付けない。
 

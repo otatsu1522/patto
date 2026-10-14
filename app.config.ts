@@ -22,7 +22,10 @@ const config: ExpoConfig = {
     'expo-sqlite',
     'expo-localization',
     ['expo-navigation-bar', { enforceContrast: false }],
-    ['expo-splash-screen', { image: './assets/splash-icon.png', imageWidth: 200, backgroundColor: '#FFFFFF' }],
+    [
+      'expo-splash-screen',
+      { image: './assets/splash-icon.png', imageWidth: 200, backgroundColor: '#FFFFFF' },
+    ],
   ],
   experiments: { typedRoutes: false },
   extra: {

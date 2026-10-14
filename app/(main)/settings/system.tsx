@@ -28,7 +28,11 @@ export default function SystemSettings() {
   const syncAvailable = !!identity && !identity.local && isSupabaseConfigured;
 
   const doExport = async () => {
-    const answer = await confirm({ title: t('settings.exportConfirmTitle'), message: t('settings.exportConfirmMessage'), confirmLabel: t('settings.exportConfirm') });
+    const answer = await confirm({
+      title: t('settings.exportConfirmTitle'),
+      message: t('settings.exportConfirmMessage'),
+      confirmLabel: t('settings.exportConfirm'),
+    });
     if (answer !== 'confirm') return;
     const s = useDataStore.getState();
     const ids = [...visibleProjects(s.projects), ...archivedProjects(s.projects)].map((p) => p.id);
@@ -57,7 +61,9 @@ export default function SystemSettings() {
     });
     if (r !== 'confirm') return;
     const res = await clearBucket(kind);
-    toast(res.ok ? t('board.clearDone', { count: res.count }) : res.message, undefined, { force: !res.ok });
+    toast(res.ok ? t('board.clearDone', { count: res.count }) : res.message, undefined, {
+      force: !res.ok,
+    });
   };
 
   return (
@@ -98,7 +104,10 @@ export default function SystemSettings() {
             />
           </Section>
 
-          <Section title={t('settings.syncSection')} description={syncAvailable ? undefined : t('settings.syncHint')}>
+          <Section
+            title={t('settings.syncSection')}
+            description={syncAvailable ? undefined : t('settings.syncHint')}
+          >
             {syncAvailable ? (
               <>
                 <ChoiceRow<SyncMode>
@@ -114,7 +123,11 @@ export default function SystemSettings() {
                 <LinkRow
                   icon="sync"
                   label={t('settings.syncNow')}
-                  value={lastSyncedAt ? `${t('settings.lastSync')} ${formatDateTime(lastSyncedAt)}` : t('sync.never')}
+                  value={
+                    lastSyncedAt
+                      ? `${t('settings.lastSync')} ${formatDateTime(lastSyncedAt)}`
+                      : t('sync.never')
+                  }
                   chevron={false}
                   disabled={settings.syncMode === 'off'}
                   onPress={() => void syncNow()}
@@ -145,13 +158,34 @@ export default function SystemSettings() {
           ) : null}
 
           <Section title={t('settings.toastSection')} description={t('settings.toastHint')}>
-            <SwitchRow label={t('settings.toast')} value={settings.toastEnabled} onChange={(v) => update({ toastEnabled: v })} />
+            <SwitchRow
+              label={t('settings.toast')}
+              value={settings.toastEnabled}
+              onChange={(v) => update({ toastEnabled: v })}
+            />
           </Section>
 
           <Section title={t('settings.trashSection')} description={t('settings.trashHint')}>
-            <SwitchRow label={t('settings.trashAutoDelete')} hint={t('settings.trashRetentionDays', { days: settings.trashRetentionDays })} value={settings.trashAutoDelete} onChange={(v) => update({ trashAutoDelete: v })} />
-            <LinkRow icon="trash" label={t('settings.trashClearAll')} destructive chevron={false} onPress={() => void clearAll('trash')} />
-            <LinkRow icon="archive" label={t('settings.archiveClearAll')} destructive chevron={false} onPress={() => void clearAll('archive')} />
+            <SwitchRow
+              label={t('settings.trashAutoDelete')}
+              hint={t('settings.trashRetentionDays', { days: settings.trashRetentionDays })}
+              value={settings.trashAutoDelete}
+              onChange={(v) => update({ trashAutoDelete: v })}
+            />
+            <LinkRow
+              icon="trash"
+              label={t('settings.trashClearAll')}
+              destructive
+              chevron={false}
+              onPress={() => void clearAll('trash')}
+            />
+            <LinkRow
+              icon="archive"
+              label={t('settings.archiveClearAll')}
+              destructive
+              chevron={false}
+              onPress={() => void clearAll('archive')}
+            />
           </Section>
 
           <Section title={t('settings.dataSection')} description={t('settings.dataHint')}>

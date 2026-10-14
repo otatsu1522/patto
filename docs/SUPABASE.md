@@ -16,13 +16,13 @@ Supabase Free は開発・検証に利用できる。ただし、一定期間低
 
 Dashboard で `New project` を選択し、次のように設定する。
 
-| 項目 | 設定 |
-| --- | --- |
-| Organization | 個人用の Organization |
-| Project name | `patto-dev` など |
+| 項目              | 設定                                             |
+| ----------------- | ------------------------------------------------ |
+| Organization      | 個人用の Organization                            |
+| Project name      | `patto-dev` など                                 |
 | Database Password | 強力なランダムパスワードを設定して安全に保存する |
-| Region | Northeast Asia (Tokyo) |
-| Plan | Free |
+| Region            | Northeast Asia (Tokyo)                           |
+| Plan              | Free                                             |
 
 Database Password は Supabase のデータベース管理用であり、Patto のログイン用パスワードとは別のもの。
 
@@ -56,10 +56,10 @@ EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_REPLACE_WITH_YOUR_KEY
 
 **キーの扱い**
 
-| キー | アプリに入れる？ | 理由 |
-| --- | --- | --- |
-| Publishable Key | 入れる | 公開前提。データは RLS で保護される |
-| Secret Key / service_role | **入れない** | RLS を迂回できる強い権限を持つ。サーバー側だけで使う |
+| キー                      | アプリに入れる？ | 理由                                                 |
+| ------------------------- | ---------------- | ---------------------------------------------------- |
+| Publishable Key           | 入れる           | 公開前提。データは RLS で保護される                  |
+| Secret Key / service_role | **入れない**     | RLS を迂回できる強い権限を持つ。サーバー側だけで使う |
 
 `.env.local` は Git に入らないよう `.gitignore` で除外する。見本の `.env.example` だけ Git 管理する。
 
@@ -81,12 +81,12 @@ Dashboard の `Authentication` を開き、`Sign In / Providers`（または Pro
 
 ### 2.1 全体の認証設定
 
-| 設定 | 値 | 理由 |
-| --- | --- | --- |
-| Allow new users to sign up | **オン** | 新規アカウント登録を許可する |
-| Allow manual linking | **オン** | ゲストから通常アカウントへの移行などに備える |
-| Allow anonymous sign-ins | **オン** | 「ゲストで使用」が匿名認証を使う |
-| Confirm email | **オフ** | メール確認を行わない（確認メールを送らない） |
+| 設定                       | 値       | 理由                                         |
+| -------------------------- | -------- | -------------------------------------------- |
+| Allow new users to sign up | **オン** | 新規アカウント登録を許可する                 |
+| Allow manual linking       | **オン** | ゲストから通常アカウントへの移行などに備える |
+| Allow anonymous sign-ins   | **オン** | 「ゲストで使用」が匿名認証を使う             |
+| Confirm email              | **オフ** | メール確認を行わない（確認メールを送らない） |
 
 匿名ユーザーも「認証済みユーザー」として扱われるため、同じ RLS ポリシーでユーザーごとに保護される。匿名認証では不正なアカウント作成を防ぐため、一般公開前に CAPTCHA などの対策も検討する。
 
@@ -94,17 +94,17 @@ Dashboard の `Authentication` を開き、`Sign In / Providers`（または Pro
 
 `Authentication > Sign In / Providers > Email` を開き、次の設定を行う。
 
-| 設定 | 値 | 理由 |
-| --- | --- | --- |
-| Enable email provider | **オン** | メールアドレス+パスワードで登録・ログイン |
-| Secure email change | オン | 将来のメールアドレス変更に備え、安全性を確保する |
-| Secure password change | オフ | 現段階のパスワード変更方針に合わせる |
-| Require current password when updating | オン | パスワード変更時に現在のパスワードを要求する |
-| Prevent use of leaked passwords | 利用不可 | Pro プラン以上の機能 |
-| Minimum password length | **8 以上** | アプリの入力ルールに合わせる |
-| Password requirements | アプリと整合する要件 | アプリ側のパスワード検証ルールと一致させる |
-| Email OTP expiration | 既定値 | 現段階ではメール OTP を使用しない |
-| Email OTP length | 既定値 | 現段階ではメール OTP を使用しない |
+| 設定                                   | 値                   | 理由                                             |
+| -------------------------------------- | -------------------- | ------------------------------------------------ |
+| Enable email provider                  | **オン**             | メールアドレス+パスワードで登録・ログイン        |
+| Secure email change                    | オン                 | 将来のメールアドレス変更に備え、安全性を確保する |
+| Secure password change                 | オフ                 | 現段階のパスワード変更方針に合わせる             |
+| Require current password when updating | オン                 | パスワード変更時に現在のパスワードを要求する     |
+| Prevent use of leaked passwords        | 利用不可             | Pro プラン以上の機能                             |
+| Minimum password length                | **8 以上**           | アプリの入力ルールに合わせる                     |
+| Password requirements                  | アプリと整合する要件 | アプリ側のパスワード検証ルールと一致させる       |
+| Email OTP expiration                   | 既定値               | 現段階ではメール OTP を使用しない                |
+| Email OTP length                       | 既定値               | 現段階ではメール OTP を使用しない                |
 
 パスワードはアプリ側で8文字以上、英字と数字をそれぞれ1文字以上含むルールにする。Dashboard で選択したパスワード要件とアプリ側の検証ルールを一致させる。
 
@@ -134,11 +134,11 @@ https://patto-board.pages.dev
 
 `Redirect URLs` の `Add URL` から、次のURLをそれぞれ追加する。
 
-| URL | 用途 |
-| --- | --- |
+| URL                                | 用途                                                                |
+| ---------------------------------- | ------------------------------------------------------------------- |
 | `https://patto-board.pages.dev/**` | 公開済み Cloudflare Pages 版。ログイン画面のパスを含むURLも許可する |
-| `http://localhost:8081/**` | PCでのローカルWeb開発 |
-| `http://127.0.0.1:8081/**` | ローカルWeb開発でIPアドレス表記を使う場合 |
+| `http://localhost:8081/**`         | PCでのローカルWeb開発                                               |
+| `http://127.0.0.1:8081/**`         | ローカルWeb開発でIPアドレス表記を使う場合                           |
 
 ローカル開発時に実際に使用しているポートが `8081` 以外なら、ブラウザーのアドレスバーに表示されるオリジンに合わせて Redirect URLs を追加する。不要なURLを無制限に許可しない。
 
@@ -150,9 +150,9 @@ https://patto-board.pages.dev
 
 Cloudflare Pages のデプロイビルドでは、ローカルの `.env.local` は利用できないため、Cloudflare Pages プロジェクトの **ビルド時環境変数** に次を登録する。
 
-| 変数名 | 値 |
-| --- | --- |
-| `EXPO_PUBLIC_SUPABASE_URL` | Supabase の Project URL |
+| 変数名                                 | 値                          |
+| -------------------------------------- | --------------------------- |
+| `EXPO_PUBLIC_SUPABASE_URL`             | Supabase の Project URL     |
 | `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase の Publishable Key |
 
 `Production` と `Preview` の両方で利用する場合は、それぞれの環境に変数を追加する。`EXPO_PUBLIC_` の値はWebビルド成果物に埋め込まれるので、公開されても問題のない値だけを使う。`Secret Key` / `service_role` キーは追加しない。
@@ -296,10 +296,10 @@ Supabase の公式手順では、匿名ユーザーにメールを紐付けた�
 
 アプリの処理は2段階で、段階ごとに失敗を判定する。
 
-| 段階 | 処理 | 失敗時のアプリの表示 |
-| --- | --- | --- |
-| 1 | `updateUser({ email })` でメールを紐付け | メールが反映されず確認待ちになった場合は「メール確認なしではアカウントに切り替えられませんでした」 |
-| 2 | `updateUser({ password })` でパスワードを設定 | Supabase のエラーを文言に変換して表示 |
+| 段階 | 処理                                          | 失敗時のアプリの表示                                                                               |
+| ---- | --------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 1    | `updateUser({ email })` でメールを紐付け      | メールが反映されず確認待ちになった場合は「メール確認なしではアカウントに切り替えられませんでした」 |
+| 2    | `updateUser({ password })` でパスワードを設定 | Supabase のエラーを文言に変換して表示                                                              |
 
 段階1で止まる場合は、Auth の設定（Confirm email がオフか、Secure email change がオフか）を見直したうえで、手順をもう一度試す。
 

@@ -5,6 +5,7 @@ import { RADIUS, SPACING, useTheme } from '@/theme';
 import { AppText } from './AppText';
 import { Icon } from './Icon';
 import { BORDER_WIDTH } from '@/theme/tokens';
+import { canHover } from '@/lib/hover';
 
 type Variant = 'primary' | 'accent' | 'secondary' | 'danger' | 'ghost';
 
@@ -19,7 +20,16 @@ interface Props {
   style?: ViewStyle;
 }
 
-export function Button({ label, onPress, variant = 'primary', icon, disabled, loading, fullWidth, style }: Props) {
+export function Button({
+  label,
+  onPress,
+  variant = 'primary',
+  icon,
+  disabled,
+  loading,
+  fullWidth,
+  style,
+}: Props) {
   const { colors } = useTheme();
   const palette = {
     primary: { bg: colors.primary, fg: colors.onPrimary, border: colors.primary },
@@ -37,12 +47,20 @@ export function Button({ label, onPress, variant = 'primary', icon, disabled, lo
       onPress={onPress}
       style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
         styles.base,
-        { backgroundColor: palette.bg, borderColor: palette.border, opacity: inactive ? 0.5 : pressed ? 0.8 : hovered ? 0.92 : 1 },
+        {
+          backgroundColor: palette.bg,
+          borderColor: palette.border,
+          opacity: inactive ? 0.5 : pressed ? 0.8 : hovered && canHover ? 0.92 : 1,
+        },
         fullWidth && styles.full,
         style,
       ]}
     >
-      {loading ? <ActivityIndicator color={palette.fg} /> : icon ? <Icon name={icon} size={18} color={palette.fg} /> : null}
+      {loading ? (
+        <ActivityIndicator color={palette.fg} />
+      ) : icon ? (
+        <Icon name={icon} size={18} color={palette.fg} />
+      ) : null}
       <AppText bold color={palette.fg}>
         {label}
       </AppText>

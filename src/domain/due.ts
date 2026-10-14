@@ -11,7 +11,11 @@ export function parseDue(input: string): Due | null | 'invalid' {
   const digits = input.replace(/\D/g, '');
   if (input.trim() === '') return null;
   if (digits.length !== 8) return 'invalid';
-  const [y, mo, d] = [Number(digits.slice(0, 4)), Number(digits.slice(4, 6)), Number(digits.slice(6, 8))];
+  const [y, mo, d] = [
+    Number(digits.slice(0, 4)),
+    Number(digits.slice(4, 6)),
+    Number(digits.slice(6, 8)),
+  ];
   const date = new Date(y, mo - 1, d, 0, 0, 0, 0);
   const valid = date.getFullYear() === y && date.getMonth() === mo - 1 && date.getDate() === d;
   return valid ? { dueAt: date.getTime(), dueHasTime: false } : 'invalid';

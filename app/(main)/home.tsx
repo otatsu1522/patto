@@ -37,7 +37,13 @@ export default function HomeScreen() {
       <EmptyState
         title={t('project.empty')}
         hint={t('project.emptyHint')}
-        action={<Button label={t('menu.newProject')} icon="add" onPress={() => useUiStore.getState().requestNewProject()} />}
+        action={
+          <Button
+            label={t('menu.newProject')}
+            icon="add"
+            onPress={() => useUiStore.getState().requestNewProject()}
+          />
+        }
       />
     </View>
   );

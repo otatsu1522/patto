@@ -1,8 +1,9 @@
 import { Pressable, StyleSheet, type ViewStyle } from 'react-native';
 import { BOARD } from '@/config/layout';
 import type { IconKey } from '@/config/icons';
-import { RADIUS, useTheme } from '@/theme';
+import { useTheme } from '@/theme';
 import { Icon } from './Icon';
+import { canHover } from '@/lib/hover';
 
 interface Props {
   icon: IconKey;
@@ -19,7 +20,17 @@ interface Props {
 }
 
 /** アイコンだけのボタン。アクセシビリティのため label を必須にしている。 */
-export const IconButton = ({ icon, label, onPress, size = 22, color, disabled, style, box = BOARD.touchTarget, hoverColor }: Props) => {
+export const IconButton = ({
+  icon,
+  label,
+  onPress,
+  size = 22,
+  color,
+  disabled,
+  style,
+  box = BOARD.touchTarget,
+  hoverColor,
+}: Props) => {
   const { colors } = useTheme();
   return (
     <Pressable
@@ -30,7 +41,13 @@ export const IconButton = ({ icon, label, onPress, size = 22, color, disabled, s
       hitSlop={4}
       style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
         styles.base,
-        { width: box, height: box, backgroundColor: pressed || hovered ? hoverColor ?? colors.hover : 'transparent', opacity: disabled ? 0.4 : 1 },
+        {
+          width: box,
+          height: box,
+          backgroundColor:
+            pressed || (hovered && canHover) ? (hoverColor ?? colors.hover) : 'transparent',
+          opacity: disabled ? 0.4 : 1,
+        },
         style,
       ]}
     >

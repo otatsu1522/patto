@@ -22,7 +22,10 @@ export function ShortcutHelp() {
           <AppText style={styles.label}>{t(a.labelKey)}</AppText>
           <View style={styles.keys}>
             {bindings[a.id].map((k) => (
-              <View key={k} style={[styles.key, { borderColor: colors.border, backgroundColor: colors.hover }]}>
+              <View
+                key={k}
+                style={[styles.key, { borderColor: colors.border, backgroundColor: colors.hover }]}
+              >
                 <AppText variant="caption" bold>
                   {displayKey(k)}
                 </AppText>
@@ -39,5 +42,12 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
   label: { flex: 1 },
   keys: { flexDirection: 'row', gap: SPACING.xs },
-  key: { minWidth: 28, paddingHorizontal: SPACING.sm, paddingVertical: 3, borderRadius: RADIUS.sm, borderWidth: BORDER_WIDTH, alignItems: 'center' },
+  key: {
+    minWidth: 28,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 3,
+    borderRadius: RADIUS.sm,
+    borderWidth: BORDER_WIDTH,
+    alignItems: 'center',
+  },
 });

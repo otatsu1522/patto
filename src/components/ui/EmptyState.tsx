@@ -2,7 +2,15 @@ import { StyleSheet, View } from 'react-native';
 import { SPACING } from '@/theme';
 import { AppText } from './AppText';
 
-export function EmptyState({ title, hint, action }: { title: string; hint?: string; action?: React.ReactNode }) {
+export function EmptyState({
+  title,
+  hint,
+  action,
+}: {
+  title: string;
+  hint?: string;
+  action?: React.ReactNode;
+}) {
   return (
     <View style={styles.wrap}>
       <AppText variant="title" style={styles.center}>

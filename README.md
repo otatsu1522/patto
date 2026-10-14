@@ -12,11 +12,11 @@
 
 ## 1. 必要なもの
 
-| もの | バージョン | 確認コマンド |
-| --- | --- | --- |
-| Node.js | 20 以上（22 推奨） | `node -v` |
-| pnpm | 9 以上 | `pnpm -v` |
-| （スマホで試す場合）Expo Go アプリ | 最新 | ストアからインストール |
+| もの                               | バージョン         | 確認コマンド           |
+| ---------------------------------- | ------------------ | ---------------------- |
+| Node.js                            | 20 以上（22 推奨） | `node -v`              |
+| pnpm                               | 9 以上             | `pnpm -v`              |
+| （スマホで試す場合）Expo Go アプリ | 最新               | ストアからインストール |
 
 ### pnpm のインストール（未導入の場合）
 
@@ -62,9 +62,9 @@ Web 版は expo-sqlite のために専用の HTTP ヘッダーが必要です。
 
 ## 5. よく使うコマンド
 
-| コマンド | 内容 |
-| --- | --- |
-| `pnpm typecheck` | 型チェック |
+| コマンド          | 内容                                                         |
+| ----------------- | ------------------------------------------------------------ |
+| `pnpm typecheck`  | 型チェック                                                   |
 | `pnpm export:web` | Web 版を `dist/` に書き出す（Cloudflare Pages と同じビルド） |
 
 ## 6. Web 版の公開
@@ -99,15 +99,15 @@ patto/
 
 ## 8. 変えたいものがあるとき
 
-| 変えたいもの | ファイル |
-| --- | --- |
-| アプリ名・説明・バージョン・リンク | `src/config/app.info.json` |
-| 色 | `src/theme/palette.ts` `src/theme/taskColors.ts` |
-| 画面の文言 | `src/i18n/ja.ts` |
-| 入力上限・同期間隔・ごみ箱の日数 | `src/config/limits.ts` |
-| 列数・ブレークポイント・ジェスチャー | `src/config/layout.ts` |
-| ショートカットの既定のキー | `src/shortcuts/actions.ts` |
-| ロゴ（view_kanban） | `src/config/logo.ts`（アプリ内）、`assets/`（アイコン画像） |
+| 変えたいもの                         | ファイル                                                    |
+| ------------------------------------ | ----------------------------------------------------------- |
+| アプリ名・説明・バージョン・リンク   | `src/config/app.info.json`                                  |
+| 色                                   | `src/theme/palette.ts` `src/theme/taskColors.ts`            |
+| 画面の文言                           | `src/i18n/ja.ts`                                            |
+| 入力上限・同期間隔・ごみ箱の日数     | `src/config/limits.ts`                                      |
+| 列数・ブレークポイント・ジェスチャー | `src/config/layout.ts`                                      |
+| ショートカットの既定のキー           | `src/shortcuts/actions.ts`                                  |
+| ロゴ（view_kanban）                  | `src/config/logo.ts`（アプリ内）、`assets/`（アイコン画像） |
 
 アプリ名を変えたら、`package.json` の `name` と、Cloudflare Pages / Supabase 側の名前も必要に応じて合わせてください。
 

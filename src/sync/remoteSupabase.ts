@@ -39,7 +39,10 @@ export function createSupabaseRemote(client: SupabaseClient): RemoteApi {
 
     async deleteByIds(table: TableName, ids: string[]) {
       for (let i = 0; i < ids.length; i += 100) {
-        const { error } = await client.from(table).delete().in('id', ids.slice(i, i + 100));
+        const { error } = await client
+          .from(table)
+          .delete()
+          .in('id', ids.slice(i, i + 100));
         if (error) fail(error);
       }
     },
@@ -48,8 +51,14 @@ export function createSupabaseRemote(client: SupabaseClient): RemoteApi {
       const ids: string[] = [];
       const page = 1000;
       for (let from = 0; ; from += page) {
-        const query = client.from(table).select('id').range(from, from + page - 1);
-        const filtered = table === 'kanban_columns' ? query.not('deleted_at', 'is', null) : query.or('deleted_at.not.is.null,archived_at.not.is.null');
+        const query = client
+          .from(table)
+          .select('id')
+          .range(from, from + page - 1);
+        const filtered =
+          table === 'kanban_columns'
+            ? query.not('deleted_at', 'is', null)
+            : query.or('deleted_at.not.is.null,archived_at.not.is.null');
         const { data, error } = await filtered;
         if (error) return fail(error);
         const rows = (data ?? []) as { id: string }[];

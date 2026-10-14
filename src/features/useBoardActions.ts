@@ -40,7 +40,12 @@ export function useBoardActions(projectId: string) {
 
       async deleteTask(task: Task, askFirst = true) {
         if (askFirst) {
-          const r = await confirm({ title: t('task.deleteTitle'), message: t('task.deleteMessage', { name: task.title }), confirmLabel: t('common.delete'), destructive: true });
+          const r = await confirm({
+            title: t('task.deleteTitle'),
+            message: t('task.deleteMessage', { name: task.title }),
+            confirmLabel: t('common.delete'),
+            destructive: true,
+          });
           if (r !== 'confirm') return false;
         }
         await store().deleteTask(task.id);
@@ -50,7 +55,9 @@ export function useBoardActions(projectId: string) {
 
       async archiveTask(task: Task) {
         await store().archiveTask(task.id, true);
-        withUndo(t('board.archiveDoneResult', { count: 1 }), () => store().archiveTask(task.id, false));
+        withUndo(t('board.archiveDoneResult', { count: 1 }), () =>
+          store().archiveTask(task.id, false),
+        );
       },
 
       async archiveDone() {
@@ -92,13 +99,18 @@ export function useBoardActions(projectId: string) {
         }
         const r = await confirm({
           title: kind === 'trash' ? t('board.clearTrash') : t('board.clearArchive'),
-          message: kind === 'trash' ? t('board.clearTrashMessage', { count }) : t('board.clearArchiveMessage', { count }),
+          message:
+            kind === 'trash'
+              ? t('board.clearTrashMessage', { count })
+              : t('board.clearArchiveMessage', { count }),
           confirmLabel: t('common.delete'),
           destructive: true,
         });
         if (r !== 'confirm') return;
         const res = await clearBucket(kind, projectId);
-        toast(res.ok ? t('board.clearDone', { count: res.count }) : res.message, undefined, { force: !res.ok });
+        toast(res.ok ? t('board.clearDone', { count: res.count }) : res.message, undefined, {
+          force: !res.ok,
+        });
       },
     };
   }, [projectId, confirm, toast]);

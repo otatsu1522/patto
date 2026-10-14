@@ -26,7 +26,8 @@ export async function clearBucket(kind: ClearKind, projectId?: string): Promise<
   if (count === 0) return { ok: true, count: 0 };
 
   const identity = useAuthStore.getState().identity;
-  const syncs = !!identity && !identity.local && useSettingsStore.getState().settings.syncMode !== 'off';
+  const syncs =
+    !!identity && !identity.local && useSettingsStore.getState().settings.syncMode !== 'off';
   if (syncs) {
     const client = getSupabase();
     if (!client) return { ok: false, message: t('auth.notConfigured') };
@@ -39,7 +40,10 @@ export async function clearBucket(kind: ClearKind, projectId?: string): Promise<
       ];
       for (const [table, ids] of order) {
         for (let i = 0; i < ids.length; i += 100) {
-          const { error } = await client.from(table).delete().in('id', ids.slice(i, i + 100));
+          const { error } = await client
+            .from(table)
+            .delete()
+            .in('id', ids.slice(i, i + 100));
           if (error) throw error;
         }
       }

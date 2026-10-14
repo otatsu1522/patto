@@ -16,23 +16,50 @@ export default function SettingsIndex() {
 
   return (
     <View style={styles.fill}>
-      <ScreenHeader title={t('settings.title')} onBack={() => (router.canGoBack() ? router.back() : router.replace('/'))} />
+      <ScreenHeader
+        title={t('settings.title')}
+        onBack={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+      />
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.inner}>
           <Section>
             <View style={styles.account}>
-              <AppText bold>{isGuest ? t('settings.guestTitle') : identity?.displayName || identity?.email}</AppText>
+              <AppText bold>
+                {isGuest ? t('settings.guestTitle') : identity?.displayName || identity?.email}
+              </AppText>
               <AppText variant="caption" muted>
                 {isGuest ? t('settings.guestDescription') : identity?.email}
               </AppText>
             </View>
           </Section>
           <Section>
-            <LinkRow icon="person" label={t('settings.profile')} onPress={() => router.push('/settings/profile')} />
-            <LinkRow icon="settings" label={t('settings.system')} onPress={() => router.push('/settings/system')} />
-            {Platform.OS === 'web' ? <LinkRow icon="keyboard" label={t('settings.shortcuts')} onPress={() => router.push('/settings/shortcuts')} /> : null}
-            <LinkRow icon="info" label={t('settings.about')} onPress={() => router.push('/settings/about')} />
-            <LinkRow icon="document" label={t('settings.license')} onPress={() => router.push('/settings/license')} />
+            <LinkRow
+              icon="person"
+              label={t('settings.profile')}
+              onPress={() => router.push('/settings/profile')}
+            />
+            <LinkRow
+              icon="settings"
+              label={t('settings.system')}
+              onPress={() => router.push('/settings/system')}
+            />
+            {Platform.OS === 'web' ? (
+              <LinkRow
+                icon="keyboard"
+                label={t('settings.shortcuts')}
+                onPress={() => router.push('/settings/shortcuts')}
+              />
+            ) : null}
+            <LinkRow
+              icon="info"
+              label={t('settings.about')}
+              onPress={() => router.push('/settings/about')}
+            />
+            <LinkRow
+              icon="document"
+              label={t('settings.license')}
+              onPress={() => router.push('/settings/license')}
+            />
           </Section>
         </View>
       </ScrollView>

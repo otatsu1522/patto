@@ -72,7 +72,10 @@ export const mergeableFields = (table: TableName): string[] =>
 type Row = Record<string, string | number | boolean | null | Record<string, number>>;
 
 /** 端末(SQLite/ローカル)用の行: bool は 0/1、json は文字列、dirty を含む */
-export function toLocalRow(table: TableName, rec: AnyRecord): Record<string, string | number | null> {
+export function toLocalRow(
+  table: TableName,
+  rec: AnyRecord,
+): Record<string, string | number | null> {
   const src = rec as unknown as Record<string, unknown>;
   const row: Record<string, string | number | null> = {};
   for (const c of TABLE_DEFS[table]) {
@@ -86,11 +89,15 @@ export function toLocalRow(table: TableName, rec: AnyRecord): Record<string, str
   return row;
 }
 
-export function fromLocalRow<T extends AnyRecord>(table: TableName, row: Record<string, unknown>): T {
+export function fromLocalRow<T extends AnyRecord>(
+  table: TableName,
+  row: Record<string, unknown>,
+): T {
   const rec: Record<string, unknown> = {};
   for (const c of TABLE_DEFS[table]) {
     const v = row[c.column];
-    if (v === null || v === undefined) rec[c.field] = c.kind === 'json' ? {} : c.kind === 'bool' ? false : null;
+    if (v === null || v === undefined)
+      rec[c.field] = c.kind === 'json' ? {} : c.kind === 'bool' ? false : null;
     else if (c.kind === 'bool') rec[c.field] = v === 1 || v === true;
     else if (c.kind === 'json') rec[c.field] = typeof v === 'string' ? safeParse(v) : v;
     else rec[c.field] = v;
@@ -110,11 +117,15 @@ export function toRemoteRow(table: TableName, rec: AnyRecord): Row {
   return row;
 }
 
-export function fromRemoteRow<T extends AnyRecord>(table: TableName, row: Record<string, unknown>): T {
+export function fromRemoteRow<T extends AnyRecord>(
+  table: TableName,
+  row: Record<string, unknown>,
+): T {
   const rec: Record<string, unknown> = {};
   for (const c of TABLE_DEFS[table]) {
     const v = row[c.column];
-    if (v === null || v === undefined) rec[c.field] = c.kind === 'json' ? {} : c.kind === 'bool' ? false : null;
+    if (v === null || v === undefined)
+      rec[c.field] = c.kind === 'json' ? {} : c.kind === 'bool' ? false : null;
     else if (c.kind === 'int') rec[c.field] = Number(v);
     else rec[c.field] = v;
   }

@@ -46,16 +46,48 @@ export default function LoginScreen() {
 
   return (
     <AuthLayout subtitle={APP_DESCRIPTION}>
-      <TextField label={t('auth.email')} value={email} onChangeText={setEmail} error={emailError} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" textContentType="emailAddress" autoComplete="email" />
-      <TextField label={t('auth.password')} value={password} onChangeText={setPassword} error={passwordError} secure autoCapitalize="none" textContentType="password" autoComplete="password" onSubmitEditing={submit} returnKeyType="go" />
+      <TextField
+        label={t('auth.email')}
+        value={email}
+        onChangeText={setEmail}
+        error={emailError}
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="email-address"
+        textContentType="emailAddress"
+        autoComplete="email"
+      />
+      <TextField
+        label={t('auth.password')}
+        value={password}
+        onChangeText={setPassword}
+        error={passwordError}
+        secure
+        autoCapitalize="none"
+        textContentType="password"
+        autoComplete="password"
+        onSubmitEditing={submit}
+        returnKeyType="go"
+      />
       {message ? (
         <AppText variant="caption" color={colors.danger}>
           {message}
         </AppText>
       ) : null}
-      <Button label={t('auth.login')} onPress={submit} loading={busy} disabled={!isSupabaseConfigured} fullWidth />
+      <Button
+        label={t('auth.login')}
+        onPress={submit}
+        loading={busy}
+        disabled={!isSupabaseConfigured}
+        fullWidth
+      />
       <View style={styles.links}>
-        <Button label={t('auth.signup')} variant="ghost" onPress={() => router.push('/signup')} disabled={!isSupabaseConfigured} />
+        <Button
+          label={t('auth.signup')}
+          variant="ghost"
+          onPress={() => router.push('/signup')}
+          disabled={!isSupabaseConfigured}
+        />
       </View>
       <View style={styles.divider}>
         <View style={[styles.line, { backgroundColor: colors.border }]} />
@@ -64,9 +96,18 @@ export default function LoginScreen() {
         </AppText>
         <View style={[styles.line, { backgroundColor: colors.border }]} />
       </View>
-      <Button label={t('auth.guest')} variant="secondary" icon="person" onPress={guest} loading={busy} fullWidth />
+      <Button
+        label={t('auth.guest')}
+        variant="secondary"
+        icon="person"
+        onPress={guest}
+        loading={busy}
+        fullWidth
+      />
       <AppText variant="caption" muted style={styles.note}>
-        {isSupabaseConfigured ? t('auth.guestNote') : `${t('auth.notConfigured')}\n${t('auth.notConfiguredGuest')}`}
+        {isSupabaseConfigured
+          ? t('auth.guestNote')
+          : `${t('auth.notConfigured')}\n${t('auth.notConfiguredGuest')}`}
       </AppText>
     </AuthLayout>
   );

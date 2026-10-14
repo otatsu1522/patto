@@ -6,7 +6,13 @@ import { AppText } from '@/components/ui/AppText';
 import { Button } from '@/components/ui/Button';
 import { TextField } from '@/components/ui/TextField';
 import { LIMITS } from '@/config/limits';
-import { firstError, validateEmail, validateMaxLength, validatePassword, validatePasswordMatch } from '@/domain/validation';
+import {
+  firstError,
+  validateEmail,
+  validateMaxLength,
+  validatePassword,
+  validatePasswordMatch,
+} from '@/domain/validation';
 import { t } from '@/i18n';
 import { useTheme } from '@/theme';
 
@@ -40,17 +46,52 @@ export default function SignupScreen() {
 
   return (
     <AuthLayout>
-      <TextField label={t('auth.displayName')} value={name} onChangeText={setName} error={submitted ? errors.name : null} />
-      <TextField label={t('auth.email')} value={email} onChangeText={setEmail} error={submitted ? errors.email : null} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" autoComplete="email" />
-      <TextField label={t('auth.password')} value={password} onChangeText={setPassword} error={submitted ? errors.password : null} secure autoCapitalize="none" autoComplete="new-password" />
-      <TextField label={t('auth.passwordConfirm')} value={confirm} onChangeText={setConfirm} error={submitted ? errors.confirm : null} secure autoCapitalize="none" onSubmitEditing={submit} returnKeyType="go" />
+      <TextField
+        label={t('auth.displayName')}
+        value={name}
+        onChangeText={setName}
+        error={submitted ? errors.name : null}
+      />
+      <TextField
+        label={t('auth.email')}
+        value={email}
+        onChangeText={setEmail}
+        error={submitted ? errors.email : null}
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="email-address"
+        autoComplete="email"
+      />
+      <TextField
+        label={t('auth.password')}
+        value={password}
+        onChangeText={setPassword}
+        error={submitted ? errors.password : null}
+        secure
+        autoCapitalize="none"
+        autoComplete="new-password"
+      />
+      <TextField
+        label={t('auth.passwordConfirm')}
+        value={confirm}
+        onChangeText={setConfirm}
+        error={submitted ? errors.confirm : null}
+        secure
+        autoCapitalize="none"
+        onSubmitEditing={submit}
+        returnKeyType="go"
+      />
       {message ? (
         <AppText variant="caption" color={colors.danger}>
           {message}
         </AppText>
       ) : null}
       <Button label={t('auth.signupSubmit')} onPress={submit} loading={busy} fullWidth />
-      <Button label={t('auth.backToLogin')} variant="ghost" onPress={() => router.replace('/login')} />
+      <Button
+        label={t('auth.backToLogin')}
+        variant="ghost"
+        onPress={() => router.replace('/login')}
+      />
     </AuthLayout>
   );
 }

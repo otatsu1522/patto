@@ -17,17 +17,41 @@ export function useSyncLabel(): { icon: IconKey; label: string; color: string; e
   const syncMode = useSettingsStore((s) => s.settings.syncMode);
   const status = useSyncStore((s) => s.status);
   const last = useSyncStore((s) => s.lastSyncedAt);
-  const pending = useDataStore((s) => [...s.projects, ...s.columns, ...s.tasks].filter((r) => r.dirty).length);
+  const pending = useDataStore(
+    (s) => [...s.projects, ...s.columns, ...s.tasks].filter((r) => r.dirty).length,
+  );
 
   if (!identity || identity.local || !isSupabaseConfigured) {
     return { icon: 'offline', label: t('sync.localOnly'), color: colors.textMuted, enabled: false };
   }
-  if (syncMode === 'off') return { icon: 'offline', label: t('sync.off'), color: colors.textMuted, enabled: false };
-  if (status === 'syncing') return { icon: 'sync', label: t('sync.syncing'), color: colors.accent, enabled: true };
-  if (status === 'offline') return { icon: 'offline', label: pending ? `${t('sync.offline')} · ${t('sync.pending', { count: pending })}` : t('sync.offline'), color: colors.warning, enabled: true };
-  if (status === 'error') return { icon: 'error', label: t('sync.error'), color: colors.danger, enabled: true };
-  if (pending > 0) return { icon: 'sync', label: t('sync.pending', { count: pending }), color: colors.warning, enabled: true };
-  return { icon: 'synced', label: last ? t('sync.syncedAt', { time: formatTime(last) }) : t('sync.synced'), color: colors.success, enabled: true };
+  if (syncMode === 'off')
+    return { icon: 'offline', label: t('sync.off'), color: colors.textMuted, enabled: false };
+  if (status === 'syncing')
+    return { icon: 'sync', label: t('sync.syncing'), color: colors.accent, enabled: true };
+  if (status === 'offline')
+    return {
+      icon: 'offline',
+      label: pending
+        ? `${t('sync.offline')} · ${t('sync.pending', { count: pending })}`
+        : t('sync.offline'),
+      color: colors.warning,
+      enabled: true,
+    };
+  if (status === 'error')
+    return { icon: 'error', label: t('sync.error'), color: colors.danger, enabled: true };
+  if (pending > 0)
+    return {
+      icon: 'sync',
+      label: t('sync.pending', { count: pending }),
+      color: colors.warning,
+      enabled: true,
+    };
+  return {
+    icon: 'synced',
+    label: last ? t('sync.syncedAt', { time: formatTime(last) }) : t('sync.synced'),
+    color: colors.success,
+    enabled: true,
+  };
 }
 
 /** タイトルの横に出す同期状態のアイコン。押すと今すぐ同期する。 */

@@ -20,7 +20,6 @@ import { ReauthBanner } from './ReauthBanner';
 import { ShortcutHelp } from './ShortcutHelp';
 import { Sidebar } from './Sidebar';
 
-
 /**
  * 画面全体の枠。PCは左にメニューを常設する。スマホのメニューは、ボード画面の横スクロールの一部（BoardView）。
  * ステータスバーやナビゲーションバーに文字が重ならないよう、画面の余白（セーフエリア）を確保する。

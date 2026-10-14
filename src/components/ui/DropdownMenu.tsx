@@ -32,11 +32,14 @@ export function DropdownMenu({ items, trigger, anchorStyle }: Props) {
 
   const open = () => {
     Keyboard.dismiss();
-    anchor.current?.measure((_x, _y, w, h, pageX, pageY) => host.show({ x: pageX, y: pageY, w, h }, items));
+    anchor.current?.measure((_x, _y, w, h, pageX, pageY) =>
+      host.show({ x: pageX, y: pageY, w, h }, items),
+    );
   };
 
   return (
     <View ref={anchor} collapsable={false} style={anchorStyle}>
+      {/* eslint-disable-next-line react-hooks/refs -- open は、ボタンを押したときにだけ ref を読む（描画中には読まない） */}
       {trigger(open)}
     </View>
   );

@@ -1,5 +1,13 @@
 import { useEffect, type ReactNode } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { BOARD } from '@/config/layout';
 import { t } from '@/i18n';
 import { useUiStore } from '@/store/uiStore';
@@ -34,15 +42,32 @@ export function Dialog({ visible, title, onClose, children, footer, wide }: Prop
 
   const sheet = mode === 'compact';
   return (
-    <Modal visible={visible} transparent animationType={sheet ? 'slide' : 'fade'} onRequestClose={onClose} statusBarTranslucent>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.fill}>
-        <Pressable style={[styles.backdrop, { backgroundColor: colors.overlay }, sheet && styles.bottom]} onPress={onClose} accessibilityLabel={t('common.close')}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType={sheet ? 'slide' : 'fade'}
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.fill}
+      >
+        <Pressable
+          style={[styles.backdrop, { backgroundColor: colors.overlay }, sheet && styles.bottom]}
+          onPress={onClose}
+          accessibilityLabel={t('common.close')}
+        >
           <Pressable
             onPress={(e) => e.stopPropagation()}
             style={[
               styles.card,
               SHADOW.float,
-              { backgroundColor: colors.surface, borderColor: colors.border, maxWidth: wide ? BOARD.dialogMaxWidth + 160 : BOARD.dialogMaxWidth },
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                maxWidth: wide ? BOARD.dialogMaxWidth + 160 : BOARD.dialogMaxWidth,
+              },
               sheet && styles.sheet,
             ]}
           >
@@ -67,9 +92,21 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   backdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.lg },
   bottom: { justifyContent: 'flex-end', padding: 0 },
-  card: { width: '100%', maxHeight: '90%', borderRadius: RADIUS.lg, borderWidth: BORDER_WIDTH, overflow: 'hidden' },
+  card: {
+    width: '100%',
+    maxHeight: '90%',
+    borderRadius: RADIUS.lg,
+    borderWidth: BORDER_WIDTH,
+    overflow: 'hidden',
+  },
   sheet: { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, maxWidth: '100%' as never },
-  header: { flexDirection: 'row', alignItems: 'center', paddingLeft: SPACING.lg, paddingRight: SPACING.sm, paddingTop: SPACING.sm },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: SPACING.lg,
+    paddingRight: SPACING.sm,
+    paddingTop: SPACING.sm,
+  },
   title: { flex: 1 },
   body: { padding: SPACING.lg, gap: SPACING.md },
   footer: { padding: SPACING.lg, paddingTop: SPACING.sm, gap: SPACING.sm },

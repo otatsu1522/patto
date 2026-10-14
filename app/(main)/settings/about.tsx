@@ -4,7 +4,14 @@ import { AppText } from '@/components/ui/AppText';
 import { Logo } from '@/components/ui/Logo';
 import { LinkRow, Section } from '@/components/ui/Rows';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
-import { APP_COPYRIGHT, APP_LICENSE, APP_LINKS, APP_NAME, APP_TECH, APP_VERSION } from '@/config/app';
+import {
+  APP_COPYRIGHT,
+  APP_LICENSE,
+  APP_LINKS,
+  APP_NAME,
+  APP_TECH,
+  APP_VERSION,
+} from '@/config/app';
 import { BOARD } from '@/config/layout';
 import { t, type StringKey } from '@/i18n';
 import { SPACING } from '@/theme';
@@ -33,17 +40,35 @@ export default function AboutScreen() {
             </AppText>
           </View>
           <View style={styles.body}>
-            {(['about.body1', 'about.body2', 'about.body3', 'about.body4', 'about.body5'] as StringKey[]).map((key) => (
+            {(
+              [
+                'about.body1',
+                'about.body2',
+                'about.body3',
+                'about.body4',
+                'about.body5',
+              ] as StringKey[]
+            ).map((key) => (
               <AppText key={key}>{t(key)}</AppText>
             ))}
           </View>
           <Section title={t('about.tech')}>
             {APP_TECH.map((tech) => (
-              <LinkRow key={tech.name} label={tech.name} value="" description={t(tech.descriptionKey as StringKey)} onPress={() => void Linking.openURL(tech.url)} />
+              <LinkRow
+                key={tech.name}
+                label={tech.name}
+                value=""
+                description={t(tech.descriptionKey as StringKey)}
+                onPress={() => void Linking.openURL(tech.url)}
+              />
             ))}
           </Section>
           <Section>
-            <LinkRow label={t('about.license')} value={APP_LICENSE} onPress={() => router.push('/settings/license')} />
+            <LinkRow
+              label={t('about.license')}
+              value={APP_LICENSE}
+              onPress={() => router.push('/settings/license')}
+            />
             {links.map((l) => (
               <LinkRow key={l.label} label={l.label} onPress={() => void Linking.openURL(l.url)} />
             ))}

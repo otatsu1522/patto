@@ -23,7 +23,8 @@ export const sessionStorage = {
   async setItem(key: string, value: string): Promise<void> {
     await sessionStorage.removeItem(key);
     const chunks = value.match(new RegExp(`.{1,${CHUNK_SIZE}}`, 'gs')) ?? [''];
-    for (let i = 0; i < chunks.length; i++) await SecureStore.setItemAsync(chunkKey(key, i), chunks[i]!);
+    for (let i = 0; i < chunks.length; i++)
+      await SecureStore.setItemAsync(chunkKey(key, i), chunks[i]!);
     await SecureStore.setItemAsync(countKey(key), String(chunks.length));
   },
   async removeItem(key: string): Promise<void> {

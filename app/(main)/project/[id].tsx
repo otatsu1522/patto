@@ -21,7 +21,13 @@ import { useBoardActions } from '@/features/useBoardActions';
 import { popUndo } from '@/features/undo';
 import { useLayoutMode } from '@/hooks/useLayout';
 import { t } from '@/i18n';
-import { clampCursor, initialCursor, moveCursor, type Cursor, type Direction } from '@/shortcuts/cursor';
+import {
+  clampCursor,
+  initialCursor,
+  moveCursor,
+  type Cursor,
+  type Direction,
+} from '@/shortcuts/cursor';
 import { useEscape, useShortcuts } from '@/shortcuts/useShortcuts';
 import { useDataStore } from '@/store/dataStore';
 import { useSettingsStore } from '@/store/settingsStore';
@@ -29,7 +35,8 @@ import { useUiStore } from '@/store/uiStore';
 import { syncNow } from '@/sync/controller';
 import { SHADOW, SPACING, useTheme } from '@/theme';
 
-type TaskDialogState = { mode: 'create'; columnId: string } | { mode: 'edit'; taskId: string } | null;
+type TaskDialogState =
+  { mode: 'create'; columnId: string } | { mode: 'edit'; taskId: string } | null;
 
 export default function ProjectScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -69,10 +76,12 @@ export default function ProjectScreen() {
   const follow = useRef<string | null>(null);
 
   useEffect(() => {
-    if (project && isActive(project) && id) useSettingsStore.getState().update({ lastProjectId: id });
+    if (project && isActive(project) && id)
+      useSettingsStore.getState().update({ lastProjectId: id });
   }, [project, id]);
 
   // プロジェクトが切り替わったら、操作中の状態（カーソル・検索・ダイアログ）をリセットする
+  /* eslint-disable react-hooks/set-state-in-effect -- 画面（BoardView）を作り直さずに中身だけ入れ替えるため、状態は手で戻す */
   useEffect(() => {
     setCursor(null);
     setQuery('');
@@ -81,9 +90,11 @@ export default function ProjectScreen() {
     setColumnDialog(null);
     setArchiveKind(null);
   }, [id]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // 検索ショートカット（/）で検索を開く
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- ショートカットの合図を受けて検索を開く
     if (searchTick > 0) setSearching(true);
   }, [searchTick]);
 
@@ -94,12 +105,14 @@ export default function ProjectScreen() {
     follow.current = null;
     cols.forEach((c, columnIndex) => {
       const taskIndex = (tasksByColumn.get(c.id) ?? []).findIndex((x) => x.id === taskId);
-      if (taskIndex >= 0) setCursor((prev) => ({ ...(prev ?? initialCursor()), columnIndex, taskIndex }));
+      if (taskIndex >= 0)
+        setCursor((prev) => ({ ...(prev ?? initialCursor()), columnIndex, taskIndex }));
     });
   }, [tasksByColumn, cols]);
 
   const results = useMemo(
-    () => (id && searching && query.trim() ? searchTasks({ projects, columns, tasks }, query, id) : []),
+    () =>
+      id && searching && query.trim() ? searchTasks({ projects, columns, tasks }, query, id) : [],
     [projects, columns, tasks, query, id, searching],
   );
 
@@ -206,48 +219,133 @@ export default function ProjectScreen() {
 
   // ---- メニュー ----
   const boardMenu: MenuItem[] = [
-    { label: t('column.new'), icon: 'add', disabled: cols.length >= LIMITS.maxColumnsPerProject, onPress: () => setColumnDialog({ column: null }) },
+    {
+      label: t('column.new'),
+      icon: 'add',
+      disabled: cols.length >= LIMITS.maxColumnsPerProject,
+      onPress: () => setColumnDialog({ column: null }),
+    },
     { label: t('board.search'), icon: 'search', onPress: () => setSearching(true) },
-    { label: t('board.archiveDone'), icon: 'doneMode', separator: true, onPress: () => void actions.archiveDone() },
+    {
+      label: t('board.archiveDone'),
+      icon: 'doneMode',
+      separator: true,
+      onPress: () => void actions.archiveDone(),
+    },
     { label: t('board.openArchive'), icon: 'archive', onPress: () => setArchiveKind('archive') },
-    { label: t('board.clearArchive'), icon: 'trash', destructive: true, onPress: () => void actions.clear('archive') },
-    { label: t('board.openTrash'), icon: 'trash', separator: true, onPress: () => setArchiveKind('trash') },
-    { label: t('board.clearTrash'), icon: 'trash', destructive: true, onPress: () => void actions.clear('trash') },
+    {
+      label: t('board.clearArchive'),
+      icon: 'trash',
+      destructive: true,
+      onPress: () => void actions.clear('archive'),
+    },
+    {
+      label: t('board.openTrash'),
+      icon: 'trash',
+      separator: true,
+      onPress: () => setArchiveKind('trash'),
+    },
+    {
+      label: t('board.clearTrash'),
+      icon: 'trash',
+      destructive: true,
+      onPress: () => void actions.clear('trash'),
+    },
   ];
 
-  const sortLabel = (m: ColumnSortMode) => `${t('column.sortMode')}: ${t(m === 'updated' ? 'column.sort.updated' : m === 'manual' ? 'column.sort.manual' : 'column.sort.due')}`;
+  const sortLabel = (m: ColumnSortMode) =>
+    `${t('column.sortMode')}: ${t(m === 'updated' ? 'column.sort.updated' : m === 'manual' ? 'column.sort.manual' : 'column.sort.due')}`;
   const columnMenu = (column: KanbanColumn, index: number): MenuItem[] => [
     { label: t('column.rename'), icon: 'edit', onPress: () => setColumnDialog({ column }) },
     { label: t('task.add'), icon: 'add', onPress: () => openCreateTask(column.id) },
-    { label: t('column.moveLeft'), icon: 'left', disabled: index === 0, onPress: () => void store.moveColumn(column.id, index - 1) },
-    { label: t('column.moveRight'), icon: 'right', disabled: index === cols.length - 1, onPress: () => void store.moveColumn(column.id, index + 1) },
+    {
+      label: t('column.moveLeft'),
+      icon: 'left',
+      disabled: index === 0,
+      onPress: () => void store.moveColumn(column.id, index - 1),
+    },
+    {
+      label: t('column.moveRight'),
+      icon: 'right',
+      disabled: index === cols.length - 1,
+      onPress: () => void store.moveColumn(column.id, index + 1),
+    },
     ...(['updated', 'manual', 'due'] as ColumnSortMode[]).map((m, i) => ({
       label: sortLabel(m),
       icon: (column.sortMode === m ? 'check' : undefined) as MenuItem['icon'],
       separator: i === 0,
       onPress: () => void store.updateColumn(column.id, { sortMode: m }),
     })),
-    { label: column.isDoneColumn ? t('column.unsetDone') : t('column.setDone'), icon: 'doneMode', separator: true, onPress: () => void store.updateColumn(column.id, { isDoneColumn: !column.isDoneColumn }) },
-    { label: t('common.duplicate'), icon: 'copy', onPress: () => { void store.duplicateColumn(column.id); toast(t('toast.duplicated')); } },
-    { label: t('common.delete'), icon: 'trash', destructive: true, separator: true, onPress: () => void actions.deleteColumn(column) },
+    {
+      label: column.isDoneColumn ? t('column.unsetDone') : t('column.setDone'),
+      icon: 'doneMode',
+      separator: true,
+      onPress: () => void store.updateColumn(column.id, { isDoneColumn: !column.isDoneColumn }),
+    },
+    {
+      label: t('common.duplicate'),
+      icon: 'copy',
+      onPress: () => {
+        void store.duplicateColumn(column.id);
+        toast(t('toast.duplicated'));
+      },
+    },
+    {
+      label: t('common.delete'),
+      icon: 'trash',
+      destructive: true,
+      separator: true,
+      onPress: () => void actions.deleteColumn(column),
+    },
   ];
 
   /** タスクをタップしたときのメニュー */
   const taskMenu = (task: Task): MenuItem[] => [
-    { label: t('task.edit'), icon: 'edit', onPress: () => setTaskDialog({ mode: 'edit', taskId: task.id }) },
-    { label: task.isFavorite ? t('common.unfavorite') : t('common.favorite'), icon: task.isFavorite ? 'unpin' : 'pin', onPress: () => { void store.updateTask(task.id, { isFavorite: !task.isFavorite }); toast(t(task.isFavorite ? 'toast.unpinned' : 'toast.pinned')); } },
-    { label: t('common.duplicate'), icon: 'copy', onPress: () => { void store.duplicateTask(task.id); toast(t('toast.duplicated')); } },
+    {
+      label: t('task.edit'),
+      icon: 'edit',
+      onPress: () => setTaskDialog({ mode: 'edit', taskId: task.id }),
+    },
+    {
+      label: task.isFavorite ? t('common.unfavorite') : t('common.favorite'),
+      icon: task.isFavorite ? 'unpin' : 'pin',
+      onPress: () => {
+        void store.updateTask(task.id, { isFavorite: !task.isFavorite });
+        toast(t(task.isFavorite ? 'toast.unpinned' : 'toast.pinned'));
+      },
+    },
+    {
+      label: t('common.duplicate'),
+      icon: 'copy',
+      onPress: () => {
+        void store.duplicateTask(task.id);
+        toast(t('toast.duplicated'));
+      },
+    },
     { label: t('common.archive'), icon: 'archive', onPress: () => void actions.archiveTask(task) },
-    { label: t('common.delete'), icon: 'trash', destructive: true, separator: true, onPress: () => void actions.deleteTask(task) },
+    {
+      label: t('common.delete'),
+      icon: 'trash',
+      destructive: true,
+      separator: true,
+      onPress: () => void actions.deleteTask(task),
+    },
   ];
 
-  const editingTask = taskDialog?.mode === 'edit' ? tasks.find((x) => x.id === taskDialog.taskId) ?? null : null;
+  const editingTask =
+    taskDialog?.mode === 'edit' ? (tasks.find((x) => x.id === taskDialog.taskId) ?? null) : null;
 
   const submitTask = async (v: TaskFormValues) => {
     const dialog = taskDialog;
     setTaskDialog(null);
     if (!dialog) return;
-    const fields = { title: v.title, description: v.description, color: v.color, dueAt: v.dueAt, dueHasTime: false };
+    const fields = {
+      title: v.title,
+      description: v.description,
+      color: v.color,
+      dueAt: v.dueAt,
+      dueHasTime: false,
+    };
     if (dialog.mode === 'edit') {
       await store.updateTask(dialog.taskId, fields);
       const task = tasks.find((x) => x.id === dialog.taskId);
@@ -264,7 +362,12 @@ export default function ProjectScreen() {
     <BoardHeader
       title={project.title}
       search={searching ? { value: query, onChange: setQuery, onClose: closeSearch } : null}
-      right={<DropdownMenu items={boardMenu} trigger={(open) => <IconButton icon="more" label={t('board.menu')} onPress={open} />} />}
+      right={
+        <DropdownMenu
+          items={boardMenu}
+          trigger={(open) => <IconButton icon="more" label={t('board.menu')} onPress={open} />}
+        />
+      }
     />
   );
 
@@ -289,7 +392,10 @@ export default function ProjectScreen() {
         />
 
         {cursor?.grabbed ? (
-          <View pointerEvents="none" style={[styles.banner, SHADOW.float, { backgroundColor: colors.primary }]}>
+          <View
+            pointerEvents="none"
+            style={[styles.banner, SHADOW.float, { backgroundColor: colors.primary }]}
+          >
             <AppText bold color={colors.onPrimary}>
               {t('task.grabbed')}
             </AppText>
@@ -297,7 +403,12 @@ export default function ProjectScreen() {
         ) : null}
 
         {searching && query.trim() ? (
-          <View style={[StyleSheet.absoluteFill, { top: pane ? BOARD.headerHeight : 0, backgroundColor: colors.surface }]}>
+          <View
+            style={[
+              StyleSheet.absoluteFill,
+              { top: pane ? BOARD.headerHeight : 0, backgroundColor: colors.surface },
+            ]}
+          >
             <ScrollView keyboardShouldPersistTaps="handled" persistentScrollbar>
               <SearchResults
                 results={results}
@@ -317,7 +428,7 @@ export default function ProjectScreen() {
         visible={taskDialog !== null}
         task={editingTask}
         columns={cols.map((c) => ({ id: c.id, title: c.title }))}
-        defaultColumnId={taskDialog?.mode === 'create' ? taskDialog.columnId : cols[0]?.id ?? ''}
+        defaultColumnId={taskDialog?.mode === 'create' ? taskDialog.columnId : (cols[0]?.id ?? '')}
         onClose={() => setTaskDialog(null)}
         onSubmit={submitTask}
       />
@@ -349,5 +460,11 @@ export default function ProjectScreen() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  banner: { position: 'absolute', top: SPACING.md, alignSelf: 'center', paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm },
+  banner: {
+    position: 'absolute',
+    top: SPACING.md,
+    alignSelf: 'center',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+  },
 });

@@ -22,7 +22,10 @@ export function useProjectNavigation(): (id: string) => void {
     (id: string) => {
       useSettingsStore.getState().update({ lastProjectId: id });
       const onProject = pathname.startsWith('/project/');
-      const go = () => (onProject ? router.setParams({ id }) : router.push({ pathname: '/project/[id]', params: { id } }));
+      const go = () =>
+        onProject
+          ? router.setParams({ id })
+          : router.push({ pathname: '/project/[id]', params: { id } });
       if (onProject && mode !== 'expanded') {
         closeBoardMenu();
         setTimeout(go, MENU_CLOSE_MS);

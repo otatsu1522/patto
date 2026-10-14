@@ -7,6 +7,7 @@ import { AppText } from './AppText';
 import type { MenuItem } from './DropdownMenu';
 import { Icon } from './Icon';
 import { BORDER_WIDTH } from '@/theme/tokens';
+import { canHover } from '@/lib/hover';
 
 interface Rect {
   x: number;
@@ -51,8 +52,14 @@ export function MenuProvider({ children }: { children: ReactNode }) {
     const below = menu.anchor.y + menu.anchor.h + 2;
     const above = menu.anchor.y - height - 2;
     const fitsBelow = below + height <= win.height - SPACING.sm;
-    const top = fitsBelow || above < SPACING.sm ? Math.min(below, Math.max(SPACING.sm, win.height - height - SPACING.sm)) : above;
-    const left = Math.max(SPACING.sm, Math.min(menu.anchor.x + menu.anchor.w - width, win.width - width - SPACING.sm));
+    const top =
+      fitsBelow || above < SPACING.sm
+        ? Math.min(below, Math.max(SPACING.sm, win.height - height - SPACING.sm))
+        : above;
+    const left = Math.max(
+      SPACING.sm,
+      Math.min(menu.anchor.x + menu.anchor.w - width, win.width - width - SPACING.sm),
+    );
     position = { left, top };
   }
 
@@ -64,11 +71,23 @@ export function MenuProvider({ children }: { children: ReactNode }) {
         {children}
         {menu ? (
           <View style={styles.overlay}>
-            <Pressable style={StyleSheet.absoluteFill} onPress={hide} accessibilityLabel={t('common.close')} />
-            <View style={[styles.menu, SHADOW.float, { ...position, width, backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={hide}
+              accessibilityLabel={t('common.close')}
+            />
+            <View
+              style={[
+                styles.menu,
+                SHADOW.float,
+                { ...position, width, backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
+            >
               {menu.items.map((item, i) => (
                 <View key={`${item.label}-${i}`}>
-                  {item.separator ? <View style={[styles.sep, { backgroundColor: colors.divider }]} /> : null}
+                  {item.separator ? (
+                    <View style={[styles.sep, { backgroundColor: colors.divider }]} />
+                  ) : null}
                   <Pressable
                     accessibilityRole="menuitem"
                     disabled={item.disabled}
@@ -78,13 +97,29 @@ export function MenuProvider({ children }: { children: ReactNode }) {
                     }}
                     style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
                       styles.item,
-                      { backgroundColor: pressed || hovered ? colors.hover : 'transparent', opacity: item.disabled ? 0.4 : 1 },
+                      {
+                        backgroundColor:
+                          pressed || (hovered && canHover) ? colors.hover : 'transparent',
+                        opacity: item.disabled ? 0.4 : 1,
+                      },
                     ]}
                   >
                     {hasIcons ? (
-                      <View style={styles.iconSlot}>{item.icon ? <Icon name={item.icon} size={ICON_SLOT} color={item.destructive ? colors.danger : colors.text} /> : null}</View>
+                      <View style={styles.iconSlot}>
+                        {item.icon ? (
+                          <Icon
+                            name={item.icon}
+                            size={ICON_SLOT}
+                            color={item.destructive ? colors.danger : colors.text}
+                          />
+                        ) : null}
+                      </View>
                     ) : null}
-                    <AppText color={item.destructive ? colors.danger : colors.text} numberOfLines={1} style={styles.label}>
+                    <AppText
+                      color={item.destructive ? colors.danger : colors.text}
+                      numberOfLines={1}
+                      style={styles.label}
+                    >
                       {item.label}
                     </AppText>
                   </Pressable>
@@ -101,8 +136,20 @@ export function MenuProvider({ children }: { children: ReactNode }) {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   overlay: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, zIndex: 1000 },
-  menu: { position: 'absolute', borderRadius: RADIUS.md, borderWidth: BORDER_WIDTH, paddingVertical: SPACING.xs, overflow: 'hidden' },
-  item: { height: ITEM_HEIGHT, flexDirection: 'row', alignItems: 'center', gap: SPACING.md, paddingHorizontal: SPACING.lg },
+  menu: {
+    position: 'absolute',
+    borderRadius: RADIUS.md,
+    borderWidth: BORDER_WIDTH,
+    paddingVertical: SPACING.xs,
+    overflow: 'hidden',
+  },
+  item: {
+    height: ITEM_HEIGHT,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+  },
   iconSlot: { width: ICON_SLOT, alignItems: 'center' },
   label: { flex: 1 },
   sep: { height: BORDER_WIDTH, marginHorizontal: SPACING.sm },

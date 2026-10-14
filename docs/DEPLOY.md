@@ -25,13 +25,13 @@ Web版の Patto を Cloudflare Pages Free で公開する。GitHub の `main` �
 
 Pages のプロジェクト作成画面、またはプロジェクトの Build settings で次の値を設定する。
 
-| 項目 | 値 |
-| --- | --- |
-| Framework preset | `None` |
-| Production branch | `main` |
-| Build command | `pnpm install --frozen-lockfile && pnpm export:web` |
-| Build output directory | `dist` |
-| Root directory | 空欄（リポジトリのルート） |
+| 項目                   | 値                                                  |
+| ---------------------- | --------------------------------------------------- |
+| Framework preset       | `None`                                              |
+| Production branch      | `main`                                              |
+| Build command          | `pnpm install --frozen-lockfile && pnpm export:web` |
+| Build output directory | `dist`                                              |
+| Root directory         | 空欄（リポジトリのルート）                          |
 
 - Build command は、lockfileに一致する依存関係をインストールしてから `package.json` に定義された `export:web` スクリプトを実行する。
 - `dist` は公開する静的ファイルの出力先。
@@ -44,11 +44,11 @@ Pages のプロジェクト作成画面、またはプロジェクトの Build s
 
 Cloudflare Pages の **ビルド時環境変数** に次を追加する。
 
-| 変数名 | 値 | 目的 |
-| --- | --- | --- |
-| `NODE_VERSION` | `24.18.0` | Node.js のバージョンを固定する |
-| `PNPM_VERSION` | `12.4.1` | pnpm のバージョンを固定する |
-| `SKIP_DEPENDENCY_INSTALL` | `1` | Cloudflareの自動依存関係インストールを無効にし、Build command内の `pnpm install --frozen-lockfile` に統一する |
+| 変数名                    | 値        | 目的                                                                                                          |
+| ------------------------- | --------- | ------------------------------------------------------------------------------------------------------------- |
+| `NODE_VERSION`            | `24.18.0` | Node.js のバージョンを固定する                                                                                |
+| `PNPM_VERSION`            | `12.4.1`  | pnpm のバージョンを固定する                                                                                   |
+| `SKIP_DEPENDENCY_INSTALL` | `1`       | Cloudflareの自動依存関係インストールを無効にし、Build command内の `pnpm install --frozen-lockfile` に統一する |
 
 `SKIP_DEPENDENCY_INSTALL=1` を指定する場合は、Build command に `pnpm install --frozen-lockfile` が含まれていることを確認する。依存関係のインストールは Build command で行う。
 
@@ -58,13 +58,13 @@ Cloudflare Pages の **ビルド時環境変数** に次を追加する。
 
 `.env.local` は GitHub に上がらないため、Supabase接続情報は Cloudflare Pages のプロジェクトにも設定する。Cloudflare Pages の `Settings > Environment variables`（ビルド時環境変数）で、`Production` と `Preview` のそれぞれに必要な変数を登録する。
 
-| 変数 | 値 |
-| --- | --- |
-| `EXPO_PUBLIC_SUPABASE_URL` | Supabase の Project URL（例：`https://YOUR_PROJECT_REF.supabase.co`） |
-| `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase の Publishable Key（`sb_publishable_` で始まる値） |
-| `NODE_VERSION` | `24.18.0` |
-| `PNPM_VERSION` | `12.4.1` |
-| `SKIP_DEPENDENCY_INSTALL` | `1` |
+| 変数                                   | 値                                                                    |
+| -------------------------------------- | --------------------------------------------------------------------- |
+| `EXPO_PUBLIC_SUPABASE_URL`             | Supabase の Project URL（例：`https://YOUR_PROJECT_REF.supabase.co`） |
+| `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase の Publishable Key（`sb_publishable_` で始まる値）           |
+| `NODE_VERSION`                         | `24.18.0`                                                             |
+| `PNPM_VERSION`                         | `12.4.1`                                                              |
+| `SKIP_DEPENDENCY_INSTALL`              | `1`                                                                   |
 
 Supabase のURLとPublishable Keyは、`.env.local` に設定した値と同じものを転記する。変数名のスペルと値の前後に余分な空白がないことを確認する。
 
@@ -87,10 +87,10 @@ Supabase のURLとPublishable Keyは、`.env.local` に設定した値と同じ�
 
 expo-sqlite の Web 版は WebAssembly と Worker を使うため、次の2つが必要。リポジトリの構成では、どちらも用意済みであることを想定する。
 
-| 必要なもの | 用意されている場所 |
-| --- | --- |
+| 必要なもの                                                                                           | 用意されている場所                                                                            |
+| ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | ヘッダー `Cross-Origin-Embedder-Policy: credentialless` と `Cross-Origin-Opener-Policy: same-origin` | `public/_headers`（ビルドで `dist/_headers` にコピーされ、Cloudflare Pages が配信時に付ける） |
-| `.wasm` をアセットとして扱うビルド設定 | `metro.config.js`（`assetExts` に `wasm`） |
+| `.wasm` をアセットとして扱うビルド設定                                                               | `metro.config.js`（`assetExts` に `wasm`）                                                    |
 
 `pnpm start`（開発サーバー）でも、`metro.config.js` が同じヘッダーを付ける。
 
@@ -145,11 +145,11 @@ https://patto-board.pages.dev
 
 `Add URL` から、以下をそれぞれ追加する。
 
-| URL | 用途 |
-| --- | --- |
-| `https://patto-board.pages.dev/**` | 公開済みWeb版のルートや認証画面のパス |
-| `http://localhost:8081/**` | ローカル開発 |
-| `http://127.0.0.1:8081/**` | localhostの代わりにループバックIPを使うローカル開発 |
+| URL                                | 用途                                                |
+| ---------------------------------- | --------------------------------------------------- |
+| `https://patto-board.pages.dev/**` | 公開済みWeb版のルートや認証画面のパス               |
+| `http://localhost:8081/**`         | ローカル開発                                        |
+| `http://127.0.0.1:8081/**`         | localhostの代わりにループバックIPを使うローカル開発 |
 
 ローカルのポートが違う場合は実際の開発URLを追加する。アプリが認証処理で明示的な `redirectTo` を渡す場合、そのURLがこの許可リストに一致している必要がある。
 

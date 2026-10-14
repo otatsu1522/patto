@@ -10,4 +10,6 @@ const SAMPLE_MARKERS = ['abcdefghijklmnop', 'xxxxxxxx'];
 export const isSupabaseConfigured: boolean =
   ENV.supabaseUrl.length > 0 &&
   ENV.supabasePublishableKey.length > 0 &&
-  !SAMPLE_MARKERS.some((m) => ENV.supabaseUrl.includes(m) || ENV.supabasePublishableKey.includes(m));
+  !SAMPLE_MARKERS.some(
+    (m) => ENV.supabaseUrl.includes(m) || ENV.supabasePublishableKey.includes(m),
+  );

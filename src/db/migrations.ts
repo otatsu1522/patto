@@ -2,7 +2,12 @@ import { TABLE_DEFS } from '@/domain/schema';
 import type { ColumnKind } from '@/domain/schema';
 import type { TableName } from '@/domain/types';
 
-const SQL_TYPE: Record<ColumnKind, string> = { text: 'TEXT', int: 'INTEGER', bool: 'INTEGER', json: 'TEXT' };
+const SQL_TYPE: Record<ColumnKind, string> = {
+  text: 'TEXT',
+  int: 'INTEGER',
+  bool: 'INTEGER',
+  json: 'TEXT',
+};
 
 function createTableSql(table: TableName): string {
   const cols = TABLE_DEFS[table].map((c) => {

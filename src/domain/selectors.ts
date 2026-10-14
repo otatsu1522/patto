@@ -8,7 +8,9 @@ export const isActive = (r: { deletedAt: number | null }): boolean => r.deletedA
 export function visibleProjects(projects: Project[]): Project[] {
   return projects
     .filter((p) => isActive(p) && p.archivedAt === null)
-    .sort((a, b) => (a.isFavorite !== b.isFavorite ? (a.isFavorite ? -1 : 1) : compareBySortKey(a, b)));
+    .sort((a, b) =>
+      a.isFavorite !== b.isFavorite ? (a.isFavorite ? -1 : 1) : compareBySortKey(a, b),
+    );
 }
 
 export const archivedProjects = (projects: Project[]): Project[] =>
@@ -56,7 +58,12 @@ export function searchTasks(
 
 export const archivedTasks = (tasks: Task[], projectId?: string): Task[] =>
   tasks
-    .filter((t) => isActive(t) && t.archivedAt !== null && (projectId === undefined || t.projectId === projectId))
+    .filter(
+      (t) =>
+        isActive(t) &&
+        t.archivedAt !== null &&
+        (projectId === undefined || t.projectId === projectId),
+    )
     .sort((a, b) => (b.archivedAt ?? 0) - (a.archivedAt ?? 0));
 
 export type TrashItem =
@@ -80,11 +87,13 @@ export function trashItems(
   }
   for (const c of data.columns) {
     if (isActive(c) || deletedProjects.has(c.projectId)) continue;
-    if (projectId === undefined || c.projectId === projectId) items.push({ kind: 'column', record: c });
+    if (projectId === undefined || c.projectId === projectId)
+      items.push({ kind: 'column', record: c });
   }
   for (const t of data.tasks) {
     if (isActive(t) || deletedProjects.has(t.projectId) || deletedColumns.has(t.columnId)) continue;
-    if (projectId === undefined || t.projectId === projectId) items.push({ kind: 'task', record: t });
+    if (projectId === undefined || t.projectId === projectId)
+      items.push({ kind: 'task', record: t });
   }
   return items.sort((a, b) => (b.record.deletedAt ?? 0) - (a.record.deletedAt ?? 0));
 }
@@ -106,11 +115,15 @@ export function purgeTargets(
     };
   }
   return {
-    projects: projectId === undefined ? data.projects.filter((p) => !isActive(p)).map((p) => p.id) : [],
+    projects:
+      projectId === undefined ? data.projects.filter((p) => !isActive(p)).map((p) => p.id) : [],
     columns: data.columns.filter((c) => !isActive(c) && inScope(c.projectId)).map((c) => c.id),
     tasks: data.tasks.filter((t) => !isActive(t) && inScope(t.projectId)).map((t) => t.id),
   };
 }
 
-export const countTargets = (t: { projects: string[]; columns: string[]; tasks: string[] }): number =>
-  t.projects.length + t.columns.length + t.tasks.length;
+export const countTargets = (t: {
+  projects: string[];
+  columns: string[];
+  tasks: string[];
+}): number => t.projects.length + t.columns.length + t.tasks.length;

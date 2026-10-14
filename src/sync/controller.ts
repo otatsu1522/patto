@@ -126,9 +126,11 @@ export function startAutoSync(ownerId: string): () => void {
     debounce = setTimeout(() => void syncNow(), SYNC.debounceMs);
   };
 
-  void getDb().getMeta('lastSyncedAt').then((v) => {
-    if (v) useSyncStore.getState().set({ lastSyncedAt: Number(v) });
-  });
+  void getDb()
+    .getMeta('lastSyncedAt')
+    .then((v) => {
+      if (v) useSyncStore.getState().set({ lastSyncedAt: Number(v) });
+    });
 
   if (useSettingsStore.getState().settings.syncMode !== 'auto') return () => {};
 
@@ -153,7 +155,11 @@ export function startAutoSync(ownerId: string): () => void {
   if (Platform.OS === 'web' && client) {
     const channel = client.channel(`patto-${ownerId}`);
     for (const table of ['projects', 'kanban_columns', 'tasks']) {
-      channel.on('postgres_changes', { event: '*', schema: 'public', table, filter: `owner_id=eq.${ownerId}` }, kick);
+      channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table, filter: `owner_id=eq.${ownerId}` },
+        kick,
+      );
     }
     channel.subscribe();
     cleanups.push(() => void client.removeChannel(channel));

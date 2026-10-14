@@ -24,7 +24,12 @@ export function AppText({ variant = 'body', muted, bold, color, style, ...rest }
   const base: TextStyle = {
     fontSize: fs(SIZE[variant]),
     color: color ?? (muted ? colors.textMuted : colors.text),
-    fontWeight: bold || variant === 'title' || variant === 'headline' ? '700' : variant === 'label' ? '600' : '400',
+    fontWeight:
+      bold || variant === 'title' || variant === 'headline'
+        ? '700'
+        : variant === 'label'
+          ? '600'
+          : '400',
   };
   return <Text {...rest} style={[base, style]} />;
 }

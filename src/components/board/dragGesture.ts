@@ -3,6 +3,7 @@ import { useMemo, useRef } from 'react';
 import { Platform } from 'react-native';
 import { Gesture } from 'react-native-gesture-handler';
 import { GESTURE } from '@/config/layout';
+import { isTouchWeb } from '@/lib/hover';
 
 /** つかんだカードの大きさと、カードの左上から見た指の位置（ドラッグ中の見た目を指に合わせるため） */
 export interface GrabInfo {
@@ -22,6 +23,7 @@ export interface DragHandlers {
  * 「つかんで動かす」ジェスチャー。
  * スマホ: 長押ししてからドラッグ（通常のスクロールと区別するため）/ PC: マウスで少し動かすとドラッグ開始。
  */
+/* eslint-disable react-hooks/refs -- 常に最新のハンドラーを呼ぶための定番の書き方（描画中には値を読まず、ジェスチャーの実行時にだけ読む） */
 export function useDragGesture(handlers: DragHandlers) {
   const ref = useRef(handlers);
   ref.current = handlers;
@@ -29,12 +31,14 @@ export function useDragGesture(handlers: DragHandlers) {
 
   return useMemo(() => {
     const pan = Gesture.Pan().runOnJS(true);
-    if (Platform.OS === 'web') pan.minDistance(GESTURE.webDragDistance);
+    // マウスの Web は少し動かすとドラッグ開始。スマホ（ネイティブ・スマホのブラウザ）は、スクロールと区別するため長押し
+    if (Platform.OS === 'web' && !isTouchWeb) pan.minDistance(GESTURE.webDragDistance);
     else pan.activateAfterLongPress(GESTURE.longPressMs);
     return pan
       .onStart((e) => {
         active.current = true;
         if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        else if (isTouchWeb) navigator.vibrate?.(15);
         ref.current.begin(e.absoluteX, e.absoluteY);
       })
       .onUpdate((e) => {
@@ -47,3 +51,4 @@ export function useDragGesture(handlers: DragHandlers) {
       });
   }, []);
 }
+/* eslint-enable react-hooks/refs */

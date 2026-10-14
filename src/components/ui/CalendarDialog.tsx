@@ -8,6 +8,7 @@ import { AppText } from './AppText';
 import { Button } from './Button';
 import { Dialog } from './Dialog';
 import { IconButton } from './IconButton';
+import { canHover } from '@/lib/hover';
 
 interface Props {
   visible: boolean;
@@ -26,16 +27,20 @@ export function CalendarDialog({ visible, value, onClose, onSelect }: Props) {
   const base = value !== null ? new Date(value) : new Date();
   const [view, setView] = useState({ year: base.getFullYear(), month: base.getMonth() + 1 });
 
+  const [today, setToday] = useState(() => startOfDay(Date.now()));
+
+  /* eslint-disable react-hooks/set-state-in-effect -- ダイアログを開くたびに、選択中の月（と今日）に合わせる */
   useEffect(() => {
     if (!visible) return;
     const d = value !== null ? new Date(value) : new Date();
     setView({ year: d.getFullYear(), month: d.getMonth() + 1 });
+    setToday(startOfDay(Date.now()));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const weeks = monthGrid(view.year, view.month);
   const selected = value !== null ? startOfDay(value) : null;
-  const today = startOfDay(Date.now());
   const weekdays = t('calendar.weekdays').split('');
 
   return (
@@ -45,15 +50,33 @@ export function CalendarDialog({ visible, value, onClose, onSelect }: Props) {
       onClose={onClose}
       footer={
         <View style={styles.footer}>
-          <Button label={t('calendar.clear')} variant="secondary" onPress={() => onSelect(null)} style={styles.flex} />
-          <Button label={t('calendar.today')} variant="secondary" onPress={() => onSelect(today)} style={styles.flex} />
+          <Button
+            label={t('calendar.clear')}
+            variant="secondary"
+            onPress={() => onSelect(null)}
+            style={styles.flex}
+          />
+          <Button
+            label={t('calendar.today')}
+            variant="secondary"
+            onPress={() => onSelect(today)}
+            style={styles.flex}
+          />
         </View>
       }
     >
       <View style={styles.nav}>
-        <IconButton icon="left" label={t('calendar.prev')} onPress={() => setView((v) => shiftMonth(v.year, v.month, -1))} />
+        <IconButton
+          icon="left"
+          label={t('calendar.prev')}
+          onPress={() => setView((v) => shiftMonth(v.year, v.month, -1))}
+        />
         <AppText bold>{t('calendar.month', { year: view.year, month: view.month })}</AppText>
-        <IconButton icon="right" label={t('calendar.next')} onPress={() => setView((v) => shiftMonth(v.year, v.month, 1))} />
+        <IconButton
+          icon="right"
+          label={t('calendar.next')}
+          onPress={() => setView((v) => shiftMonth(v.year, v.month, 1))}
+        />
       </View>
       <View style={styles.row}>
         {weekdays.map((w, i) => (
@@ -80,12 +103,19 @@ export function CalendarDialog({ visible, value, onClose, onSelect }: Props) {
                 style={({ hovered }: { pressed: boolean; hovered?: boolean }) => [
                   styles.cell,
                   {
-                    backgroundColor: isSelected ? colors.primary : hovered ? colors.hover : 'transparent',
+                    backgroundColor: isSelected
+                      ? colors.primary
+                      : hovered && canHover
+                        ? colors.hover
+                        : 'transparent',
                     borderColor: isToday ? colors.accent : 'transparent',
                   },
                 ]}
               >
-                <AppText bold={isSelected || isToday} color={isSelected ? colors.onPrimary : colors.text}>
+                <AppText
+                  bold={isSelected || isToday}
+                  color={isSelected ? colors.onPrimary : colors.text}
+                >
                   {cell.day}
                 </AppText>
               </Pressable>

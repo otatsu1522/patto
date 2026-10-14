@@ -29,14 +29,21 @@ export interface ImportedBoard {
 
 const iso = (ts: number) => new Date(ts).toISOString();
 
-export function exportBoards(data: { projects: Project[]; columns: KanbanColumn[]; tasks: Task[] }, projectIds: string[]): string {
+export function exportBoards(
+  data: { projects: Project[]; columns: KanbanColumn[]; tasks: Task[] },
+  projectIds: string[],
+): string {
   const boards = data.projects
     .filter((p) => isActive(p) && projectIds.includes(p.id))
     .sort(compareBySortKey)
     .map((p) => {
-      const columns = data.columns.filter((c) => c.projectId === p.id && isActive(c)).sort(compareBySortKey);
+      const columns = data.columns
+        .filter((c) => c.projectId === p.id && isActive(c))
+        .sort(compareBySortKey);
       const tasks = data.tasks.filter((t) => t.projectId === p.id && isActive(t));
-      const usedColors = Array.from(new Set(tasks.map((t) => t.color).filter((c): c is TaskColorKey => !!c)));
+      const usedColors = Array.from(
+        new Set(tasks.map((t) => t.color).filter((c): c is TaskColorKey => !!c)),
+      );
       return {
         id: p.id,
         name: p.title,
@@ -44,7 +51,13 @@ export function exportBoards(data: { projects: Project[]; columns: KanbanColumn[
         closed: p.archivedAt !== null,
         prefs: { background: p.color ?? 'blue' },
         labels: usedColors.map((c) => ({ id: c, idBoard: p.id, name: '', color: c })),
-        lists: columns.map((c, i) => ({ id: c.id, name: c.title, closed: false, idBoard: p.id, pos: (i + 1) * 65536 })),
+        lists: columns.map((c, i) => ({
+          id: c.id,
+          name: c.title,
+          closed: false,
+          idBoard: p.id,
+          pos: (i + 1) * 65536,
+        })),
         cards: tasks
           .sort((a, b) => (a.sortKey < b.sortKey ? -1 : 1))
           .map((t, i) => ({
@@ -97,7 +110,7 @@ export function parseTrello(text: string): ImportedBoard[] {
   const result = boards.map((raw) => {
     const b = asObj(raw);
     const lists = asArr(b.lists);
-    if (typeof b.name !== 'string' || lists.length === 0 && !Array.isArray(b.cards)) {
+    if (typeof b.name !== 'string' || (lists.length === 0 && !Array.isArray(b.cards))) {
       throw new Error('not a trello board');
     }
     const cards = asArr(b.cards);
@@ -128,7 +141,8 @@ export function parseTrello(text: string): ImportedBoard[] {
     return {
       title: str(b.name),
       description: str(b.desc),
-      color: toColor(bg) ?? (typeof bg === 'string' && bg in TASK_COLORS ? (bg as TaskColorKey) : null),
+      color:
+        toColor(bg) ?? (typeof bg === 'string' && bg in TASK_COLORS ? (bg as TaskColorKey) : null),
       archived: b.closed === true,
       columns,
     };

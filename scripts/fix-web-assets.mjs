@@ -14,18 +14,9 @@ const assetsRoot = join(distDir, 'assets');
 const sourceRoot = join(assetsRoot, 'node_modules');
 const targetRoot = join(assetsRoot, 'vendor_modules');
 
-const textExtensions = new Set([
-  '.js',
-  '.html',
-  '.htm',
-  '.json',
-  '.css',
-  '.map',
-  '.txt',
-]);
+const textExtensions = new Set(['.js', '.html', '.htm', '.json', '.css', '.map', '.txt']);
 
-const assetReferencePattern =
-  /assets\/node_modules\/[^"'`\s<>)\]]+/g;
+const assetReferencePattern = /assets\/node_modules\/[^"'`\s<>)\]]+/g;
 
 function collectFiles(directory) {
   const files = [];
@@ -48,9 +39,7 @@ function isInside(file, directory) {
 
   return (
     rel === '' ||
-    (rel !== '..' &&
-      !rel.startsWith(`..${sep}`) &&
-      !relative(directory, file).startsWith(sep))
+    (rel !== '..' && !rel.startsWith(`..${sep}`) && !relative(directory, file).startsWith(sep))
   );
 }
 
@@ -67,29 +56,21 @@ function mapAssetSegments(segments) {
     const nodeModulesIndex = segments.indexOf('node_modules', 2);
 
     if (!packageKey || nodeModulesIndex < 0) {
-      throw new Error(
-        `Unexpected pnpm asset path: ${segments.join('/')}`,
-      );
+      throw new Error(`Unexpected pnpm asset path: ${segments.join('/')}`);
     }
 
     const packagePath = segments
       .slice(nodeModulesIndex + 1)
-      .map((segment) =>
-        segment === 'node_modules' ? 'vendor_modules' : segment,
-      );
+      .map((segment) => (segment === 'node_modules' ? 'vendor_modules' : segment));
 
     if (packagePath.length === 0) {
-      throw new Error(
-        `Package path is empty: ${segments.join('/')}`,
-      );
+      throw new Error(`Package path is empty: ${segments.join('/')}`);
     }
 
     return ['pnpm', packageKey, ...packagePath];
   }
 
-  return segments.map((segment) =>
-    segment === 'node_modules' ? 'vendor_modules' : segment,
-  );
+  return segments.map((segment) => (segment === 'node_modules' ? 'vendor_modules' : segment));
 }
 
 function mapAssetUrl(assetUrl) {
@@ -129,10 +110,7 @@ if (sourceFiles.length === 0) {
   throw new Error('No asset files found under dist/assets/node_modules.');
 }
 
-const requiredAssets = [
-  /^Ionicons\..*\.ttf$/i,
-  /^wa-sqlite\..*\.wasm$/i,
-];
+const requiredAssets = [/^Ionicons\..*\.ttf$/i, /^wa-sqlite\..*\.wasm$/i];
 
 for (const pattern of requiredAssets) {
   if (!sourceFiles.some((file) => pattern.test(basename(file)))) {
@@ -203,9 +181,7 @@ if (missingTargets.length > 0) {
     .map(({ assetUrl, localPath }) => `${assetUrl} -> ${localPath}`)
     .join('\n');
 
-  throw new Error(
-    `Missing asset targets (${missingTargets.length}):\n${details}`,
-  );
+  throw new Error(`Missing asset targets (${missingTargets.length}):\n${details}`);
 }
 
 // 古いパスへの参照が残っていたら、デプロイを止める。

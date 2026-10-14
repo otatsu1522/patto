@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { t } from '@/i18n';
 import { useSettingsStore } from '@/store/settingsStore';
@@ -26,7 +34,11 @@ interface Toast {
 interface Feedback {
   confirm: (o: ConfirmOptions) => Promise<ConfirmResult>;
   /** force: true は、設定でトーストをOFFにしていても出す（失敗の知らせなど） */
-  toast: (message: string, action?: { label: string; onPress: () => void }, options?: { force?: boolean }) => void;
+  toast: (
+    message: string,
+    action?: { label: string; onPress: () => void },
+    options?: { force?: boolean },
+  ) => void;
 }
 
 const Ctx = createContext<Feedback | null>(null);
@@ -60,12 +72,19 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     resolver.current = null;
   };
 
-  const showToast = useCallback((message: string, action?: { label: string; onPress: () => void }, options?: { force?: boolean }) => {
-    if (!options?.force && !useSettingsStore.getState().settings.toastEnabled) return;
-    if (timer.current) clearTimeout(timer.current);
-    setToast({ message, actionLabel: action?.label, onAction: action?.onPress });
-    timer.current = setTimeout(() => setToast(null), TOAST_MS);
-  }, []);
+  const showToast = useCallback(
+    (
+      message: string,
+      action?: { label: string; onPress: () => void },
+      options?: { force?: boolean },
+    ) => {
+      if (!options?.force && !useSettingsStore.getState().settings.toastEnabled) return;
+      if (timer.current) clearTimeout(timer.current);
+      setToast({ message, actionLabel: action?.label, onAction: action?.onPress });
+      timer.current = setTimeout(() => setToast(null), TOAST_MS);
+    },
+    [],
+  );
 
   const value = useMemo(() => ({ confirm, toast: showToast }), [confirm, showToast]);
 
@@ -94,14 +113,36 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
           </View>
         </View>
       ) : null}
-      <Modal visible={dialog !== null} transparent animationType="fade" onRequestClose={() => close('cancel')} statusBarTranslucent>
+      <Modal
+        visible={dialog !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => close('cancel')}
+        statusBarTranslucent
+      >
         <View style={[styles.backdrop, { backgroundColor: colors.overlay }]}>
-          <View style={[styles.card, SHADOW.float, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View
+            style={[
+              styles.card,
+              SHADOW.float,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+          >
             <AppText variant="title">{dialog?.title}</AppText>
             {dialog?.message ? <AppText muted>{dialog.message}</AppText> : null}
             <View style={styles.actions}>
-              <Button label={t('common.cancel')} variant="secondary" onPress={() => close('cancel')} />
-              {dialog?.extraLabel ? <Button label={dialog.extraLabel} variant="secondary" onPress={() => close('extra')} /> : null}
+              <Button
+                label={t('common.cancel')}
+                variant="secondary"
+                onPress={() => close('cancel')}
+              />
+              {dialog?.extraLabel ? (
+                <Button
+                  label={dialog.extraLabel}
+                  variant="secondary"
+                  onPress={() => close('extra')}
+                />
+              ) : null}
               <Button
                 label={dialog?.confirmLabel ?? t('common.ok')}
                 variant={dialog?.destructive ? 'danger' : 'primary'}
@@ -117,9 +158,37 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.lg },
-  card: { width: '100%', maxWidth: 440, borderRadius: RADIUS.lg, borderWidth: BORDER_WIDTH, padding: SPACING.lg, gap: SPACING.md },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: SPACING.sm, marginTop: SPACING.sm },
-  toastWrap: { position: 'absolute', left: 0, right: 0, bottom: SPACING.xl, alignItems: 'center', paddingHorizontal: SPACING.lg },
-  toast: { flexDirection: 'row', alignItems: 'center', gap: SPACING.lg, borderRadius: RADIUS.md, paddingVertical: SPACING.md, paddingHorizontal: SPACING.lg, maxWidth: 520 },
+  card: {
+    width: '100%',
+    maxWidth: 440,
+    borderRadius: RADIUS.lg,
+    borderWidth: BORDER_WIDTH,
+    padding: SPACING.lg,
+    gap: SPACING.md,
+  },
+  actions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    gap: SPACING.sm,
+    marginTop: SPACING.sm,
+  },
+  toastWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: SPACING.xl,
+    alignItems: 'center',
+    paddingHorizontal: SPACING.lg,
+  },
+  toast: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.lg,
+    borderRadius: RADIUS.md,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    maxWidth: 520,
+  },
   toastText: { flexShrink: 1 },
 });

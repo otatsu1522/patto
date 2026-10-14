@@ -11,6 +11,7 @@ import { DropdownMenu, type MenuItem } from '../ui/DropdownMenu';
 import { Icon } from '../ui/Icon';
 import { useDragGesture, type DragHandlers } from './dragGesture';
 import { BORDER_WIDTH } from '@/theme/tokens';
+import { canHover } from '@/lib/hover';
 
 interface Props {
   task: Task;
@@ -31,7 +32,19 @@ interface Props {
 }
 
 /** タスクのカード。タップでメニュー、右端のボタンで次のカンバンへ、長押し（PCはドラッグ）でつかんで移動。 */
-export function TaskCard({ task, done, compact, isLast, canAdvance, focused, grabbed, dragging, menuItems, onAdvance, drag }: Props) {
+export function TaskCard({
+  task,
+  done,
+  compact,
+  isLast,
+  canAdvance,
+  focused,
+  grabbed,
+  dragging,
+  menuItems,
+  onAdvance,
+  drag,
+}: Props) {
   const { colors, taskColor } = useTheme();
   const lastDragEnd = useRef(0);
   const cardRef = useRef<View>(null);
@@ -40,7 +53,9 @@ export function TaskCard({ task, done, compact, isLast, canAdvance, focused, gra
     // つかんだ瞬間に、カードの位置と大きさを測って、指の位置とカードの位置を合わせる
     begin: (x, y) => {
       if (!cardRef.current) return drag.begin(x, y);
-      cardRef.current.measureInWindow((cx, cy, w, h) => drag.begin(x, y, { ox: x - cx, oy: y - cy, w, h }));
+      cardRef.current.measureInWindow((cx, cy, w, h) =>
+        drag.begin(x, y, { ox: x - cx, oy: y - cy, w, h }),
+      );
     },
     end: (cancelled) => {
       lastDragEnd.current = Date.now();
@@ -50,7 +65,8 @@ export function TaskCard({ task, done, compact, isLast, canAdvance, focused, gra
 
   const due = task.dueAt !== null ? { dueAt: task.dueAt, dueHasTime: false } : null;
   const state = due ? dueState(due, nowMs()) : null;
-  const dueColor = state === 'overdue' ? colors.danger : state === 'today' ? colors.warning : colors.textMuted;
+  const dueColor =
+    state === 'overdue' ? colors.danger : state === 'today' ? colors.warning : colors.textMuted;
   const strike = done ? styles.done : undefined;
 
   return (
@@ -73,7 +89,7 @@ export function TaskCard({ task, done, compact, isLast, canAdvance, focused, gra
         items={menuItems}
         anchorStyle={styles.anchor}
         trigger={(open) => (
-          <GestureDetector gesture={gesture}>
+          <GestureDetector gesture={gesture} touchAction="pan-y" enableContextMenu={false}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={task.title}
@@ -83,7 +99,9 @@ export function TaskCard({ task, done, compact, isLast, canAdvance, focused, gra
               style={styles.body}
             >
               <View style={styles.titleRow}>
-                {task.color ? <View style={[styles.dot, { backgroundColor: taskColor(task.color) }]} /> : null}
+                {task.color ? (
+                  <View style={[styles.dot, { backgroundColor: taskColor(task.color) }]} />
+                ) : null}
                 <AppText bold numberOfLines={2} style={[styles.title, strike]}>
                   {task.title}
                 </AppText>
@@ -96,8 +114,17 @@ export function TaskCard({ task, done, compact, isLast, canAdvance, focused, gra
               {due ? (
                 <View style={styles.meta}>
                   <Icon name="calendar" size={14} color={dueColor} />
-                  <AppText variant="caption" bold={state !== 'upcoming'} color={dueColor} style={strike}>
-                    {state === 'overdue' ? `${t('task.overdue')} ` : state === 'today' ? `${t('task.today')} ` : ''}
+                  <AppText
+                    variant="caption"
+                    bold={state !== 'upcoming'}
+                    color={dueColor}
+                    style={strike}
+                  >
+                    {state === 'overdue'
+                      ? `${t('task.overdue')} `
+                      : state === 'today'
+                        ? `${t('task.today')} `
+                        : ''}
                     {formatDue(due)}
                   </AppText>
                 </View>
@@ -116,7 +143,7 @@ export function TaskCard({ task, done, compact, isLast, canAdvance, focused, gra
           }}
           style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
             styles.advance,
-            { backgroundColor: pressed || hovered ? colors.hover : 'transparent' },
+            { backgroundColor: pressed || (hovered && canHover) ? colors.hover : 'transparent' },
           ]}
         >
           <Icon name={isLast ? 'uturn' : 'forward'} size={20} color={colors.textMuted} />
@@ -129,7 +156,14 @@ export function TaskCard({ task, done, compact, isLast, canAdvance, focused, gra
 const styles = StyleSheet.create({
   card: { flexDirection: 'row', alignItems: 'stretch', minHeight: 76 },
   anchor: { flex: 1 },
-  body: { flex: 1, paddingVertical: SPACING.md + 2, paddingLeft: SPACING.lg, paddingRight: SPACING.sm, gap: SPACING.xs + 2, cursor: 'grab' } as never,
+  body: {
+    flex: 1,
+    paddingVertical: SPACING.md + 2,
+    paddingLeft: SPACING.lg,
+    paddingRight: SPACING.sm,
+    gap: SPACING.xs + 2,
+    cursor: 'grab',
+  } as never,
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   title: { flexShrink: 1 },
   dot: { width: 12, height: 12, borderRadius: 6 },
