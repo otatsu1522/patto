@@ -9,6 +9,7 @@ import { archivedProjects, searchTasks, visibleProjects } from '@/domain/selecto
 import type { Project } from '@/domain/types';
 import { pushUndo } from '@/features/undo';
 import { useProjectNavigation } from '@/hooks/useProjectNavigation';
+import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
 import { t } from '@/i18n';
 import { useDataStore } from '@/store/dataStore';
 import { useUiStore } from '@/store/uiStore';
@@ -23,7 +24,7 @@ import { Icon } from '../ui/Icon';
 import { IconButton } from '../ui/IconButton';
 import { useSyncLabel } from './SyncIndicator';
 import { BORDER_WIDTH, SEPARATOR_WIDTH } from '@/theme/tokens';
-import { canHover } from '@/lib/hover';
+import { canHover, isTouchWeb } from '@/lib/hover';
 
 interface Props {
   width: number;
@@ -55,8 +56,64 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate, onSwipeClos
   const [editing, setEditing] = useState<Project | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const searchRef = useRef<TextInput>(null);
+  const projectScrollRef = useWebWheelScroll({ touchScroll: true, touchAction: 'pan-y' });
   const mountedTick = useRef(searchTick);
-  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const onSwipeCloseRef = useRef(onSwipeClose);
+  useEffect(() => {
+    onSwipeCloseRef.current = onSwipeClose;
+  }, [onSwipeClose]);
+
+  // React Native Web の子 ScrollView 上では synthetic touch の座標が欠けることがあるため、
+  // スマホ Web では document の capture フェーズでドロワー内の実タッチを追跡する。
+  useEffect(() => {
+    if (!isTouchWeb || typeof document === 'undefined') return;
+
+    let start: { x: number; y: number; lastX: number; lastY: number } | null = null;
+    const isDrawerTarget = (target: EventTarget | null) =>
+      target instanceof Element && target.closest('#patto-mobile-sidebar') !== null;
+
+    const onTouchStart = (event: TouchEvent) => {
+      if (!onSwipeCloseRef.current || !isDrawerTarget(event.target) || event.touches.length !== 1) {
+        start = null;
+        return;
+      }
+      const touch = event.touches[0];
+      start = { x: touch.clientX, y: touch.clientY, lastX: touch.clientX, lastY: touch.clientY };
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+      if (!start || event.touches.length !== 1) return;
+      const touch = event.touches[0];
+      start.lastX = touch.clientX;
+      start.lastY = touch.clientY;
+    };
+
+    const onTouchEnd = (event: TouchEvent) => {
+      if (!start) return;
+      const touch = event.changedTouches[0];
+      const endX = touch?.clientX ?? start.lastX;
+      const endY = touch?.clientY ?? start.lastY;
+      const dx = endX - start.x;
+      const dy = endY - start.y;
+      start = null;
+      if (dx <= -40 && Math.abs(dx) > Math.abs(dy) * 1.15) onSwipeCloseRef.current?.();
+    };
+
+    const onTouchCancel = () => {
+      start = null;
+    };
+
+    document.addEventListener('touchstart', onTouchStart, { capture: true, passive: true });
+    document.addEventListener('touchmove', onTouchMove, { capture: true, passive: true });
+    document.addEventListener('touchend', onTouchEnd, { capture: true, passive: true });
+    document.addEventListener('touchcancel', onTouchCancel, { capture: true, passive: true });
+    return () => {
+      document.removeEventListener('touchstart', onTouchStart, true);
+      document.removeEventListener('touchmove', onTouchMove, true);
+      document.removeEventListener('touchend', onTouchEnd, true);
+      document.removeEventListener('touchcancel', onTouchCancel, true);
+    };
+  }, []);
 
   useEffect(() => {
     if (searchTick !== mountedTick.current) searchRef.current?.focus();
@@ -184,21 +241,11 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate, onSwipeClos
 
   return (
     <View
+      nativeID="patto-mobile-sidebar"
       style={[
         styles.root,
         { width, backgroundColor: colors.surface, borderRightColor: colors.border },
       ]}
-      onTouchStart={(event) => {
-        if (Platform.OS !== 'web' || !onSwipeClose) return;
-        touchStart.current = { x: event.nativeEvent.pageX, y: event.nativeEvent.pageY };
-      }}
-      onTouchEnd={(event) => {
-        if (Platform.OS !== 'web' || !onSwipeClose || !touchStart.current) return;
-        const dx = event.nativeEvent.pageX - touchStart.current.x;
-        const dy = event.nativeEvent.pageY - touchStart.current.y;
-        touchStart.current = null;
-        if (dx <= -48 && Math.abs(dx) > Math.abs(dy) * 1.25) onSwipeClose();
-      }}
     >
       {/* 画面上部のバーと同じ位置にメニューアイコンを置く（押すと閉じる） */}
       <View style={styles.brand}>
@@ -235,10 +282,13 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate, onSwipeClos
       </View>
 
       <ScrollView
+        ref={projectScrollRef}
         style={[
           styles.projectScroll,
           styles.flex,
-          Platform.OS === 'web' ? ({ overflowY: 'auto', overscrollBehaviorY: 'contain' } as never) : undefined,
+          Platform.OS === 'web'
+            ? ({ overflowY: 'auto', overscrollBehaviorY: 'contain' } as never)
+            : undefined,
         ]}
         contentContainerStyle={styles.projectScrollContent}
         keyboardShouldPersistTaps="handled"

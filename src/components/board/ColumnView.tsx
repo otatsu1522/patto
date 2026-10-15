@@ -43,6 +43,10 @@ export interface ColumnViewProps {
   /** 「タスクを追加」を押したとき（作成ダイアログを開く） */
   onAddTask: () => void;
   onCopyTitle: (task: Task) => void;
+  /** 手動並び替えでタスクの画面位置を測るための参照登録 */
+  onTaskMeasure: (taskId: string, node: View | null) => void;
+  /** スマホ Web のドロワー右端に、最初の列のヘッダー下線を接続する */
+  connectHeaderLineToMenu?: boolean;
   taskDrag: (task: Task) => DragHandlers;
   columnDrag: DragHandlers;
   /** 横スクロールなど他の操作が始まったら増える。入力欄のフォーカスを外す合図 */
@@ -122,6 +126,7 @@ export function ColumnView(p: ColumnViewProps) {
         onMeasure={(id, node) => {
           if (node) taskRefs.current.set(id, node);
           else taskRefs.current.delete(id);
+          p.onTaskMeasure(id, node);
         }}
         drag={p.taskDrag(task)}
       />
@@ -185,7 +190,13 @@ export function ColumnView(p: ColumnViewProps) {
         />
         <View
           pointerEvents="none"
-          style={[styles.headerUnderline, { backgroundColor: colors.divider }]}
+          style={[
+            styles.headerUnderline,
+            {
+              left: p.connectHeaderLineToMenu ? -BOARD.columnGap : -(BOARD.columnGap / 2),
+              backgroundColor: colors.divider,
+            },
+          ]}
         />
       </View>
 

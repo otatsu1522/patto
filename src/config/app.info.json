@@ -2,7 +2,7 @@
   "name": "Patto",
   "slug": "patto",
   "scheme": "patto",
-  "description": "オフラインでも使える、シンプルなカンバン式TODOアプリ",
+  "description": "カンバン式TODOアプリ",
   "version": "1.0.0",
   "license": "MIT",
   "copyrightYear": "2026",
@@ -27,7 +27,7 @@
     },
     {
       "name": "Cloudflare",
-      "url": "https://pages.cloudflare.com/",
+      "url": "https://dash.cloudflare.com/",
       "descriptionKey": "about.tech.cloudflare"
     }
   ]

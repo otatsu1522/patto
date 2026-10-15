@@ -1,9 +1,8 @@
 /** 入力・件数などの上限値と既定値。 */
 export const LIMITS = {
   projectTitleMax: 100,
-  projectDescriptionMax: 1000,
   columnTitleMax: 50,
-  taskTitleMax: 200,
+  taskTitleMax: 300,
   taskDescriptionMax: 5000,
   displayNameMax: 50,
   maxColumnsPerProject: 20,

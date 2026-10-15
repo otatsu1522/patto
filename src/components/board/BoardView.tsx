@@ -84,6 +84,13 @@ type DragInfo = ({ kind: 'task'; task: Task } | { kind: 'column'; column: Kanban
   grab?: GrabInfo;
 };
 
+interface ScrollUiSnapshot {
+  page: number;
+  menuVisible: boolean;
+  canScrollLeft: boolean;
+  canScrollRight: boolean;
+}
+
 /**
  * カンバンを横に並べるボード。
  * - スマホ縦: 前後のカンバンが見える幅で、1つずつ吸着しながらスクロール。
@@ -132,15 +139,29 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
   /** 横スクロールが吸着する位置。メニューを開いた位置（0）も含める */
   const snapOffsets = useMemo(() => (pane ? [0, ...offsets] : offsets), [pane, offsets]);
   const closedX = offsets[0] ?? 0;
+  const maxOffset = offsets[offsets.length - 1] ?? 0;
   /** スマホでは、メニューを画面の上端まで広げるため、カンバンの上にヘッダーの高さの空きを作る */
   const headerOffset = pane ? BOARD.headerHeight : 0;
   const menuVisible = pane && scrollX < closedX - 2;
   const closedXRef = useRef(closedX);
   closedXRef.current = closedX;
+  const scrollUiSnapshotRef = useRef<ScrollUiSnapshot | null>(null);
+  // メニュー右端の X 座標。スクロールと同時に動かし、ヘッダー／フッターの線を縦線へ接続する。
+  const menuEdgeWidth = Math.max(0, closedX - menuWidth);
+  const menuEdgeLeft = useMemo(
+    () =>
+      scrollAnim.interpolate({
+        inputRange: [0, Math.max(1, closedX)],
+        outputRange: [menuWidth, menuWidth - closedX],
+        extrapolate: 'clamp',
+      }),
+    [scrollAnim, menuWidth, closedX],
+  );
 
   const scrollToX = useCallback((x: number, animated = true) => {
     const target = Math.max(0, x);
-    if (Platform.OS === 'web') setScrollX(target);
+    // Web では目標位置を先に state へ入れず、実際の scroll イベントに追従させる。
+    // 先に setScrollX(target) すると、ヘッダー／ドロワーがスクロール開始前に跳ねる。
     scrollRef.current?.scrollTo({ x: target, animated });
   }, []);
 
@@ -195,22 +216,37 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
       scrollRef.current?.scrollTo({ x: closedXRef.current, animated: false });
       scrollXRef.current = closedXRef.current;
       setScrollX(closedXRef.current);
+      scrollUiSnapshotRef.current = {
+        page: nearestOffsetIndex(offsets, closedXRef.current),
+        menuVisible: false,
+        canScrollLeft: closedXRef.current > (offsets[0] ?? 0) + 1,
+        canScrollRight: closedXRef.current < maxOffset - 1,
+      };
       scrollAnim.setValue(closedXRef.current);
       menuTargetRef.current = null;
       useUiStore.setState({ menuVisible: false });
       setPositioned(true);
     });
     return () => cancelAnimationFrame(id);
-  }, [pane, size.width, menuWidth]);
+  }, [pane, size.width, menuWidth, offsets, maxOffset, scrollAnim]);
 
   // プロジェクトが切り替わったら、最初の位置（メニューを閉じた位置）に戻す
   useEffect(() => {
     if (!positioned) return;
-    scrollRef.current?.scrollTo({ x: pane ? closedXRef.current : 0, animated: false });
+    const resetX = pane ? closedXRef.current : 0;
+    scrollRef.current?.scrollTo({ x: resetX, animated: false });
+    scrollXRef.current = resetX;
+    setScrollX(resetX);
+    scrollUiSnapshotRef.current = {
+      page: nearestOffsetIndex(offsets, resetX),
+      menuVisible: false,
+      canScrollLeft: resetX > (offsets[0] ?? 0) + 1,
+      canScrollRight: resetX < maxOffset - 1,
+    };
     menuTargetRef.current = null;
     useUiStore.setState({ menuVisible: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.resetKey]);
+  }, [props.resetKey, pane, offsets, maxOffset]);
 
   // キーボードのカーソルが画面外のカンバンに移ったら、そこまでスクロールする
   useEffect(() => {
@@ -226,20 +262,32 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
   const onScrollEvent = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const x = e.nativeEvent.contentOffset.x;
     scrollXRef.current = x;
-    // Web では毎フレームの React 再描画がヘッダーの追従を遅らせるため、
-    // 開閉境界を跨いだときだけ状態を更新し、最終位置は scroll end で反映する。
-    if (Platform.OS !== 'web') setScrollX(x);
+
+    // アニメーション自体は Animated.Value で毎フレーム追従させ、React の再描画は
+    // ページ・メニュー開閉・前後ボタンの表示が切り替わるときだけに限定する。
+    const nextMenuVisible = pane && x < closedXRef.current - 2;
+    const nextSnapshot: ScrollUiSnapshot = {
+      page: nearestOffsetIndex(offsets, x),
+      menuVisible: nextMenuVisible,
+      canScrollLeft: x > (offsets[0] ?? 0) + 1,
+      canScrollRight: x < maxOffset - 1,
+    };
+    const previousSnapshot = scrollUiSnapshotRef.current;
+    const uiChanged =
+      !previousSnapshot ||
+      previousSnapshot.page !== nextSnapshot.page ||
+      previousSnapshot.menuVisible !== nextSnapshot.menuVisible ||
+      previousSnapshot.canScrollLeft !== nextSnapshot.canScrollLeft ||
+      previousSnapshot.canScrollRight !== nextSnapshot.canScrollRight;
+    scrollUiSnapshotRef.current = nextSnapshot;
+    if (uiChanged) setScrollX(x);
 
     const target = menuTargetRef.current;
     const reachedTarget =
       target === true ? x <= 2 : target === false ? x >= closedXRef.current - 2 : false;
     if (reachedTarget) menuTargetRef.current = null;
-    if (menuTargetRef.current === null) {
-      const nextMenuVisible = pane && x < closedXRef.current - 2;
-      if (useUiStore.getState().menuVisible !== nextMenuVisible) {
-        useUiStore.setState({ menuVisible: nextMenuVisible });
-        if (Platform.OS === 'web') setScrollX(x);
-      }
+    if (menuTargetRef.current === null && useUiStore.getState().menuVisible !== nextMenuVisible) {
+      useUiStore.setState({ menuVisible: nextMenuVisible });
     }
   };
   // スクロール位置をアニメーション値に渡す（ヘッダーをカンバンと同じ動きで動かすため。ネイティブ側で処理するのでずれない）
@@ -250,8 +298,15 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
   const onScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const x = e.nativeEvent.contentOffset.x;
     scrollXRef.current = x;
-    setScrollX(x);
     const nextMenuVisible = pane && x < closedXRef.current - 2;
+    // スクロール終了時にも snapshot を同期し、次のドラッグで誤って再描画が止まらないようにする。
+    scrollUiSnapshotRef.current = {
+      page: nearestOffsetIndex(offsets, x),
+      menuVisible: nextMenuVisible,
+      canScrollLeft: x > (offsets[0] ?? 0) + 1,
+      canScrollRight: x < maxOffset - 1,
+    };
+    setScrollX(x);
     if (useUiStore.getState().menuVisible !== nextMenuVisible) {
       useUiStore.setState({ menuVisible: nextMenuVisible });
     }
@@ -389,7 +444,6 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
 
   const page = nearestOffsetIndex(offsets, scrollX);
   const showButtons = geo.peek > 0;
-  const maxOffset = offsets[offsets.length - 1] ?? 0;
   // スマホ縦では、ページインジケーター用のフッターを確保し、
   // カンバン本体はその上端まで伸ばす。PC では下部に余白を残さない。
   const pagerHeight = geo.compact && columns.length > 1 ? 32 : 0;
@@ -506,6 +560,7 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                   onAdvance={props.onAdvance}
                   onAddTask={() => props.onAddTask(column)}
                   onCopyTitle={props.onCopyTitle}
+                  connectHeaderLineToMenu={pane && index === 0}
                   onTaskMeasure={(taskId, node) => {
                     if (node) taskNodeRefs.current.set(taskId, node);
                     else taskNodeRefs.current.delete(taskId);
@@ -564,15 +619,16 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
             ) : null}
 
             {pagerHeight > 0 ? (
-              <View
+              <Animated.View
                 pointerEvents={menuVisible ? 'none' : 'auto'}
                 style={[
                   styles.pagerFooter,
                   {
                     height: pagerHeight,
-                    backgroundColor: menuVisible ? 'transparent' : colors.bg,
+                    left: pane ? menuEdgeLeft : 0,
+                    backgroundColor: colors.bg,
                     borderTopColor: colors.divider,
-                    borderTopWidth: menuVisible ? 0 : BORDER_WIDTH,
+                    borderTopWidth: BORDER_WIDTH,
                   },
                 ]}
               >
@@ -599,7 +655,7 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                     </AppText>
                   </View>
                 ) : null}
-              </View>
+              </Animated.View>
             ) : null}
           </>
         ) : null}
@@ -631,14 +687,30 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
 
         {/* スマホ: ヘッダーは、メニューを開くと画面全体といっしょに右へずれる */}
         {pane && header ? (
-          <Animated.View
-            style={[
-              styles.headerOverlay,
-              { height: BOARD.headerHeight, transform: [{ translateX: headerShift }] },
-            ]}
-          >
-            {header}
-          </Animated.View>
+          <>
+            <Animated.View
+              style={[
+                styles.headerOverlay,
+                { height: BOARD.headerHeight, transform: [{ translateX: headerShift }] },
+              ]}
+            >
+              {header}
+            </Animated.View>
+            {/* ドロワー右端からヘッダー下線までの隙間を、スクロールに追従して埋める。 */}
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.headerLineBridge,
+                {
+                  left: menuEdgeLeft,
+                  width: menuEdgeWidth,
+                  top: BOARD.headerHeight - BORDER_WIDTH,
+                  height: BORDER_WIDTH,
+                  backgroundColor: colors.border,
+                },
+              ]}
+            />
+          </>
         ) : null}
       </View>
     </View>
@@ -649,6 +721,7 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   menuPane: { flexDirection: 'row' },
   headerOverlay: { position: 'absolute', left: 0, right: 0, top: 0 },
+  headerLineBridge: { position: 'absolute', zIndex: 30 },
   navBtn: {
     position: 'absolute',
     top: 0,

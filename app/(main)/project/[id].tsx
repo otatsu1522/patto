@@ -21,6 +21,7 @@ import type { ColumnSortMode, KanbanColumn, Task } from '@/domain/types';
 import { useBoardActions } from '@/features/useBoardActions';
 import { popUndo } from '@/features/undo';
 import { useLayoutMode } from '@/hooks/useLayout';
+import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
 import { t } from '@/i18n';
 import {
   clampCursor,
@@ -78,6 +79,7 @@ export default function ProjectScreen() {
   const [archiveKind, setArchiveKind] = useState<'archive' | 'trash' | null>(null);
   const [cursor, setCursor] = useState<Cursor | null>(null);
   const [query, setQuery] = useState('');
+  const searchResultsScrollRef = useWebWheelScroll({ touchScroll: true, touchAction: 'pan-y' });
   const [searching, setSearching] = useState(false);
   const follow = useRef<string | null>(null);
 
@@ -340,18 +342,14 @@ export default function ProjectScreen() {
     const taskIndex = columnTasks.findIndex((item) => item.id === task.id);
     const previousTask = taskIndex > 0 ? columnTasks[taskIndex - 1] : undefined;
     const nextTask =
-      taskIndex >= 0 && taskIndex < columnTasks.length - 1
-        ? columnTasks[taskIndex + 1]
-        : undefined;
+      taskIndex >= 0 && taskIndex < columnTasks.length - 1 ? columnTasks[taskIndex + 1] : undefined;
     // ピン留めタスクは常に先頭グループなので、手動並び替えでもグループ境界を越えない。
     const canMoveTaskUp =
       taskColumn?.sortMode === 'manual' &&
       !!previousTask &&
       previousTask.isFavorite === task.isFavorite;
     const canMoveTaskDown =
-      taskColumn?.sortMode === 'manual' &&
-      !!nextTask &&
-      nextTask.isFavorite === task.isFavorite;
+      taskColumn?.sortMode === 'manual' && !!nextTask && nextTask.isFavorite === task.isFavorite;
     const leftColumn =
       columnCount > 0 ? cols[(currentIndex - 1 + columnCount) % columnCount] : undefined;
     const rightColumn = columnCount > 0 ? cols[(currentIndex + 1) % columnCount] : undefined;
@@ -540,7 +538,13 @@ export default function ProjectScreen() {
             ]}
           >
             <ScrollView
-              style={[styles.searchResultsScroll, Platform.OS === 'web' ? ({ overflowY: 'auto', overscrollBehaviorY: 'contain' } as never) : undefined]}
+              ref={searchResultsScrollRef}
+              style={[
+                styles.searchResultsScroll,
+                Platform.OS === 'web'
+                  ? ({ overflowY: 'auto', overscrollBehaviorY: 'contain' } as never)
+                  : undefined,
+              ]}
               contentContainerStyle={styles.searchResultsContent}
               keyboardShouldPersistTaps="handled"
               persistentScrollbar

@@ -1,4 +1,3 @@
-
 /** 余白・角丸・文字の基準値。角丸はなし（直角）。pill は「色の丸」だけに使う。 */
 export const SPACING = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
 export const RADIUS = { sm: 0, md: 0, lg: 0, pill: 999 } as const;

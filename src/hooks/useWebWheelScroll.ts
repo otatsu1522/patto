@@ -39,6 +39,7 @@ export function useWebWheelScroll({
     let frame = 0;
     let attempts = 0;
     let disposed = false;
+    let observer: MutationObserver | null = null;
 
     let startX = 0;
     let startY = 0;
@@ -145,11 +146,25 @@ export function useWebWheelScroll({
 
     const attach = () => {
       if (disposed) return;
-      element = getScrollElement(scrollRef);
-      if (!element) {
-        if (attempts++ < 8) frame = window.requestAnimationFrame(attach);
+      const found = getScrollElement(scrollRef);
+      if (!found) {
+        if (attempts++ < 8) {
+          frame = window.requestAnimationFrame(attach);
+        } else if (!observer && typeof MutationObserver !== 'undefined') {
+          // 条件表示される検索結果など、フックの初回実行時にまだ DOM がない場合も接続する。
+          observer = new MutationObserver(() => {
+            if (!element) attach();
+          });
+          observer.observe(document.documentElement, { childList: true, subtree: true });
+        }
         return;
       }
+
+      if (element === found) return;
+      if (element) detach();
+      element = found;
+      observer?.disconnect();
+      observer = null;
 
       // 子のカード・フォームの上でもページの縦スクロールを受け取る。
       element.style.overflowY = 'auto';
@@ -171,6 +186,7 @@ export function useWebWheelScroll({
     return () => {
       disposed = true;
       if (frame) window.cancelAnimationFrame(frame);
+      observer?.disconnect();
       detach();
     };
   }, [touchAction, touchScroll]);
