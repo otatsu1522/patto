@@ -21,7 +21,8 @@ export default function HomeScreen() {
   const { mode } = useLayoutMode();
   const { width } = useWindowDimensions();
   const list = visibleProjects(projects);
-  const target = list.find((p) => p.id === lastId) ?? null;
+  // 選択履歴がない初回ログインや、別ユーザーの古いIDが残っている場合は先頭を開く。
+  const target = list.find((p) => p.id === lastId) ?? list[0] ?? null;
   if (target) return <Redirect href={{ pathname: '/project/[id]', params: { id: target.id } }} />;
 
   if (mode !== 'expanded') {

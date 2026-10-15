@@ -492,6 +492,7 @@ export default function ProjectScreen() {
     <View style={styles.fill}>
       <View style={styles.fill}>
         <BoardView
+          key={id}
           header={header}
           resetKey={id}
           ref={boardRef}

@@ -2,10 +2,12 @@ import { create } from 'zustand';
 import { isSupabaseConfigured } from '@/config/env';
 import { destroyLocalDb } from '@/db/sqliteDb';
 import { normalizeEmail } from '@/domain/validation';
+import { visibleProjects } from '@/domain/selectors';
 import { t } from '@/i18n';
 import { kv } from '@/lib/kv';
 import { useDataStore } from '@/store/dataStore';
 import { useSettingsStore } from '@/store/settingsStore';
+import { syncNow } from '@/sync/controller';
 import { isNetworkError, mapAuthError } from './errors';
 import { getSupabase } from './supabase';
 
@@ -68,8 +70,22 @@ export const useAuthStore = create<AuthState>((set, get) => {
   /** この端末でこのユーザーとして使い始める（端末内DBを開き、状態を保存する）。 */
   async function enter(identity: Identity, options: { seedTutorial?: boolean } = {}) {
     await useDataStore.getState().open(identity.userId, identity.userId);
-    // 新しく使い始めるときだけ、サンプルプロジェクト（TUTORIAL）を入れる
-    if (options.seedTutorial) await useDataStore.getState().seedTutorial();
+
+    // 新規登録・ゲスト開始では TUTORIAL を優先して選択する。
+    const tutorialProjectId = options.seedTutorial
+      ? await useDataStore.getState().seedTutorial()
+      : null;
+    const availableProjects = visibleProjects(useDataStore.getState().projects);
+    const savedProjectId = useSettingsStore.getState().settings.lastProjectId;
+    const savedProject = availableProjects.find((p) => p.id === savedProjectId);
+    const initialProjectId =
+      tutorialProjectId ?? savedProject?.id ?? availableProjects[0]?.id ?? null;
+
+    // 保存済みのプロジェクトがこのユーザーのデータに存在しない場合も、先頭のプロジェクトへ合わせる。
+    if (savedProjectId !== initialProjectId) {
+      useSettingsStore.getState().update({ lastProjectId: initialProjectId });
+    }
+
     await persist(identity);
     set({ identity, status: identity.mode, needsReauth: false });
   }
@@ -136,6 +152,13 @@ export const useAuthStore = create<AuthState>((set, get) => {
           email: data.user.email ?? '',
           displayName: displayNameOf(data.user),
         });
+
+        // 初めてこのアカウントを使う端末ではローカルDBが空の場合がある。
+        // 同期が有効なら初回ログイン時に一度取り込み、先頭プロジェクトをすぐ選べるようにする。
+        const hasLocalProjects = visibleProjects(useDataStore.getState().projects).length > 0;
+        if (!hasLocalProjects && useSettingsStore.getState().settings.syncMode !== 'off') {
+          await syncNow();
+        }
         return { ok: true };
       } catch (e) {
         return fail(e);

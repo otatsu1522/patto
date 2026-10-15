@@ -110,8 +110,8 @@ interface DataState extends Snapshot {
   /** 指定IDを端末から完全に削除する（サーバー側の削除は呼び出し側で先に行う） */
   purgeLocal: (ids: { projects: string[]; columns: string[]; tasks: string[] }) => Promise<void>;
   importBoards: (boards: ImportedBoard[]) => Promise<number>;
-  /** 初回だけ、サンプルプロジェクト（TUTORIAL）を作る */
-  seedTutorial: () => Promise<void>;
+  /** 初回だけ、サンプルプロジェクト（TUTORIAL）を作り、そのIDを返す */
+  seedTutorial: () => Promise<string | null>;
 }
 
 export const useDataStore = create<DataState>((set, get) => {
@@ -557,9 +557,23 @@ export const useDataStore = create<DataState>((set, get) => {
 
     async seedTutorial() {
       const d = getDb();
-      if (await d.getMeta('tutorialSeeded')) return;
-      await d.setMeta('tutorialSeeded', '1');
-      if (get().projects.length > 0) return;
+      const findTutorialId = () =>
+        get().projects.find(
+          (p) =>
+            p.title === t(TUTORIAL_PROJECT_TITLE) &&
+            p.color === TUTORIAL_PROJECT_COLOR &&
+            isActive(p) &&
+            p.archivedAt === null,
+        )?.id ?? null;
+
+      if (await d.getMeta('tutorialSeeded')) {
+        return (await d.getMeta('tutorialProjectId')) ?? findTutorialId();
+      }
+      if (get().projects.length > 0) {
+        await d.setMeta('tutorialSeeded', '1');
+        return findTutorialId();
+      }
+
       const ts = now();
       const project = buildProject(
         owner(),
@@ -591,6 +605,9 @@ export const useDataStore = create<DataState>((set, get) => {
         });
       });
       await commit({ projects: [project], columns, tasks });
+      await d.setMeta('tutorialSeeded', '1');
+      await d.setMeta('tutorialProjectId', project.id);
+      return project.id;
     },
 
     async importBoards(boards) {
