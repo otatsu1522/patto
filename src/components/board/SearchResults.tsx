@@ -46,9 +46,7 @@ export function SearchResults({ results, projects, columns, onPress }: Props) {
             <AppText variant="caption" muted numberOfLines={1}>
               {project?.title ?? ''} › {column?.title ?? ''}
             </AppText>
-            <AppText bold numberOfLines={1}>
-              {task.title}
-            </AppText>
+            <AppText bold>{task.title}</AppText>
             {task.description ? (
               <AppText variant="caption" muted numberOfLines={2}>
                 {task.description}

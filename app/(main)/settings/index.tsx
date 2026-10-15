@@ -65,29 +65,29 @@ export default function SettingsIndex() {
             <LinkRow
               icon="person"
               label={t('settings.profile')}
-              onPress={() => router.push('/settings/profile')}
+              onPress={() => router.navigate('/settings/profile')}
             />
             <LinkRow
               icon="settings"
               label={t('settings.system')}
-              onPress={() => router.push('/settings/system')}
+              onPress={() => router.navigate('/settings/system')}
             />
             {Platform.OS === 'web' ? (
               <LinkRow
                 icon="keyboard"
                 label={t('settings.shortcuts')}
-                onPress={() => router.push('/settings/shortcuts')}
+                onPress={() => router.navigate('/settings/shortcuts')}
               />
             ) : null}
             <LinkRow
               icon="info"
               label={t('settings.about')}
-              onPress={() => router.push('/settings/about')}
+              onPress={() => router.navigate('/settings/about')}
             />
             <LinkRow
               icon="document"
               label={t('settings.license')}
-              onPress={() => router.push('/settings/license')}
+              onPress={() => router.navigate('/settings/license')}
             />
           </Section>
         </View>

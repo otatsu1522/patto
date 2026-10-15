@@ -77,7 +77,7 @@ export default function AboutScreen() {
             <LinkRow
               label={t('about.license')}
               value={APP_LICENSE}
-              onPress={() => router.push('/settings/license')}
+              onPress={() => router.navigate('/settings/license')}
             />
             {links.map((l) => (
               <LinkRow key={l.label} label={l.label} onPress={() => void Linking.openURL(l.url)} />

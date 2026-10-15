@@ -19,7 +19,6 @@ import { Icon } from '../ui/Icon';
 import { IconButton } from '../ui/IconButton';
 import { TextField } from '../ui/TextField';
 import { canHover } from '@/lib/hover';
-import { useLayoutMode } from '@/hooks/useLayout';
 
 export interface TaskFormValues {
   title: string;
@@ -46,12 +45,11 @@ const dueText = (task: Task | null): string =>
 
 /**
  * タスクの作成・編集ダイアログ（共通）。
- * 最初に見えるのは「タスク名」と「色」。説明・期限・場所は「オプション」を開くと出る。
+ * 新規作成では「タスク名」と「色」を先に表示し、既存タスクの編集では「オプション」を開いた状態にする。
  * 複製・アーカイブ・削除・ピン留めは、タスクをタップしたときのメニューから行う。
  */
 export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, onSubmit }: Props) {
   const { colors } = useTheme();
-  const { mode } = useLayoutMode();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [color, setColor] = useState<TaskColorKey | null>(null);
@@ -80,12 +78,12 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
     setDue(dueText(task));
     setColumnId(initialColumn);
     setCalendar(false);
-    setOptions(task !== null && mode === 'expanded');
+    setOptions(task !== null);
     setSelectOpen(false);
     setSubmitted(false);
     setDiscardPrompt(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, task?.id, mode]);
+  }, [visible, task?.id]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const titleError = submitted ? validateTitle(title, LIMITS.taskTitleMax) : null;

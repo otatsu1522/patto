@@ -13,6 +13,7 @@ import { useSettingsStore } from '@/store/settingsStore';
 import { useUiStore } from '@/store/uiStore';
 import { syncNow } from '@/sync/controller';
 import { useTheme } from '@/theme';
+import { getSystemBarInsets } from '@/lib/systemBarInsets';
 import { ProjectDialog } from '../board/NameDialogs';
 import { useFeedback } from '../ui/FeedbackProvider';
 import { t } from '@/i18n';
@@ -28,7 +29,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { colors } = useTheme();
   const { mode } = useLayoutMode();
   const { width: windowWidth } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
+  const insets = getSystemBarInsets(useSafeAreaInsets());
   const router = useRouter();
   const navigateToProject = useProjectNavigation();
   const { toast } = useFeedback();
@@ -58,7 +59,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       if (!permanent) openBoardMenu();
       useUiStore.getState().focusSidebarSearch();
     },
-    openSettings: () => router.push('/settings'),
+    openSettings: () => router.navigate('/settings'),
     nextProject: () => stepProject(1),
     prevProject: () => stepProject(-1),
     newProject: () => useUiStore.getState().requestNewProject(),

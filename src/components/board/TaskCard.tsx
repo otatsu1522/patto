@@ -229,7 +229,8 @@ export function TaskCard({
 }
 
 const styles = StyleSheet.create({
-  card: { flexDirection: 'row', alignItems: 'stretch', minHeight: 76 },
+  // 高さは本文の内容に合わせる。固定の minHeight は1行タイトルの下に空白を作るため指定しない。
+  card: { flexDirection: 'row', alignItems: 'stretch' },
   colorButton: { width: 36, alignItems: 'center', justifyContent: 'center' },
   anchor: { flex: 1, minWidth: 0 },
   body: {

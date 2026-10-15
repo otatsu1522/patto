@@ -1,67 +1,76 @@
-import { useState } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { TextField } from '../ui/TextField';
 import { useAuthStore } from '@/auth/authStore';
 import { t } from '@/i18n';
-import { FONT, RADIUS, SPACING, useTheme } from '@/theme';
+import { useTheme } from '@/theme';
 import { AppText } from '../ui/AppText';
 import { Button } from '../ui/Button';
+import { Dialog } from '../ui/Dialog';
 
-/** ログインの有効期限が切れたとき、パスワードを入力して再ログインする帯。データは消えない。 */
+/** セッションの再認証が必要なとき、通常のテーマに沿ったダイアログでパスワードを再入力する。 */
 export function ReauthBanner() {
-  const { colors, fs } = useTheme();
+  const { colors } = useTheme();
   const needs = useAuthStore((s) => s.needsReauth && s.identity?.mode === 'account');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  if (!needs) return null;
+
+  useEffect(() => {
+    if (!needs) {
+      setPassword('');
+      setMessage(null);
+      setBusy(false);
+    }
+  }, [needs]);
 
   const submit = async () => {
+    if (busy || !password) return;
     setBusy(true);
-    const res = await useAuthStore.getState().reauthenticate(password);
-    setBusy(false);
-    if (res.ok) setPassword('');
-    else setMessage(res.message);
+    setMessage(null);
+    try {
+      const res = await useAuthStore.getState().reauthenticate(password);
+      if (res.ok) {
+        setPassword('');
+      } else {
+        setMessage(res.message);
+      }
+    } catch {
+      setMessage(t('auth.reauthNeeded'));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
-    <View style={[styles.bar, { backgroundColor: colors.warning }]}>
-      <AppText variant="caption" bold color={colors.onWarning} style={styles.text}>
+    <Dialog
+      visible={needs}
+      title={t('auth.reauthSubmit')}
+      onClose={() => {}}
+      dismissible={false}
+      footer={
+        <Button
+          label={t('auth.reauthSubmit')}
+          onPress={() => void submit()}
+          loading={busy}
+          disabled={!password}
+          fullWidth
+        />
+      }
+    >
+      <AppText color={message ? colors.danger : colors.textMuted}>
         {message ?? t('auth.reauthNeeded')}
       </AppText>
-      <TextInput
+      <TextField
+        label={t('auth.password')}
         value={password}
-        onChangeText={setPassword}
-        secureTextEntry
+        secure
         autoCapitalize="none"
-        placeholder={t('auth.password')}
-        placeholderTextColor={colors.textMuted}
-        onSubmitEditing={submit}
-        accessibilityLabel={t('auth.password')}
-        style={[
-          styles.input,
-          { backgroundColor: colors.surface, color: colors.text, fontSize: fs(FONT.body) },
-        ]}
+        autoComplete="current-password"
+        textContentType="password"
+        returnKeyType="go"
+        onChangeText={setPassword}
+        onSubmitEditing={() => void submit()}
       />
-      <Button label={t('auth.reauthSubmit')} onPress={submit} loading={busy} variant="secondary" />
-    </View>
+    </Dialog>
   );
 }
-
-const styles = StyleSheet.create({
-  bar: {
-    flexDirection: 'column',
-    alignItems: 'stretch',
-    gap: SPACING.sm,
-    padding: SPACING.sm,
-  },
-  text: { flexGrow: 0 },
-  input: {
-    width: '100%',
-    minWidth: 0,
-    borderRadius: RADIUS.md,
-    paddingHorizontal: SPACING.md,
-    minHeight: 44,
-    outlineStyle: 'none',
-    flexGrow: 0,
-  } as never,
-});

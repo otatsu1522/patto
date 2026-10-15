@@ -1,14 +1,18 @@
 import { generateKeyBetween } from 'fractional-indexing';
 import type { ColumnSortMode, Task } from './types';
 
-/** タスクの表示順: お気に入りが上 → 各カンバンの並び順（更新日順 / 手動 / 期限順） */
+/** タスクの表示順: お気に入りが上 → 更新日順 / 作成日順 / 期限順 / 手動 */
 export function compareTasks(mode: ColumnSortMode) {
   return (a: Task, b: Task): number => {
     if (a.isFavorite !== b.isFavorite) return a.isFavorite ? -1 : 1;
     let diff = 0;
     if (mode === 'manual') {
       diff = a.sortKey < b.sortKey ? -1 : a.sortKey > b.sortKey ? 1 : 0;
+    } else if (mode === 'created') {
+      diff = b.createdAt - a.createdAt;
+      if (diff === 0) diff = b.updatedAt - a.updatedAt;
     } else if (mode === 'due') {
+      // 期限が設定されたタスクを期限順にし、期限未設定同士は更新日順にする。
       const ad = a.dueAt ?? Number.POSITIVE_INFINITY;
       const bd = b.dueAt ?? Number.POSITIVE_INFINITY;
       diff = ad === bd ? 0 : ad < bd ? -1 : 1;

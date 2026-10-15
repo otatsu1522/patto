@@ -1,6 +1,6 @@
 import { Redirect, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useAuthStore } from '@/auth/authStore';
 import { ArchiveDialog } from '@/components/board/ArchiveDialog';
 import { BoardHeader } from '@/components/board/BoardHeader';
@@ -58,6 +58,7 @@ export default function ProjectScreen() {
   const syncMode = useSettingsStore((s) => s.settings.syncMode);
   const identity = useAuthStore((s) => s.identity);
   const searchTick = useUiStore((s) => s.boardSearchFocusTick);
+  const pendingTaskDetail = useUiStore((s) => s.pendingTaskDetail);
 
   const project = projects.find((p) => p.id === id);
   const cols = useMemo(() => (id ? columnsOf(columns, id) : []), [columns, id]);
@@ -97,6 +98,19 @@ export default function ProjectScreen() {
     setArchiveKind(null);
   }, [id]);
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  // サイドバーの全体検索から別プロジェクトへ移動した場合、移動先で対象タスクの詳細を開く。
+  useEffect(() => {
+    if (!ready || !id || pendingTaskDetail?.projectId !== id) return;
+    const taskId = useUiStore.getState().consumePendingTaskDetail(id);
+    if (!taskId) return;
+    const selected = tasks.find((task) => task.id === taskId && task.projectId === id);
+    if (selected) {
+      setQuery('');
+      setSearching(false);
+      setTaskDetails(selected);
+    }
+  }, [ready, id, pendingTaskDetail, tasks]);
 
   // 検索ショートカット（/）で検索を開く
   useEffect(() => {
@@ -263,8 +277,17 @@ export default function ProjectScreen() {
     },
   ];
 
-  const sortLabel = (m: ColumnSortMode) =>
-    `${t('column.sortMode')}: ${t(m === 'updated' ? 'column.sort.updated' : m === 'manual' ? 'column.sort.manual' : 'column.sort.due')}`;
+  const sortLabel = (m: ColumnSortMode) => {
+    const label =
+      m === 'updated'
+        ? t('column.sort.updated')
+        : m === 'created'
+          ? t('column.sort.created')
+          : m === 'due'
+            ? t('column.sort.due')
+            : t('column.sort.manual');
+    return `${t('column.sortMode')}: ${label}`;
+  };
   const columnMenu = (column: KanbanColumn, index: number): MenuItem[] => [
     { label: t('column.rename'), icon: 'edit', onPress: () => setColumnDialog({ column }) },
     {
@@ -279,7 +302,7 @@ export default function ProjectScreen() {
       disabled: index === cols.length - 1,
       onPress: () => void store.moveColumn(column.id, index + 1),
     },
-    ...(['updated', 'manual', 'due'] as ColumnSortMode[]).map((m, i) => ({
+    ...(['updated', 'created', 'due'] as ColumnSortMode[]).map((m, i) => ({
       label: sortLabel(m),
       icon: (column.sortMode === m ? 'check' : undefined) as MenuItem['icon'],
       separator: i === 0,
@@ -287,7 +310,7 @@ export default function ProjectScreen() {
     })),
     {
       label: column.isDoneColumn ? t('column.unsetDone') : t('column.setDone'),
-      icon: column.isDoneColumn ? 'doneMode' : 'doneModeOutline',
+      icon: column.isDoneColumn ? 'doneModeOutline' : 'doneMode',
       separator: true,
       onPress: () => void store.updateColumn(column.id, { isDoneColumn: !column.isDoneColumn }),
     },
@@ -312,10 +335,28 @@ export default function ProjectScreen() {
   const taskMenu = (task: Task): MenuItem[] => {
     const currentIndex = cols.findIndex((column) => column.id === task.columnId);
     const columnCount = cols.length;
+    const taskColumn = cols[currentIndex];
+    const columnTasks = tasksByColumn.get(task.columnId) ?? [];
+    const taskIndex = columnTasks.findIndex((item) => item.id === task.id);
+    const previousTask = taskIndex > 0 ? columnTasks[taskIndex - 1] : undefined;
+    const nextTask =
+      taskIndex >= 0 && taskIndex < columnTasks.length - 1
+        ? columnTasks[taskIndex + 1]
+        : undefined;
+    // ピン留めタスクは常に先頭グループなので、手動並び替えでもグループ境界を越えない。
+    const canMoveTaskUp =
+      taskColumn?.sortMode === 'manual' &&
+      !!previousTask &&
+      previousTask.isFavorite === task.isFavorite;
+    const canMoveTaskDown =
+      taskColumn?.sortMode === 'manual' &&
+      !!nextTask &&
+      nextTask.isFavorite === task.isFavorite;
     const leftColumn =
       columnCount > 0 ? cols[(currentIndex - 1 + columnCount) % columnCount] : undefined;
     const rightColumn = columnCount > 0 ? cols[(currentIndex + 1) % columnCount] : undefined;
     return [
+      { label: t('task.detailsMenu'), icon: 'eye', onPress: () => setTaskDetails(task) },
       {
         label: t('task.edit'),
         icon: 'edit',
@@ -329,7 +370,31 @@ export default function ProjectScreen() {
           toast(t(task.isFavorite ? 'toast.unpinned' : 'toast.pinned'));
         },
       },
-      { label: t('task.detailsMenu'), icon: 'eye', onPress: () => setTaskDetails(task) },
+      ...(taskColumn?.sortMode === 'manual'
+        ? [
+            {
+              label: t('task.moveUpInColumn'),
+              icon: 'up' as MenuItem['icon'],
+              separator: true,
+              disabled: !canMoveTaskUp,
+              onPress: () => {
+                if (canMoveTaskUp && taskIndex >= 0) {
+                  void store.reorderTask(task.id, taskIndex - 1);
+                }
+              },
+            },
+            {
+              label: t('task.moveDownInColumn'),
+              icon: 'down' as MenuItem['icon'],
+              disabled: !canMoveTaskDown,
+              onPress: () => {
+                if (canMoveTaskDown && taskIndex >= 0) {
+                  void store.reorderTask(task.id, taskIndex + 1);
+                }
+              },
+            },
+          ]
+        : []),
       {
         label: leftColumn
           ? currentIndex === 0
@@ -443,7 +508,13 @@ export default function ProjectScreen() {
           menuItemsFor={columnMenu}
           taskMenuFor={taskMenu}
           onAdvance={(task) => void actions.advance(task)}
-          onTaskDrop={(task, target) => void actions.moveTask(task, target)}
+          onTaskDrop={(task, target, manualIndex) => {
+            if (task.columnId === target.id && manualIndex !== undefined) {
+              void store.reorderTask(task.id, manualIndex);
+            } else {
+              void actions.moveTask(task, target);
+            }
+          }}
           onColumnDrop={(column, toIndex) => void store.moveColumn(column.id, toIndex)}
           onAddTask={(column) => openCreateTask(column.id)}
           onCopyTitle={() => toast(t('task.copyTitle'))}
@@ -465,17 +536,22 @@ export default function ProjectScreen() {
           <View
             style={[
               StyleSheet.absoluteFill,
-              { top: pane ? BOARD.headerHeight : 0, backgroundColor: colors.surface },
+              { top: BOARD.headerHeight, backgroundColor: colors.surface },
             ]}
           >
-            <ScrollView keyboardShouldPersistTaps="handled" persistentScrollbar>
+            <ScrollView
+              style={[styles.searchResultsScroll, Platform.OS === 'web' ? ({ overflowY: 'auto', overscrollBehaviorY: 'contain' } as never) : undefined]}
+              contentContainerStyle={styles.searchResultsContent}
+              keyboardShouldPersistTaps="handled"
+              persistentScrollbar
+            >
               <SearchResults
                 results={results}
                 projects={projects}
                 columns={columns}
                 onPress={(task) => {
                   closeSearch();
-                  setTaskDialog({ mode: 'edit', taskId: task.id });
+                  setTaskDetails(task);
                 }}
               />
             </ScrollView>
@@ -532,6 +608,8 @@ export default function ProjectScreen() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  searchResultsScroll: { flex: 1, minHeight: 0 },
+  searchResultsContent: { flexGrow: 1 },
   banner: {
     position: 'absolute',
     top: SPACING.md,

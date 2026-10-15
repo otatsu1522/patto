@@ -14,12 +14,22 @@ function getScrollElement(ref: { current: ScrollView | null }): HTMLElement | nu
   return typeof HTMLElement !== 'undefined' && node instanceof HTMLElement ? node : null;
 }
 
+export interface WebWheelScrollOptions {
+  /** false の場合、タッチ移動はブラウザ標準に任せる（横スクロールを併用する一覧向け）。 */
+  touchScroll?: boolean;
+  /** スクロール要素に設定する touch-action。 */
+  touchAction?: string;
+}
+
 /**
- * Web の設定画面用スクロール ref。
- * カード・選択肢・フォーム上から操作しても、画面全体の ScrollView が
- * ホイールまたは縦スワイプを受け取れるようにする。
+ * Web の ScrollView 用スクロール ref。
+ * 子のカード・フォーム上から操作してもホイールスクロールを受け取り、
+ * 必要な画面ではタッチ移動も補助する。
  */
-export function useWebWheelScroll() {
+export function useWebWheelScroll({
+  touchScroll = true,
+  touchAction = 'pan-y',
+}: WebWheelScrollOptions = {}) {
   const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
@@ -144,12 +154,12 @@ export function useWebWheelScroll() {
       // 子のカード・フォームの上でもページの縦スクロールを受け取る。
       element.style.overflowY = 'auto';
       element.style.minHeight = '0';
-      element.style.touchAction = 'pan-y';
+      element.style.touchAction = touchAction;
       element.style.overscrollBehaviorY = 'contain';
       element.style.setProperty('-webkit-overflow-scrolling', 'touch');
 
       document.addEventListener('wheel', onWheel, { capture: true, passive: false });
-      if (isTouchWeb) {
+      if (isTouchWeb && touchScroll) {
         document.addEventListener('touchstart', onTouchStart, { capture: true, passive: true });
         document.addEventListener('touchmove', onTouchMove, { capture: true, passive: false });
         document.addEventListener('touchend', resetTouch, true);
@@ -163,7 +173,7 @@ export function useWebWheelScroll() {
       if (frame) window.cancelAnimationFrame(frame);
       detach();
     };
-  }, []);
+  }, [touchAction, touchScroll]);
 
   return scrollRef;
 }

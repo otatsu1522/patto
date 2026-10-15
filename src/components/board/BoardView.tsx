@@ -66,7 +66,7 @@ interface Props {
   taskMenuFor: (task: Task) => MenuItem[];
   onAdvance: (task: Task) => void;
   /** ドラッグで落としたとき（ピン留めの状態は移動先でも変わらない） */
-  onTaskDrop: (task: Task, target: KanbanColumn) => void;
+  onTaskDrop: (task: Task, target: KanbanColumn, manualIndex?: number) => void;
   onColumnDrop: (column: KanbanColumn, toIndex: number) => void;
   onAddTask: (column: KanbanColumn) => void;
   onCopyTitle: (task: Task) => void;
@@ -105,6 +105,7 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
 
   const scrollRef = useRef<ScrollView>(null);
   const containerRef = useRef<View>(null);
+  const taskNodeRefs = useRef(new Map<string, View>());
   const origin = useRef({ x: 0, y: 0 });
   const scrollXRef = useRef(0);
   // プログラム操作中は、スクロール完了まで意図した開閉状態を優先する。
@@ -138,7 +139,9 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
   closedXRef.current = closedX;
 
   const scrollToX = useCallback((x: number, animated = true) => {
-    scrollRef.current?.scrollTo({ x: Math.max(0, x), animated });
+    const target = Math.max(0, x);
+    if (Platform.OS === 'web') setScrollX(target);
+    scrollRef.current?.scrollTo({ x: target, animated });
   }, []);
 
   /** 指定のカンバンが見える位置までスクロールする */
@@ -223,7 +226,9 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
   const onScrollEvent = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const x = e.nativeEvent.contentOffset.x;
     scrollXRef.current = x;
-    setScrollX(x);
+    // Web では毎フレームの React 再描画がヘッダーの追従を遅らせるため、
+    // 開閉境界を跨いだときだけ状態を更新し、最終位置は scroll end で反映する。
+    if (Platform.OS !== 'web') setScrollX(x);
 
     const target = menuTargetRef.current;
     const reachedTarget =
@@ -233,6 +238,7 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
       const nextMenuVisible = pane && x < closedXRef.current - 2;
       if (useUiStore.getState().menuVisible !== nextMenuVisible) {
         useUiStore.setState({ menuVisible: nextMenuVisible });
+        if (Platform.OS === 'web') setScrollX(x);
       }
     }
   };
@@ -241,6 +247,16 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
     useNativeDriver: Platform.OS !== 'web',
     listener: onScrollEvent,
   });
+  const onScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const x = e.nativeEvent.contentOffset.x;
+    scrollXRef.current = x;
+    setScrollX(x);
+    const nextMenuVisible = pane && x < closedXRef.current - 2;
+    if (useUiStore.getState().menuVisible !== nextMenuVisible) {
+      useUiStore.setState({ menuVisible: nextMenuVisible });
+    }
+    menuTargetRef.current = null;
+  };
   // メニューを開くほど（スクロール位置が左端に近いほど）、ヘッダーを右へずらす
   const headerShift = useMemo(
     () =>
@@ -301,6 +317,36 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
     const target = columns[idx];
     if (!target) return;
     if (info.kind === 'column') return props.onColumnDrop(info.column, idx);
+
+    // 手動並び順では、同じカンバン内にドロップした位置へタスクを並べ替える。
+    if (info.task.columnId === target.id && target.sortMode === 'manual') {
+      const dropY = origin.current.y + pointer.current.y;
+      const columnTasks = props.tasksOf(target.id);
+      const groupTasks = columnTasks.filter(
+        (task) => task.id !== info.task.id && task.isFavorite === info.task.isFavorite,
+      );
+      const centers = await Promise.all(
+        groupTasks.map(
+          (task) =>
+            new Promise<number | null>((resolve) => {
+              const node = taskNodeRefs.current.get(task.id);
+              if (!node) {
+                resolve(null);
+                return;
+              }
+              node.measureInWindow((_x, y, _width, height) => resolve(y + height / 2));
+            }),
+        ),
+      );
+      const positionInGroup = centers.filter((center) => center !== null && center < dropY).length;
+      const favoriteCount = columnTasks.filter(
+        (task) => task.id !== info.task.id && task.isFavorite,
+      ).length;
+      const manualIndex = (info.task.isFavorite ? 0 : favoriteCount) + positionInGroup;
+      props.onTaskDrop(info.task, target, manualIndex);
+      return;
+    }
+
     props.onTaskDrop(info.task, target);
   };
 
@@ -369,6 +415,8 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
               persistentScrollbar={!geo.compact}
               indicatorStyle={isDark ? 'white' : 'black'}
               onScroll={onScroll}
+              onScrollEndDrag={onScrollEnd}
+              onMomentumScrollEnd={onScrollEnd}
               onScrollBeginDrag={blurInputs}
               scrollEventThrottle={16}
               scrollEnabled={!dragInfo}
@@ -411,6 +459,7 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                     showMenuIcon={false}
                     onToggle={closeBoardMenu}
                     onNavigate={closeBoardMenu}
+                    onSwipeClose={closeBoardMenu}
                   />
                 </View>
               ) : null}
@@ -457,6 +506,10 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                   onAdvance={props.onAdvance}
                   onAddTask={() => props.onAddTask(column)}
                   onCopyTitle={props.onCopyTitle}
+                  onTaskMeasure={(taskId, node) => {
+                    if (node) taskNodeRefs.current.set(taskId, node);
+                    else taskNodeRefs.current.delete(taskId);
+                  }}
                   taskDrag={taskDragHandlers}
                   columnDrag={columnDragHandlers(column)}
                   blurSignal={blurSignal}

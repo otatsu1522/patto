@@ -1,6 +1,6 @@
 import { usePathname, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useAuthStore } from '@/auth/authStore';
 import { withAlpha } from '@/lib/color';
 import { APP_NAME } from '@/config/app';
@@ -33,10 +33,12 @@ interface Props {
   onToggle: () => void;
   /** 画面を移動したとき（スマホではメニューを閉じる） */
   onNavigate: () => void;
+  /** スマホ Web のメニュー内で右から左へスワイプしたときの閉じる処理 */
+  onSwipeClose?: () => void;
 }
 
 /** 左のメニュー: メニューアイコン+アプリ名、検索、プロジェクト一覧、新規作成、設定、同期状態。 */
-export function Sidebar({ width, showMenuIcon, onToggle, onNavigate }: Props) {
+export function Sidebar({ width, showMenuIcon, onToggle, onNavigate, onSwipeClose }: Props) {
   const { colors, fs, taskColor } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
@@ -54,6 +56,7 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate }: Props) {
   const [showArchived, setShowArchived] = useState(false);
   const searchRef = useRef<TextInput>(null);
   const mountedTick = useRef(searchTick);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     if (searchTick !== mountedTick.current) searchRef.current?.focus();
@@ -185,6 +188,17 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate }: Props) {
         styles.root,
         { width, backgroundColor: colors.surface, borderRightColor: colors.border },
       ]}
+      onTouchStart={(event) => {
+        if (Platform.OS !== 'web' || !onSwipeClose) return;
+        touchStart.current = { x: event.nativeEvent.pageX, y: event.nativeEvent.pageY };
+      }}
+      onTouchEnd={(event) => {
+        if (Platform.OS !== 'web' || !onSwipeClose || !touchStart.current) return;
+        const dx = event.nativeEvent.pageX - touchStart.current.x;
+        const dy = event.nativeEvent.pageY - touchStart.current.y;
+        touchStart.current = null;
+        if (dx <= -48 && Math.abs(dx) > Math.abs(dy) * 1.25) onSwipeClose();
+      }}
     >
       {/* 画面上部のバーと同じ位置にメニューアイコンを置く（押すと閉じる） */}
       <View style={styles.brand}>
@@ -220,15 +234,25 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate }: Props) {
         ) : null}
       </View>
 
-      <ScrollView style={styles.flex} keyboardShouldPersistTaps="handled" persistentScrollbar>
+      <ScrollView
+        style={[
+          styles.projectScroll,
+          styles.flex,
+          Platform.OS === 'web' ? ({ overflowY: 'auto', overscrollBehaviorY: 'contain' } as never) : undefined,
+        ]}
+        contentContainerStyle={styles.projectScrollContent}
+        keyboardShouldPersistTaps="handled"
+        persistentScrollbar
+      >
         {query.trim() ? (
           <SearchResults
             results={results}
             projects={projects}
             columns={columns}
             onPress={(task) => {
-              open(task.projectId);
+              useUiStore.getState().requestTaskDetail(task.projectId, task.id);
               setQuery('');
+              open(task.projectId);
             }}
           />
         ) : (
@@ -288,7 +312,7 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate }: Props) {
           accessibilityRole="button"
           onPress={() => {
             // メニューは閉じない（戻ったときも開いたままの状態を保つ）
-            router.push('/settings');
+            router.navigate('/settings');
           }}
           style={styles.footerRow}
         >
@@ -328,8 +352,10 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate }: Props) {
 }
 
 const styles = StyleSheet.create({
-  root: { borderRightWidth: BORDER_WIDTH, flexShrink: 0 },
-  flex: { flex: 1 },
+  root: { borderRightWidth: BORDER_WIDTH, flexShrink: 0, height: '100%', minHeight: 0 },
+  flex: { flex: 1, minHeight: 0 },
+  projectScroll: { flex: 1, minHeight: 0 },
+  projectScrollContent: { flexGrow: 1 },
   projectTitle: { flexShrink: 1, minWidth: 0 },
   brandName: { paddingLeft: SPACING.sm + SPACING.xs },
   brand: {
@@ -343,7 +369,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
-    marginHorizontal: SPACING.lg,
+    // 線はサイドバーの左右端まで伸ばし、入力内容だけを内側に揃える。
+    paddingHorizontal: SPACING.lg,
     borderBottomWidth: SEPARATOR_WIDTH,
     minHeight: 44,
     marginBottom: 0,
@@ -378,7 +405,7 @@ const styles = StyleSheet.create({
     marginHorizontal: SPACING.lg,
   },
   // プロジェクト内の区切り線と同じ太さ・左右の余白に揃える。
-  rule: { height: SEPARATOR_WIDTH, marginVertical: SPACING.xs, marginHorizontal: SPACING.lg },
+  rule: { height: SEPARATOR_WIDTH, marginVertical: SPACING.xs, marginHorizontal: 0 },
   archiveToggle: {
     flexDirection: 'row',
     alignItems: 'center',

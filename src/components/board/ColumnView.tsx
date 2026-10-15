@@ -13,6 +13,7 @@ import { useDragGesture, type DragHandlers } from './dragGesture';
 import { TaskCard } from './TaskCard';
 import { BORDER_WIDTH, SEPARATOR_WIDTH } from '@/theme/tokens';
 import { canHover } from '@/lib/hover';
+import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
 
 export interface ColumnViewProps {
   column: KanbanColumn;
@@ -53,7 +54,9 @@ export interface ColumnViewProps {
 export function ColumnView(p: ColumnViewProps) {
   const { colors, taskColor, isDark } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
-  const listRef = useRef<ScrollView>(null);
+  // Web ではタスクカード内のどの項目上でもホイールスクロールを ScrollView に届ける。
+  // タッチ操作はブラウザ標準に任せ、縦横のスワイプを維持する。
+  const listRef = useWebWheelScroll({ touchScroll: false, touchAction: 'pan-x pan-y' });
   const listViewportRef = useRef<View>(null);
   const listOffset = useRef(0);
   const taskRefs = useRef(new Map<string, View>());
@@ -149,7 +152,6 @@ export function ColumnView(p: ColumnViewProps) {
       <View
         style={[
           styles.header,
-          { borderBottomColor: colors.divider },
           headerFocused && { borderColor: colors.focus, borderWidth: 2 },
           p.grabbed && headerFocused && { backgroundColor: colors.border },
         ]}
@@ -170,7 +172,7 @@ export function ColumnView(p: ColumnViewProps) {
               {t('column.taskCount', { count: p.tasks.length })}
             </AppText>
             {p.column.isDoneColumn ? (
-              <Icon name="doneModeOutline" size={22} color={colors.textMuted} />
+              <Icon name="doneMode" size={22} color={colors.textMuted} />
             ) : null}
           </View>
         </GestureDetector>
@@ -180,6 +182,10 @@ export function ColumnView(p: ColumnViewProps) {
           trigger={(open) => (
             <IconButton icon="more" label={p.column.title} onPress={open} box={40} size={22} />
           )}
+        />
+        <View
+          pointerEvents="none"
+          style={[styles.headerUnderline, { backgroundColor: colors.divider }]}
         />
       </View>
 
@@ -261,16 +267,24 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.sm,
     zIndex: 5,
   },
-  columnDivider: { position: 'absolute', top: 0, bottom: 0, width: BORDER_WIDTH },
+  columnDivider: { position: 'absolute', top: 0, bottom: 0, width: SEPARATOR_WIDTH },
   header: {
-    // 上のヘッダー区切り線と、この下線の間でタイトル行を中央に配置する。
-    height: BOARD.touchTarget + BORDER_WIDTH,
+    // 上のヘッダー区切り線と下線の間で、タイトル行を縦方向の中央に配置する。
+    position: 'relative',
+    height: BOARD.touchTarget,
     flexDirection: 'row',
     alignItems: 'center',
     paddingLeft: SPACING.md,
     paddingRight: SPACING.xs,
     paddingBottom: 0,
-    borderBottomWidth: BORDER_WIDTH,
+    overflow: 'visible',
+  },
+  headerUnderline: {
+    position: 'absolute',
+    left: -(BOARD.columnGap / 2),
+    right: -(BOARD.columnGap / 2),
+    bottom: 0,
+    height: SEPARATOR_WIDTH,
   },
   titleWrap: {
     flex: 1,

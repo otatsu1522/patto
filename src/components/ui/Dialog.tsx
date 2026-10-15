@@ -32,10 +32,21 @@ interface Props {
   overlay?: ReactNode;
   /** 幅を広げたいとき（一覧表示など） */
   wide?: boolean;
+  /** false の場合、背景タップ・戻る操作・×ボタンで閉じられない */
+  dismissible?: boolean;
 }
 
 /** ダイアログ。キーボードがないときは画面中央、入力中はキーボードの上の表示領域内に配置する。 */
-export function Dialog({ visible, title, onClose, children, footer, overlay, wide }: Props) {
+export function Dialog({
+  visible,
+  title,
+  onClose,
+  children,
+  footer,
+  overlay,
+  wide,
+  dismissible = true,
+}: Props) {
   const { colors } = useTheme();
   const insets = getSystemBarInsets(useSafeAreaInsets());
   const { mode } = useLayoutMode();
@@ -100,7 +111,7 @@ export function Dialog({ visible, title, onClose, children, footer, overlay, wid
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={onClose}
+      onRequestClose={dismissible ? onClose : () => {}}
       statusBarTranslucent
       navigationBarTranslucent
     >
@@ -123,7 +134,7 @@ export function Dialog({ visible, title, onClose, children, footer, overlay, wid
                 paddingBottom: keyboardVisible ? SPACING.md : insets.bottom + SPACING.lg,
               },
             ]}
-            onPress={onClose}
+            onPress={dismissible ? onClose : undefined}
             accessibilityLabel={t('common.close')}
           >
             <Pressable
@@ -146,7 +157,9 @@ export function Dialog({ visible, title, onClose, children, footer, overlay, wid
                 <AppText variant="title" style={styles.title} numberOfLines={1}>
                   {title}
                 </AppText>
-                <IconButton icon="close" label={t('common.close')} onPress={onClose} />
+                {dismissible ? (
+                  <IconButton icon="close" label={t('common.close')} onPress={onClose} />
+                ) : null}
               </View>
               <ScrollView
                 ref={bodyScrollRef}
