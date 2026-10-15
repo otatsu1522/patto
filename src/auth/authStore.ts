@@ -12,10 +12,15 @@ import { isNetworkError, mapAuthError } from './errors';
 import { getSupabase } from './supabase';
 
 const IDENTITY_KEY = 'patto:identity';
+const BOOTSTRAP_TIMEOUT_MS = 20_000;
+let bootstrapInFlight: Promise<void> | null = null;
+let bootstrapGeneration = 0;
+let authListenerAttached = false;
+let identityRefreshInFlight: Promise<void> | null = null;
 /** Supabase 未設定のときのゲストが使う、端末内だけのユーザーID */
 const LOCAL_USER_ID = 'local';
 
-export type AuthStatus = 'loading' | 'signedOut' | 'guest' | 'account';
+export type AuthStatus = 'loading' | 'signedOut' | 'guest' | 'account' | 'error';
 
 /** 端末に保存する「誰として使っているか」。オフラインでも再ログイン不要にするための情報。 */
 export interface Identity {
@@ -35,8 +40,13 @@ interface AuthState {
   identity: Identity | null;
   /** ログインの有効期限切れなどで、再ログインが必要な状態 */
   needsReauth: boolean;
+  /** 起動処理に失敗した場合の表示用メッセージ。 */
+  bootstrapError: string | null;
 
   bootstrap: () => Promise<void>;
+  setBootstrapError: (message: string | null) => void;
+  /** サーバーの最新 user_metadata / email を取得して他端末の変更を反映する。 */
+  refreshRemoteIdentity: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<AuthResult>;
   signUp: (email: string, password: string, displayName: string) => Promise<AuthResult>;
   continueAsGuest: () => Promise<AuthResult>;
@@ -47,7 +57,7 @@ interface AuthState {
   reauthenticate: (password: string) => Promise<AuthResult>;
   changePassword: (current: string, next: string) => Promise<AuthResult>;
   changeEmail: (email: string) => Promise<AuthResult>;
-  updateDisplayName: (name: string) => Promise<void>;
+  updateDisplayName: (name: string) => Promise<AuthResult>;
   deleteAccount: () => Promise<AuthResult>;
   setNeedsReauth: (v: boolean) => void;
 }
@@ -68,13 +78,18 @@ export const useAuthStore = create<AuthState>((set, get) => {
   }
 
   /** この端末でこのユーザーとして使い始める（端末内DBを開き、状態を保存する）。 */
-  async function enter(identity: Identity, options: { seedTutorial?: boolean } = {}) {
+  async function enter(
+    identity: Identity,
+    options: { seedTutorial?: boolean; isCurrent?: () => boolean } = {},
+  ) {
     await useDataStore.getState().open(identity.userId, identity.userId);
+    if (options.isCurrent && !options.isCurrent()) return;
 
     // 新規登録・ゲスト開始では TUTORIAL を優先して選択する。
     const tutorialProjectId = options.seedTutorial
       ? await useDataStore.getState().seedTutorial()
       : null;
+    if (options.isCurrent && !options.isCurrent()) return;
     const availableProjects = visibleProjects(useDataStore.getState().projects);
     const savedProjectId = useSettingsStore.getState().settings.lastProjectId;
     const savedProject = availableProjects.find((p) => p.id === savedProjectId);
@@ -82,12 +97,14 @@ export const useAuthStore = create<AuthState>((set, get) => {
       tutorialProjectId ?? savedProject?.id ?? availableProjects[0]?.id ?? null;
 
     // 保存済みのプロジェクトがこのユーザーのデータに存在しない場合も、先頭のプロジェクトへ合わせる。
+    if (options.isCurrent && !options.isCurrent()) return;
     if (savedProjectId !== initialProjectId) {
       useSettingsStore.getState().update({ lastProjectId: initialProjectId });
     }
 
     await persist(identity);
-    set({ identity, status: identity.mode, needsReauth: false });
+    if (options.isCurrent && !options.isCurrent()) return;
+    set({ identity, status: identity.mode, needsReauth: false, bootstrapError: null });
   }
 
   /** 端末内のデータを消してログイン画面へ戻す。 */
@@ -112,29 +129,130 @@ export const useAuthStore = create<AuthState>((set, get) => {
     status: 'loading',
     identity: null,
     needsReauth: false,
+    bootstrapError: null,
 
     async bootstrap() {
-      let identity: Identity | null = null;
-      try {
-        const raw = await kv.get(IDENTITY_KEY);
-        identity = raw ? (JSON.parse(raw) as Identity) : null;
-      } catch {
-        identity = null;
-      }
-      // 通信せず、端末に保存した情報だけで判断する（オフラインでもそのままメイン画面へ）
-      if (identity) await enter(identity);
-      else set({ status: 'signedOut' });
+      // React Strict Mode などで bootstrap が重複しても DB を二重に開かない。
+      if (bootstrapInFlight) return bootstrapInFlight;
+      const generation = ++bootstrapGeneration;
+      set({ status: 'loading', bootstrapError: null });
 
-      getSupabase()?.auth.onAuthStateChange((event, session) => {
-        const current = get();
-        if (event === 'SIGNED_OUT' && current.status === 'account' && !current.identity?.local) {
-          set({ needsReauth: true });
-        } else if (event === 'USER_UPDATED' && current.identity && session?.user.email) {
-          const next = { ...current.identity, email: session.user.email };
-          void persist(next);
-          set({ identity: next });
+      let timeoutId: ReturnType<typeof setTimeout> | undefined;
+      const work = (async () => {
+        const raw = await kv.get(IDENTITY_KEY);
+        let identity: Identity | null = null;
+        try {
+          const parsed = raw ? (JSON.parse(raw) as Partial<Identity>) : null;
+          if (
+            parsed &&
+            (parsed.mode === 'guest' || parsed.mode === 'account') &&
+            typeof parsed.userId === 'string' &&
+            typeof parsed.email === 'string' &&
+            typeof parsed.displayName === 'string'
+          )
+            identity = parsed as Identity;
+        } catch {
+          identity = null;
         }
+        if (generation !== bootstrapGeneration) return;
+
+        // 通信せず、端末に保存した情報だけで判断する（オフラインでも起動できる）。
+        if (identity) {
+          await enter(identity, { isCurrent: () => generation === bootstrapGeneration });
+        } else {
+          set({ status: 'signedOut', bootstrapError: null });
+        }
+
+        if (generation !== bootstrapGeneration) return;
+        const client = getSupabase();
+        if (client && !authListenerAttached) {
+          authListenerAttached = true;
+          client.auth.onAuthStateChange((event, session) => {
+            const current = get();
+            if (
+              event === 'SIGNED_OUT' &&
+              current.status === 'account' &&
+              !current.identity?.local
+            ) {
+              set({ needsReauth: true });
+            } else if (
+              event === 'USER_UPDATED' &&
+              current.identity &&
+              session?.user.id === current.identity.userId
+            ) {
+              const next = {
+                ...current.identity,
+                email: session.user.email ?? current.identity.email,
+                displayName: displayNameOf(session.user),
+              };
+              void persist(next);
+              set({ identity: next });
+            }
+          });
+        }
+      })();
+
+      const timeout = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new Error(t('app.startupTimeout'))),
+          BOOTSTRAP_TIMEOUT_MS,
+        );
       });
+      let operation: Promise<void>;
+      operation = Promise.race([work, timeout])
+        .catch((error: unknown) => {
+          // タイムアウト後に遅れて完了した処理が状態を上書きしないよう無効化する。
+          bootstrapGeneration += 1;
+          const message = error instanceof Error ? error.message : t('app.startupErrorMessage');
+          set({ status: 'error', bootstrapError: message });
+        })
+        .finally(() => {
+          if (timeoutId) clearTimeout(timeoutId);
+          if (bootstrapInFlight === operation) bootstrapInFlight = null;
+        });
+      bootstrapInFlight = operation;
+      return operation;
+    },
+
+    setBootstrapError(message) {
+      if (message !== null) bootstrapGeneration += 1;
+      set(
+        message === null
+          ? { status: 'loading', bootstrapError: null }
+          : { status: 'error', bootstrapError: message },
+      );
+    },
+
+    async refreshRemoteIdentity() {
+      if (identityRefreshInFlight) return identityRefreshInFlight;
+      const identity = get().identity;
+      const client = getSupabase();
+      if (!identity || identity.local || !client) return;
+      const request = (async () => {
+        try {
+          const { data, error } = await client.auth.getUser();
+          if (error || !data.user || data.user.id !== identity.userId) return;
+          const latest: Identity = {
+            ...identity,
+            email: data.user.email ?? identity.email,
+            displayName: displayNameOf(data.user),
+          };
+          if (latest.email === identity.email && latest.displayName === identity.displayName)
+            return;
+          // 通信中に別のアカウントへ切り替わっていた場合は、古い結果を適用しない。
+          if (get().identity?.userId !== data.user.id) return;
+          await persist(latest);
+          if (get().identity?.userId === data.user.id) set({ identity: latest });
+        } catch {
+          // オフラインでは端末内の表示を維持し、次回のフォーカス時に再取得する。
+        }
+      })();
+      identityRefreshInFlight = request;
+      try {
+        await request;
+      } finally {
+        if (identityRefreshInFlight === request) identityRefreshInFlight = null;
+      }
     },
 
     async signIn(email, password) {
@@ -300,12 +418,30 @@ export const useAuthStore = create<AuthState>((set, get) => {
         return notConfigured();
       try {
         const normalized = normalizeEmail(email);
-        const { data, error } = await client.auth.updateUser({ email: normalized });
-        if (error) return { ok: false, message: mapAuthError(error) };
-        if (data.user.new_email) {
-          return { ok: true, message: t('settings.emailChangePending') };
+        // Auth の通常 updateUser({ email }) は確認メールを伴うため、認証済みの呼び出し元を
+        // Edge Function 側で検証し、Admin API で本人のメールアドレスを直接更新する。
+        const { data, error } = await client.functions.invoke<{ email?: string }>('change-email', {
+          body: { email: normalized },
+        });
+        if (error) {
+          const response = (error as { context?: Response }).context;
+          if (response && typeof response.clone === 'function') {
+            try {
+              const payload = (await response.clone().json()) as {
+                code?: string;
+                message?: string;
+              };
+              if (payload.code === 'email_in_use')
+                return { ok: false, message: t('auth.error.userExists') };
+              if (payload.message) return { ok: false, message: payload.message };
+            } catch {
+              // HTTP 応答が JSON でない場合は通常のエラー変換へ進む。
+            }
+          }
+          return { ok: false, message: mapAuthError(error) };
         }
-        const next = { ...identity, email: data.user.email ?? normalized };
+        const updatedEmail = data?.email ?? normalized;
+        const next = { ...identity, email: updatedEmail };
         await persist(next);
         set({ identity: next });
         return { ok: true, message: t('settings.emailChanged') };
@@ -316,16 +452,29 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
     async updateDisplayName(name) {
       const identity = get().identity;
-      if (!identity) return;
-      const next = { ...identity, displayName: name.trim() };
-      await persist(next);
-      set({ identity: next });
-      if (!identity.local) {
-        try {
-          await getSupabase()?.auth.updateUser({ data: { display_name: next.displayName } });
-        } catch {
-          /* オフライン時は端末内のみ更新 */
+      if (!identity) return notConfigured();
+      const normalized = name.trim();
+      try {
+        let next: Identity = { ...identity, displayName: normalized };
+        if (!identity.local) {
+          const client = getSupabase();
+          if (!client) return notConfigured();
+          // 先にサーバーへ保存し、失敗したのに端末だけ成功表示になることを防ぐ。
+          const { data, error } = await client.auth.updateUser({
+            data: { display_name: normalized },
+          });
+          if (error) return { ok: false, message: mapAuthError(error) };
+          next = {
+            ...next,
+            email: data.user.email ?? identity.email,
+            displayName: displayNameOf(data.user),
+          };
         }
+        await persist(next);
+        set({ identity: next });
+        return { ok: true };
+      } catch (e) {
+        return fail(e, t('settings.onlineOnly'));
       }
     },
 

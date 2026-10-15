@@ -163,7 +163,7 @@ function AccountSections() {
   const { confirm, toast } = useFeedback();
   const identity = useAuthStore((s) => s.identity);
   const [name, setName] = useState(identity?.displayName ?? '');
-  const [nameMessage, setNameMessage] = useState<string | null>(null);
+  const [nameMessage, setNameMessage] = useState<{ text: string; ok: boolean } | null>(null);
   const [email, setEmail] = useState(identity?.email ?? '');
   const [emailSubmitted, setEmailSubmitted] = useState(false);
   const [emailBusy, setEmailBusy] = useState(false);
@@ -187,11 +187,13 @@ function AccountSections() {
   const saveName = async () => {
     const error = validateMaxLength(name, LIMITS.displayNameMax);
     if (error) {
-      setNameMessage(error);
+      setNameMessage({ text: error, ok: false });
       return;
     }
-    await useAuthStore.getState().updateDisplayName(name);
-    setNameMessage(t('settings.profileSaved'));
+    const res = await useAuthStore.getState().updateDisplayName(name);
+    setNameMessage(
+      res.ok ? { text: t('settings.profileSaved'), ok: true } : { text: res.message, ok: false },
+    );
   };
 
   const changeEmail = async () => {
@@ -261,7 +263,7 @@ function AccountSections() {
             }}
             error={validateMaxLength(name, LIMITS.displayNameMax)}
           />
-          <Message text={nameMessage} ok />
+          <Message text={nameMessage?.text ?? null} ok={nameMessage?.ok} />
           <Button label={t('settings.saveProfile')} variant="secondary" onPress={saveName} />
         </View>
       </Section>

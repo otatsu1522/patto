@@ -252,9 +252,9 @@ pnpm dlx supabase migration list
 
 親子の外部キーは付けない。端末ごとに届く順番が違っても同期が止まらないようにするため。
 
-## 4. Edge Function（アカウント・ゲストの削除）
+## 4. Edge Function（アカウント操作）
 
-`supabase/functions/delete-account/index.ts` をデプロイする。
+`delete-account` はアカウント／ゲストの削除用、`change-email` は確認メールを送らずにメールアドレスを変更するための関数です。両方をデプロイしてください。
 
 Supabase CLI へのログインとプロジェクト接続がまだ済んでいない場合は、先に以下を実行する。
 
@@ -267,13 +267,14 @@ pnpm dlx supabase link --project-ref <プロジェクトのref>
 
 ```powershell
 pnpm dlx supabase functions deploy delete-account
+pnpm dlx supabase functions deploy change-email
 ```
 
 `SUPABASE_URL` と Supabase のキーは、Edge Function の実行環境に提供される。環境変数名は関数の実装に合わせる。現在は新しい形式の `SUPABASE_PUBLISHABLE_KEYS` / `SUPABASE_SECRET_KEYS` に加え、互換用の `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` も利用できる。
 
 これらの管理者権限のキーはアプリに入れず、Edge Function の中でだけ使う。Supabase が提供する値を使う構成なら、自分でアプリの環境変数に設定する必要はない。
 
-未デプロイでもアプリは動くが、「アカウント削除」と、ゲストの「ログイン画面に戻る」時のサーバー側データ削除が実行されない。
+未デプロイでもアプリは起動しますが、`delete-account` がないとアカウント／ゲストのサーバー側削除が実行されません。`change-email` がないとメールアドレスの変更は失敗します。`change-email` はログイン中の本人の JWT を検証してから Admin API を呼び、確認メールなしで Auth のメールアドレスを直接更新します。管理者キーは Edge Function 内だけで使い、アプリに含めません。
 
 デプロイ完了の表示だけで実動作まで保証されるわけではないため、アカウント削除とゲスト削除は、実際のアプリから動作確認する。
 
@@ -313,6 +314,7 @@ Supabase の公式手順では、匿名ユーザーにメールを紐付けた�
 - [ ] Supabase CLI の初期化・ログイン・プロジェクト接続を行った
 - [ ] マイグレーションを適用し、ローカルとリモートの履歴が一致している
 - [ ] `delete-account` Edge Function をデプロイした
+- [ ] `change-email` Edge Function をデプロイした（確認メールなしのメール変更に必要）
 - [ ] Authentication で Email provider が有効になっている
 - [ ] Confirm email がオフで、新規登録時に確認メールが送信されない
 - [ ] Allow anonymous sign-ins がオンで、「ゲストで使用」が使える（初回のみオンライン必須）

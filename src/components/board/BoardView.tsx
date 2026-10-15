@@ -35,7 +35,7 @@ import {
 } from '@/hooks/useLayout';
 import { t } from '@/i18n';
 import type { Cursor } from '@/shortcuts/cursor';
-import { BORDER_WIDTH, RADIUS, SHADOW, SPACING, useTheme } from '@/theme';
+import { BORDER_WIDTH, RADIUS, SEPARATOR_WIDTH, SHADOW, SPACING, useTheme } from '@/theme';
 import { AppText } from '../ui/AppText';
 import { Sidebar } from '../shell/Sidebar';
 import { EmptyState } from '../ui/EmptyState';
@@ -143,6 +143,15 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
   /** スマホでは、メニューを画面の上端まで広げるため、カンバンの上にヘッダーの高さの空きを作る */
   const headerOffset = pane ? BOARD.headerHeight : 0;
   const menuVisible = pane && scrollX < closedX - 2;
+  const pagerOpacity = useMemo(
+    () =>
+      scrollAnim.interpolate({
+        inputRange: [0, Math.max(1, closedX)],
+        outputRange: [0, 1],
+        extrapolate: 'clamp',
+      }),
+    [scrollAnim, closedX],
+  );
   const closedXRef = useRef(closedX);
   closedXRef.current = closedX;
   const scrollUiSnapshotRef = useRef<ScrollUiSnapshot | null>(null);
@@ -290,11 +299,19 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
       useUiStore.setState({ menuVisible: nextMenuVisible });
     }
   };
-  // スクロール位置をアニメーション値に渡す（ヘッダーをカンバンと同じ動きで動かすため。ネイティブ側で処理するのでずれない）
-  const onScroll = Animated.event([{ nativeEvent: { contentOffset: { x: scrollAnim } } }], {
-    useNativeDriver: Platform.OS !== 'web',
-    listener: onScrollEvent,
-  });
+  // Web では Animated.event の値反映が描画フレームより遅れることがあるため、
+  // 実際の scroll イベント内でヘッダー／フッター用の Animated.Value を同期する。
+  // ネイティブは従来どおり native driver を使い、JS 再描画を毎フレーム発生させない。
+  const onScroll =
+    Platform.OS === 'web'
+      ? (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+          scrollAnim.setValue(event.nativeEvent.contentOffset.x);
+          onScrollEvent(event);
+        }
+      : Animated.event([{ nativeEvent: { contentOffset: { x: scrollAnim } } }], {
+          useNativeDriver: true,
+          listener: onScrollEvent,
+        });
   const onScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const x = e.nativeEvent.contentOffset.x;
     scrollXRef.current = x;
@@ -624,6 +641,7 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                 style={[
                   styles.pagerFooter,
                   {
+                    opacity: pagerOpacity,
                     height: pagerHeight,
                     left: pane ? menuEdgeLeft : 0,
                     backgroundColor: colors.bg,
@@ -632,29 +650,27 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                   },
                 ]}
               >
-                {!menuVisible ? (
-                  <View style={styles.dots}>
-                    {columns.map((c, i) => (
-                      <Pressable
-                        key={c.id}
-                        accessibilityRole="button"
-                        accessibilityLabel={c.title}
-                        onPress={() => scrollToX(offsets[i] ?? 0)}
-                        hitSlop={8}
-                      >
-                        <View
-                          style={[
-                            styles.dot,
-                            { backgroundColor: i === page ? colors.text : colors.border },
-                          ]}
-                        />
-                      </Pressable>
-                    ))}
-                    <AppText variant="caption" muted style={styles.pageText}>
-                      {t('board.pageIndicator', { index: page + 1, total: columns.length })}
-                    </AppText>
-                  </View>
-                ) : null}
+                <View style={styles.dots}>
+                  {columns.map((c, i) => (
+                    <Pressable
+                      key={c.id}
+                      accessibilityRole="button"
+                      accessibilityLabel={c.title}
+                      onPress={() => scrollToX(offsets[i] ?? 0)}
+                      hitSlop={8}
+                    >
+                      <View
+                        style={[
+                          styles.dot,
+                          { backgroundColor: i === page ? colors.text : colors.border },
+                        ]}
+                      />
+                    </Pressable>
+                  ))}
+                  <AppText variant="caption" muted style={styles.pageText}>
+                    {t('board.pageIndicator', { index: page + 1, total: columns.length })}
+                  </AppText>
+                </View>
               </Animated.View>
             ) : null}
           </>
@@ -710,6 +726,19 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                 },
               ]}
             />
+            {/* ScrollView 内の Sidebar の border が合成レイヤー移動中に一瞬欠ける Web 対策。
+                同じ Animated.Value に追従する独立線を常に描画する。 */}
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.menuEdgeLine,
+                {
+                  left: menuEdgeLeft,
+                  width: SEPARATOR_WIDTH,
+                  backgroundColor: colors.border,
+                },
+              ]}
+            />
           </>
         ) : null}
       </View>
@@ -722,6 +751,7 @@ const styles = StyleSheet.create({
   menuPane: { flexDirection: 'row' },
   headerOverlay: { position: 'absolute', left: 0, right: 0, top: 0 },
   headerLineBridge: { position: 'absolute', zIndex: 30 },
+  menuEdgeLine: { position: 'absolute', top: 0, bottom: 0, zIndex: 40, elevation: 40 },
   navBtn: {
     position: 'absolute',
     top: 0,

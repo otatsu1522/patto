@@ -5,6 +5,11 @@
 export const ja = {
   // 起動
   'app.pressBackAgain': 'もう一度戻るとアプリを終了します。',
+  'app.startupErrorTitle': 'アプリを起動できませんでした',
+  'app.startupErrorMessage':
+    '起動処理が完了しませんでした。ほかの Patto のタブを閉じてから、再試行してください。',
+  'app.startupTimeout':
+    '起動処理が時間内に完了しませんでした。ほかの Patto のタブを閉じて再試行してください。',
   'app.webNotIsolated':
     'この環境では Web 版を動かせません。ページに COOP / COEP ヘッダーが付いていません（docs/DEPLOY.md の「HTTPヘッダーとWASM」を確認してください）。',
 
@@ -233,7 +238,7 @@ export const ja = {
   'board.clearNothing': 'クリアするものはありません',
   'board.clearNeedsSync': 'クリアは同期を行ってから実行します。インターネットに接続してください。',
   'board.clearDone': 'クリアしました（{count} 件）',
-  'board.search': 'カンバン内を検索',
+  'board.search': 'プロジェクト内を検索',
   'board.searchEmpty': '一致するタスクはありません',
   'board.archiveTitle': 'アーカイブ',
   'board.trashTitle': 'ごみ箱',
@@ -311,7 +316,7 @@ export const ja = {
     'データを初期化できませんでした。接続とログイン状態を確認してください。',
   'settings.emailChange': 'メールアドレスの変更',
   'settings.emailChangeHint':
-    '新しいメールアドレスを入力します。確認メールが送信される場合があります。',
+    '新しいメールアドレスを入力します。変更はすぐに反映され、確認メールは送信されません。',
   'settings.emailSame': '現在と同じメールアドレスです。',
   'settings.displayNameHint': 'アプリ内で表示する名前を変更します。',
   'settings.passwordChangeHint': '現在のパスワードを確認して、新しいパスワードに変更します。',

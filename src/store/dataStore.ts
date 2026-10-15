@@ -131,6 +131,13 @@ export const useDataStore = create<DataState>((set, get) => {
 
   const now = () => nowMs();
   const owner = () => get().ownerId;
+  // bootstrap / Strict Mode / account transitions may request open or close concurrently.
+  let dbLifecycleQueue: Promise<void> = Promise.resolve();
+  const enqueueDbLifecycle = (operation: () => Promise<void>): Promise<void> => {
+    const result = dbLifecycleQueue.then(operation, operation);
+    dbLifecycleQueue = result.catch(() => undefined);
+    return result;
+  };
 
   const activeColumns = (projectId: string) => columnsOf(get().columns, projectId);
   const column = (id: string) => get().columns.find((c) => c.id === id);
@@ -158,16 +165,40 @@ export const useDataStore = create<DataState>((set, get) => {
     ready: false,
 
     async open(scope, ownerId) {
-      if (db) await db.close();
-      db = await openLocalDb(scope);
-      const snap = await db.loadAll();
-      set({ ...snap, scope, ownerId, ready: true });
+      await enqueueDbLifecycle(async () => {
+        if (db && get().ready && get().scope === scope) {
+          if (get().ownerId !== ownerId) set({ ownerId });
+          return;
+        }
+        set({ ready: false });
+        if (db) {
+          const previous = db;
+          db = null;
+          await previous.close();
+        }
+        const opened = await openLocalDb(scope);
+        try {
+          const snap = await opened.loadAll();
+          db = opened;
+          set({ ...snap, scope, ownerId, ready: true });
+        } catch (error) {
+          await opened.close().catch(() => undefined);
+          db = null;
+          set({ ready: false });
+          throw error;
+        }
+      });
     },
 
     async close() {
-      if (db) await db.close();
-      db = null;
-      set({ ...emptySnapshot(), scope: null, ownerId: '', ready: false });
+      await enqueueDbLifecycle(async () => {
+        if (db) {
+          const previous = db;
+          db = null;
+          await previous.close();
+        }
+        set({ ...emptySnapshot(), scope: null, ownerId: '', ready: false });
+      });
     },
 
     async reload() {

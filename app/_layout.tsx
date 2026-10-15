@@ -1,7 +1,7 @@
 import { Slot } from 'expo-router';
 import * as SystemUI from 'expo-system-ui';
 import { useEffect } from 'react';
-import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, AppState, Platform, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/auth/authStore';
@@ -15,6 +15,7 @@ import { useDataStore } from '@/store/dataStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { configureSync, startAutoSync } from '@/sync/controller';
 import { AppText } from '@/components/ui/AppText';
+import { Button } from '@/components/ui/Button';
 import { t } from '@/i18n';
 import { ThemeProvider, useTheme } from '@/theme';
 
@@ -42,6 +43,10 @@ function Boot() {
   const { colors, isDark } = useTheme();
   const loaded = useSettingsStore((s) => s.loaded);
   const status = useAuthStore((s) => s.status);
+  const bootstrapError = useAuthStore((s) => s.bootstrapError);
+  const remoteIdentityId = useAuthStore((s) =>
+    s.identity && !s.identity.local ? s.identity.userId : null,
+  );
   const ready = useDataStore((s) => s.ready);
   const ownerId = useAuthStore((s) => s.identity?.userId);
   const isLocal = useAuthStore((s) => !!s.identity?.local);
@@ -59,11 +64,65 @@ function Boot() {
   }, [colors.bg]);
 
   useEffect(() => {
-    void useSettingsStore
-      .getState()
-      .load()
-      .then(() => useAuthStore.getState().bootstrap());
+    let cancelled = false;
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      if (cancelled || useAuthStore.getState().status !== 'loading') return;
+      timedOut = true;
+      useAuthStore.getState().setBootstrapError(t('app.startupTimeout'));
+    }, 25_000);
+
+    void (async () => {
+      try {
+        await useSettingsStore.getState().load();
+        if (cancelled || timedOut) return;
+        await useAuthStore.getState().bootstrap();
+      } catch (error) {
+        if (cancelled) return;
+        useAuthStore
+          .getState()
+          .setBootstrapError(error instanceof Error ? error.message : t('app.startupErrorMessage'));
+      }
+    })();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, []);
+
+  // Supabase の user_metadata はアカウント共通。別端末で更新された表示名・メールを、
+  // フォーカス復帰時と表示中の定期確認で取り込み、端末内キャッシュのままにしない。
+  useEffect(() => {
+    if (!remoteIdentityId || !isSupabaseConfigured) return;
+    const refresh = () => {
+      if (Platform.OS === 'web') {
+        if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+          void useAuthStore.getState().refreshRemoteIdentity();
+        }
+      } else if (AppState.currentState === 'active') {
+        void useAuthStore.getState().refreshRemoteIdentity();
+      }
+    };
+
+    refresh();
+    const interval = setInterval(refresh, 60_000);
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof document !== 'undefined') {
+      window.addEventListener('focus', refresh);
+      document.addEventListener('visibilitychange', refresh);
+      return () => {
+        clearInterval(interval);
+        window.removeEventListener('focus', refresh);
+        document.removeEventListener('visibilitychange', refresh);
+      };
+    }
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refresh();
+    });
+    return () => {
+      clearInterval(interval);
+      subscription.remove();
+    };
+  }, [remoteIdentityId]);
 
   useEffect(() => {
     configureSync({
@@ -105,6 +164,29 @@ function Boot() {
         <SystemBars />
         <View style={styles.center}>
           <AppText style={styles.notice}>{t('app.webNotIsolated')}</AppText>
+        </View>
+      </View>
+    );
+  }
+  if (status === 'error') {
+    const retryStartup = async () => {
+      useAuthStore.getState().setBootstrapError(null);
+      try {
+        await useSettingsStore.getState().load();
+        await useAuthStore.getState().bootstrap();
+      } catch (error) {
+        useAuthStore
+          .getState()
+          .setBootstrapError(error instanceof Error ? error.message : t('app.startupErrorMessage'));
+      }
+    };
+    return (
+      <View style={[styles.fill, { backgroundColor: colors.bg }]}>
+        <SystemBars />
+        <View style={[styles.center, { gap: 16 }]}>
+          <AppText variant="title">{t('app.startupErrorTitle')}</AppText>
+          <AppText style={styles.notice}>{bootstrapError ?? t('app.startupErrorMessage')}</AppText>
+          <Button label={t('common.retry')} onPress={() => void retryStartup()} />
         </View>
       </View>
     );
