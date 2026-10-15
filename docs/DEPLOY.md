@@ -1,4 +1,4 @@
-# Web版の公開（Cloudflare Pages Free）
+# ブラウザ版の公開（Cloudflare Pages のセットアップ）
 
 Web版の Patto を Cloudflare Pages Free で公開する。GitHub の `main` ブランチに push すると、自動でビルド・公開される構成にする。
 

@@ -2,7 +2,6 @@
 
 オフラインでも使える、シンプルなカンバン式 TODO アプリ。
 Android・iOS・Web を1つのコードで動かします。
-初回起動時に、使い方を載せた TUTORIAL プロジェクトが入ります。
 
 - フレームワーク: Expo (React Native) + Expo Router / TypeScript
 - ローカルDB: expo-sqlite（オフラインで動作）
@@ -79,8 +78,9 @@ pnpm install
 # 2) 環境変数を用意する（Supabase を使う場合）
 cp .env.example .env.local
 #    .env.local を開いて、Supabase の URL と Publishable Key を書く
-#    取得方法は docs/BACKEND.md
 ```
+
+※Supabaseの設定値の取得方法は [docs/BACKEND.md](docs/BACKEND.md) を参照。
 
 Windows PowerShell で環境変数ファイルを作成する場合は、次のコマンドを使用します。
 
@@ -109,9 +109,9 @@ Android エミュレーターを使用する場合は、Android の開発環境�
 
 ## 4. Supabase の準備
 
-`docs/BACKEND.md` の手順で、プロジェクト作成 → 認証設定 → SQL 実行 → Edge Function のデプロイを行います。
+[docs/BACKEND.md](docs/BACKEND.md) の手順で、プロジェクト作成 → 認証設定 → SQL 実行 → Edge Function のデプロイを行います。
 
-環境変数の取得・設定方法は `docs/BACKEND.md` を参照してください。
+環境変数の取得・設定方法は [docs/BACKEND.md](docs/BACKEND.md) を参照してください。
 
 Supabase を設定しなくても、端末内へのデータ保存とゲスト利用はできます。その場合、クラウド同期は行われません。
 
@@ -129,7 +129,7 @@ Supabase を設定しなくても、端末内へのデータ保存とゲスト�
 
 ## 6. Web 版の公開
 
-Cloudflare Pages に GitHub 連携で公開します。手順は `docs/DEPLOY.md` を参照してください。
+Cloudflare Pages に GitHub 連携で公開します。手順は [docs/DEPLOY.md](docs/DEPLOY.md) を参照してください。
 
 Web 版のビルドは次のコマンドで実行できます。
 
@@ -141,7 +141,7 @@ pnpm export:web
 
 ## 7. Android・iOS アプリのビルド・配布
 
-Android APK の作成、iPhone 実機へのインストール、EAS Build の設定、署名、環境変数、料金などの手順は、専用ドキュメント `docs/BUILD.md` を参照してください。
+Android APK の作成、iPhone 実機へのインストール、EAS Build の設定、署名、環境変数、料金などの手順は、専用ドキュメント [docs/BUILD.md](docs/BUILD.md) を参照してください。
 
 ## 8. ディレクトリ構成
 
@@ -189,4 +189,4 @@ patto/
 
 ## 10. ライセンス
 
-**MIT LICENSE** (`LICENSE` を参照してください。)
+**MIT LICENSE** ([LICENSE](LICENSE) を参照してください。)

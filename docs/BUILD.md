@@ -1,70 +1,127 @@
-# ビルド手順（EAS Build）
+# ネイティブアプリの公開（EAS Build）
 
-Android 端末へ直接インストールできる APK と、iPhone へ直接インストールできる iOS アプリを、Expo の EAS Build で作成する手順。Google Play や App Store への公開は対象外とする。
+Android 端末へ直接インストールできる APK と、iPhone 実機へ直接インストールできる iOS アプリを、Expo の EAS Build で作成する手順。Google Play や App Store への公開は対象外とする。
 
-この文書では、**共通設定・ビルド前の確認**と、**Android・iOS それぞれの実際のビルド**を分ける。設定だけを済ませて終了する場合は、手順 5 および手順 6 のビルドコマンドを実行しない。
+この文書では、**共通の事前確認、Android APK の作成・インストール、後日行う iOS 実機用ビルド**を順番に説明する。設定や事前確認だけではビルドは開始されない。実際にクラウドビルドを開始するのは、Android の手順 5 または iOS の手順 7 で指定する `build` コマンドを実行したときだけ。
 
-EAS Build はクラウド上で実行されるため、iOS のビルドでもローカルの Mac は必要ない。ただし、iPhone 実機へ直接インストールする場合は、Apple の署名・配布ルールに従う必要がある。
+EAS Build はクラウドで実行されるため、Android・iOS のビルドにローカルの Android Studio や Mac は必須ではない。ただし、iPhone 実機へ直接インストールする iOS ビルドには Apple の署名・端末登録などの条件がある。
 
-## 0. 現在の状態
+## 0. 現在の設定
 
-- プロジェクト：`patto`
+このプロジェクトについて、次の設定が確認済み。
+
+- プロジェクト名：`patto`
 - Node.js：`v24.18.0`
+- pnpm：`12.4.1`
 - Expo アカウント：`otatsu`
 - EAS プロジェクト：`@otatsu/patto`
 - EAS project ID：`a2f9e536-0aa9-4307-b82d-8f2cd433cd72`
-- `app.config.ts` に `extra.eas.projectId` を追加済み
-- `npx eas-cli build:configure` は Android を選択して正常終了し、`eas.json` が生成済み
-- Expo アカウントへのログイン確認済み（`npx eas-cli whoami` の結果は `otatsu`）
-- Android APK の実ビルドはまだ実行しない
-- iOS のビルド設定・署名設定・実ビルドの状況は別途確認する
+- Android アプリ ID：`dev.patto.app`
+- iOS Bundle ID：`dev.patto.app`
+- `app.config.ts` に `extra.eas.projectId` が設定済み
+- `eas.json` に `preview` プロファイルがあり、内部配布と `preview` 環境を使用する
+- Android の `preview` は APK を生成する設定
+- iOS 実機用の `preview` は内部配布（Ad Hoc）で使用できる設定
 
-EAS CLI は `pnpm dlx eas-cli` が pnpm のビルドスクリプト制限で失敗したため、以下では動作確認済みの `npx eas-cli` を使用する。
+アプリ名やアプリ ID は `src/config/app.info.json` から読み込まれる。Android のアプリ ID と iOS の Bundle ID は別の設定項目なので、理由なく変更しない。
 
-## 1. EAS プロジェクトの設定を確認する
+EAS CLI は `pnpm dlx eas-cli` が pnpm のビルドスクリプト制限で失敗したため、この文書では動作確認済みの `npx eas-cli` を使用する。
 
-### 1.1 `app.config.ts`
+## 1. ビルド前の共通確認
 
-既存の `config` オブジェクトに、次の設定が入っていることを確認する。既存の項目は削除しない。
+以下は設定の確認であり、クラウドビルドを開始しない。
 
-```typescript
-extra: {
-  eas: {
-    projectId: 'a2f9e536-0aa9-4307-b82d-8f2cd433cd72',
-  },
-},
-```
+### 1.1 プロジェクトのルートを確認する
 
-現在の `app.config.ts` は動的設定ファイルのため、EAS CLI は project ID を自動で書き込めなかった。上記 ID を手動で追加してから `build:configure` が正常終了した。
-
-### 1.2 Expo 設定の確認
-
-プロジェクトのルート（`package.json` があるディレクトリ）で実行する。
+PowerShell で、`package.json` が存在するプロジェクトのルートへ移動する。
 
 ```powershell
-npx expo config --type public
+Test-Path .\package.json
 ```
 
-出力で、少なくとも次の値を確認する。
+`True` と表示されることを確認する。
 
-- `android.package`：Android アプリを識別する一意の ID。現在は `src/config/app.info.json` の `androidPackage` から設定される
-- `ios.bundleIdentifier`：iOS アプリを識別する一意の ID
-- `extra.eas.projectId`：上記の EAS project ID
+### 1.2 Node.js・pnpm と依存関係を確認する
 
-`android.package` と `ios.bundleIdentifier` は、各プラットフォームでアプリを識別するための設定である。別アプリと衝突しない値になっていることを確認し、理由なく変更しない。
+```powershell
+node -v
+pnpm -v
+pnpm install --frozen-lockfile
+pnpm typecheck
+```
 
-`ios.bundleIdentifier` が未設定の場合は、既存の `app.config.ts` と関連する設定ファイルの構造を確認してから設定する。Android 用の設定や EAS project ID は変更しない。
+期待するバージョンは Node.js が `v24.18.0`、pnpm が `12.4.1`。`pnpm install --frozen-lockfile` が失敗する場合は、ロックファイルと `package.json` の不一致などを先に解消する。
+
+`pnpm typecheck` がエラーで終了した場合は、エラーを解消してからビルドする。
+
+### 1.3 Expo の設定を確認する
+
+```powershell
+pnpm exec expo config --type public
+```
+
+出力で、次の値を確認する。
+
+| 設定                   | 期待する値                             | 参照元                                         |
+| ---------------------- | -------------------------------------- | ---------------------------------------------- |
+| `android.package`      | `dev.patto.app`                        | `src/config/app.info.json` の `androidPackage` |
+| `ios.bundleIdentifier` | `dev.patto.app`                        | `src/config/app.info.json` の `iosBundleId`    |
+| `extra.eas.projectId`  | `a2f9e536-0aa9-4307-b82d-8f2cd433cd72` | `app.config.ts`                                |
+
+これらが異なる場合はビルドを実行せず、設定を確認する。`npx eas-cli build:configure` はすでに実行済みのため、今回あらためて実行する必要はない。
+
+### 1.4 EAS CLI のバージョンとログイン状態を確認する
+
+```powershell
+npx eas-cli --version
+npx eas-cli whoami
+```
+
+`whoami` が `otatsu` と表示されればログイン済み。ログインしていない場合、または別のアカウントが表示された場合は、次を実行してから再確認する。
+
+```powershell
+npx eas-cli login
+npx eas-cli whoami
+```
+
+`eas.json` では EAS CLI `24.12.1` 以上を要求する設定になっている。コマンドがその条件を満たしていることを確認する。
+
+### 1.5 ビルド用プロファイルを確認する
+
+```powershell
+Get-Content .\eas.json
+```
+
+現在の `build.preview` は次の設定を使用する。
+
+```json
+"preview": {
+  "distribution": "internal",
+  "environment": "preview",
+  "node": "24.18.0",
+  "android": {
+    "buildType": "apk"
+  }
+}
+```
+
+これは `build` オブジェクト内の `preview` プロファイルの一部である。既存の `development`、`production`、`cli`、`submit` などを削除して、上記だけに置き換えない。
+
+- `distribution: "internal"`：ストア公開ではなく、端末へ直接インストールするためのビルドを作成する。
+- `environment: "preview"`：EAS に登録した `preview` 環境の変数を使用する。
+- `node: "24.18.0"`：クラウドビルドでも使用する Node.js のバージョンを指定する。
+- `android.buildType: "apk"`：Android の成果物を APK にする。これは Android 専用なので iOS のビルド形式には影響しない。
+
+このプロファイルは Android と iOS の両方で使用できる。Android は APK、iOS 実機用は IPA が生成される。
 
 ## 2. EAS に Supabase の環境変数を登録する
 
-`.env.local` は Git にコミットしないため、クラウドビルドに必要な値を Expo のダッシュボードにも登録する。
-
-Android と iOS の両方で `preview` 環境を使用するため、同じ環境変数を共通設定として登録する。
+`.env.local` は Git 管理対象外であり、クラウドビルドでローカルの値が自動的に使われるとは限らない。Supabase を使用する場合は、EAS 側にも登録する。
 
 1. [Expo ダッシュボード](https://expo.dev/) に `otatsu` でログインする。
 2. `@otatsu/patto` プロジェクトを開く。
 3. **Project settings → Environment variables** を開き、**Add Variables** を選ぶ。
-4. 変数を 1 つずつ追加し、`Environment(s)` は `preview` を選ぶ。
+4. 次の2変数を登録する。`Environment(s)` はどちらも `preview`。
 
 | 項目           | 変数 1                      | 変数 2                                 |
 | -------------- | --------------------------- | -------------------------------------- |
@@ -73,212 +130,147 @@ Android と iOS の両方で `preview` 環境を使用するため、同じ環�
 | Environment(s) | `preview`                   | `preview`                              |
 | Visibility     | `Plain text`                | `Plain text`                           |
 
-値はローカルの `.env.local` から転記する。値を Markdown、Git、チャット、公開リポジトリへ貼り付けない。
+値はローカルの `.env.local` から転記する。実際の値をドキュメント、Git、チャット、公開リポジトリへ書き込まない。
 
-`EXPO_PUBLIC_` 付きの値はアプリのクライアント側に組み込まれ、アプリ利用者から確認できる。これは Supabase の Project URL と Publishable Key に限る。**`service_role` キーや Supabase Secret Key は登録しない。** データ保護は Supabase の RLS などで行う。
+`EXPO_PUBLIC_` 付きの値はアプリのクライアント側に組み込まれ、アプリ利用者から確認できる。登録するのは Supabase の Project URL と Publishable Key のみとし、**`service_role` キーや Supabase Secret Key は登録しない**。データ保護は Supabase の RLS などで行う。
 
-### 2.1 登録結果の確認（任意）
+### 2.1 登録結果の確認
 
 ```powershell
 npx eas-cli env:list --environment preview
 ```
 
-一覧に上記 2 つの変数名があることを確認する。値を画面共有やログに載せない。
+一覧に上記2変数が存在することを確認する。このコマンドの出力には変数値が含まれる場合があるため、画面共有や公開ログに貼り付けない。
 
-## 3. `eas.json` のビルドプロファイルを設定する
+Supabase を使用しない場合は、環境変数の登録は不要。ただし、その場合は Supabase 連携が必要な機能を使用できない。
 
-`eas.json` は `npx eas-cli build:configure` で生成済み。まず内容を確認する。
+## 3. Android APK の作成前チェック
 
-```powershell
-Get-Content .\eas.json
-```
+次の項目がすべて満たされていることを確認する。
 
-`build` の中にある `preview` プロファイルを、次の設定にする。
+- [ ] プロジェクトルートで作業している
+- [ ] Node.js が `v24.18.0`、pnpm が `12.4.1`
+- [ ] `pnpm install --frozen-lockfile` が成功する
+- [ ] `pnpm typecheck` が成功する
+- [ ] `android.package` と `extra.eas.projectId` が正しい
+- [ ] `eas.json` の `preview` に `distribution: "internal"`、`environment: "preview"`、`node: "24.18.0"` がある
+- [ ] `eas.json` の `preview.android.buildType` が `apk`
+- [ ] EAS CLI に `otatsu` でログインしている
+- [ ] Supabase を使う場合、EAS の `preview` 環境に2変数が登録されている
+- [ ] `.env.local`、秘密鍵、署名鍵を Git にコミットしていない
 
-```json
-{
-  "build": {
-    "preview": {
-      "distribution": "internal",
-      "environment": "preview",
-      "android": {
-        "buildType": "apk"
-      }
-    }
-  }
-}
-```
+ここで終了してもよい。ここまでの確認コマンドでは EAS Build は開始されない。
 
-これは設定例であり、既存の `eas.json` 全体をそのまま置き換えるものではない。既存の `development`、`production` などのビルドプロファイルや、トップレベルの `cli` などの設定がある場合は削除・置換せず、`preview` に必要な項目を統合する。
+## 4. Android APK をビルドする
 
-設定の意味：
-
-| 項目                       | 意味                                                |
-| -------------------------- | --------------------------------------------------- |
-| `distribution: "internal"` | ストア公開ではなく、ビルド成果物を直接配布する      |
-| `environment: "preview"`   | EAS の `preview` 環境変数をビルドで利用する         |
-| `android.buildType: "apk"` | Android 端末に直接インストールできる APK を生成する |
-
-`distribution` と `environment` は Android・iOS の共通設定として使用する。`android.buildType` は Android 専用の設定であり、iOS のビルド形式には影響しない。
-
-Google Play 用の標準成果物は通常 AAB だが、今回は直接インストール用の APK を作成する。iOS の実機用ビルドでは、内部配布用の IPA が生成される。
-
-## 4. 実際にビルドする前の共通確認
-
-ここまではビルドを実行しない設定作業。
-
-- [ ] `app.config.ts` に正しい `extra.eas.projectId` がある
-- [ ] `npx expo config --type public` の `android.package` と `extra.eas.projectId` が正しい
-- [ ] iOS もビルドする場合は `ios.bundleIdentifier` が正しい
-- [ ] `eas.json` の `build.preview` に `distribution: "internal"` と `environment: "preview"` がある
-- [ ] Android の APK を作成する場合は `android.buildType: "apk"` がある
-- [ ] Expo ダッシュボードの `preview` 環境に Supabase の 2 変数が登録されている
-- [ ] `.env.local` や Secret Key を Git にコミットしていない
-
-ここで設定だけを済ませて終了してよい。設定コマンドの実行だけではビルド回数を消費しない。
-
-**実際にビルドする段階になってから、対象プラットフォームのビルドコマンドを実行する。**
-
-## 5. Android APK をビルドして端末にインストールする
-
-### 5.1 APK をビルドする
-
-**APK を実際に作成するときだけ、次のコマンドを実行する。**
+**APK を実際に作成するときだけ、次のコマンドを実行する。** この操作により EAS のクラウドビルドが開始され、プランの利用枠や料金の対象となる。
 
 ```powershell
 npx eas-cli build --platform android --profile preview
 ```
 
-初回に Android の署名用認証情報（keystore）について質問された場合、既存の署名鍵を使う特別な理由がなければ、EAS に新しい keystore を生成・管理させる選択肢を使う。署名鍵は将来の更新版アプリにも関係するため、既存の鍵がある場合は不用意に新規作成しない。
+初回の署名設定で Android の keystore について質問された場合：
 
-ビルドは Expo のクラウド上で実行され、完了時にビルド結果への URL が表示される。`build:configure` は初期設定であり、APK の作成コマンドではない。
+- 既存の keystore がある場合は、それを維持して使用する。
+- まだ keystore がなく、初めてビルドする場合は、EAS に新しい keystore を生成・管理させる選択肢を使用する。
 
-### 5.2 APK をダウンロードして Android にインストールする
+keystore はアプリの今後の更新にも必要になる。EAS 管理の署名情報を不用意に削除・置換せず、自分で管理する場合も秘密情報として厳重に保管する。リポジトリへコミットしない。
 
-1. ビルド完了時に表示された URL、または Expo ダッシュボードの `@otatsu/patto` の Builds から該当ビルドを開く。
-2. APK を Android 端末にダウンロードする。
-3. Android の案内に従い、ダウンロード元アプリに一時的な「不明なアプリのインストール」権限が必要なら許可する。
-4. APK を開いてインストールし、必要に応じて許可を元に戻す。
+ビルドの進行状況はターミナルに表示される URL、または Expo ダッシュボードの `@otatsu/patto` → **Builds** で確認できる。
 
-### 5.3 Android の公式ドキュメント
+## 5. APK をダウンロードして Android にインストールする
 
-- [Android APK の作成・インストール](https://docs.expo.dev/build-reference/apk/)
-- [EAS Build の内部配布](https://docs.expo.dev/build/internal-distribution/)
-- [eas.json と Build Profile](https://docs.expo.dev/build/eas-json/)
+1. ビルド完了時に表示された URL、または Expo ダッシュボードの **Builds** から該当ビルドを開く。
+2. ビルド成果物の APK をダウンロードする。
+3. Android の案内に従い、必要な場合はダウンロード元アプリに「不明なアプリのインストール」を許可する。
+4. APK を開いてインストールする。インストール後は、必要に応じて許可を元に戻す。
+5. アプリを起動し、ログイン・ゲスト利用・データ保存・同期を確認する。
 
-## 6. iOS アプリをビルドして iPhone にインストールする
+同じアプリ ID の既存アプリを更新する場合、署名鍵が違うと上書きインストールできないことがある。アンインストールすると端末内 SQLite のデータが削除される可能性があるため、先にデータを確認・バックアップする。
 
-この手順では、iPhone 実機へ内部配布用の iOS アプリを直接インストールする。App Store への公開や TestFlight を利用した配布は対象外とする。
+## 6. iOS 実機ビルドの準備（後日実施）
 
-### 6.1 必要なアカウントと料金
+現在の `app.config.ts` には `ios.bundleIdentifier` が設定されており、`eas.json` の `preview` プロファイルも内部配布用になっている。**iOS 用に `android.buildType` を変更する必要はない**。この項目は Android の設定に限られる。
 
-iPhone 実機への直接インストールに Ad Hoc 方式の内部配布を使用する場合、原則として **Apple Developer Program への有料登録が必要**となる。
+### 6.1 Apple Developer Program
 
-| 項目                    | 内容                                                                                                           |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Apple Developer Program | 年額99米ドル（地域によって現地通貨で請求）                                                                     |
-| EAS Build Free プラン   | 現行の公式料金表では、Android は月15回、iOS は月15回までのビルド枠がある。ビルドは低優先度のキューで実行される |
-| 有料の EAS プラン       | ビルドの優先度や利用可能なリソースなどを増やすためのもの。iOS ビルドを行うために必須ではない                   |
+iPhone 実機へ EAS Build の内部配布用 IPA を直接インストールする場合、通常は Apple Developer Program の有料メンバーシップが必要となる。年会費は99米ドル（または地域の現地通貨相当額）。金額・登録条件は Apple の公式ページで確認する。
 
-Apple Developer Program の登録料と EAS の利用料金は別である。EAS の無料枠を超えて利用する場合は、プランの変更や追加の利用料金が必要になることがある。
+- [Apple Developer Program の登録と料金](https://developer.apple.com/help/account/membership/program-enrollment/)
 
-Apple Developer Program の登録後も、iPhone 実機への Ad Hoc 配布では、インストール対象の端末を登録して署名用のプロビジョニングプロファイルに含める必要がある。
+### 6.2 iPhone を登録する
 
-料金・利用枠は変更される可能性があるため、実際にビルドする前に公式ページで確認する。
-
-- [Apple Developer Program の登録・料金](https://developer.apple.com/help/account/membership/program-enrollment/)
-- [Expo EAS の料金プラン](https://expo.dev/pricing)
-
-### 6.2 iOS の設定と iPhone の登録を確認する
-
-手順 1.2 で確認した `ios.bundleIdentifier` が設定されていることを確認する。
-
-iPhone 実機への直接インストールに内部配布（Ad Hoc 方式）を使用する場合、対象の iPhone を登録し、その端末を含むプロビジョニングプロファイルを作成する。
-
-EAS CLI から端末登録を開始する。
+内部配布（Ad Hoc）では、インストール対象の iPhone を登録し、その端末を含むプロビジョニングプロファイルを使用する。準備を行う段階で、プロジェクトルートから次のコマンドを実行する。
 
 ```powershell
 npx eas-cli device:create
 ```
 
-表示される案内に従って iPhone を登録する。案内に従い、対象の iPhone で登録用 URL を開くなどして登録を完了する。
+対話形式の案内に従い、Apple Account・チーム・登録方法を選び、対象 iPhone で端末登録を完了する。登録済み端末は次で確認できる。
 
-新しく登録した端末を既存のビルドで使用できるとは限らない。端末の追加後は、その端末を含むプロビジョニングプロファイルで新しいビルドを作成する必要がある。
+```powershell
+npx eas-cli device:list
+```
 
-### 6.3 iOS 用のビルドを実行する
+端末を新しく追加した場合、以前作成した IPA がその端末にインストールできるとは限らない。新しい端末を含むプロビジョニングプロファイルで再ビルドするか、署名し直す必要がある。Apple Developer Program の新規登録直後などは、Apple 側の処理により端末の使用可能化に時間がかかる場合がある。
 
-`eas.json` の `preview` プロファイルで `distribution` が `internal`、`environment` が `preview` に設定されていることを確認する。
+### 6.3 iOS 実機用 IPA をビルドする
 
-Android の `android.buildType: "apk"` は Android 専用の設定であるため、iOS のビルド形式には影響しない。iPhone 実機用のビルドでは、内部配布用の IPA が生成される。
-
-**iOS アプリを実際にビルドするときだけ、次のコマンドを実行する。**
+後日、iPhone 実機用ビルドを作成する段階になったら、次のコマンドを使用する。
 
 ```powershell
 npx eas-cli build --platform ios --profile preview
 ```
 
-初回の署名設定では、Apple Developer Program に登録した Apple Account での認証や、署名用認証情報の設定を求められる場合がある。
+初回は Apple Account での認証や、証明書・プロビジョニングプロファイルの作成を求められる場合がある。既存の署名情報がない場合は EAS に生成・管理させる選択肢を使用できる。既存の証明書やプロファイルがある場合は不用意に置き換えない。
 
-既存の署名情報を使う必要がなければ、EAS に認証情報の生成・管理を任せる選択肢を使用する。既存の証明書やプロビジョニングプロファイルがある場合は、不用意に置き換えない。
+完了後、Expo ダッシュボードの **Builds** から該当ビルドを開き、登録済みの iPhone でインストールする。これは App Store 公開や TestFlight 配布ではなく、内部配布である。
 
-ビルドは Expo のクラウド上で実行され、完了時にビルド結果への URL が表示される。
-
-### 6.4 iPhone にインストールする
-
-1. ビルド完了後、Expo ダッシュボードで該当ビルドを開く。
-2. 表示されるインストール用リンクまたは QR コードを使用して、登録済みの iPhone にインストールする。
-3. アプリを起動し、ログイン・データ保存・Supabase 同期などの動作を確認する。
-
-Ad Hoc 方式では、ビルドに使用したプロビジョニングプロファイルに登録されている端末でのみアプリを実行できる。新しい端末を追加する場合は、端末登録後に新しいビルドを作成するか、既存ビルドの再署名が必要になる。
-
-### 6.5 iOS の公式ドキュメント
-
-- [iOS のビルド手順](https://docs.expo.dev/build-reference/ios-builds/)
-- [EAS Build の内部配布](https://docs.expo.dev/build/internal-distribution/)
-- [内部配布ビルドの作成・共有手順](https://docs.expo.dev/tutorial/eas/internal-distribution-builds/)
-- [Apple Developer Program の登録・料金](https://developer.apple.com/help/account/membership/program-enrollment/)
-- [Expo EAS の料金プラン](https://expo.dev/pricing)
+iOS シミュレーター用ビルドは別設定が必要であり、この節の iPhone 実機用ビルドとは異なる。
 
 ## 7. インストール後の確認
 
-Android・iOS のそれぞれでインストールしたアプリを起動し、次の項目を確認する。
+Android・iOS のそれぞれでアプリを起動し、次の項目を確認する。
 
 - [ ] アプリが起動し、エラーで終了しない
 - [ ] 新規登録・ログイン・ゲスト利用が動く
-- [ ] Supabase との同期が有効な状態でデータを保存し、再起動後もデータが残っている
-- [ ] 同期を使わない場合も、SQLite に保存したローカルデータが残っている
+- [ ] Supabase 同期が有効な場合、データを保存して再起動してもデータが残る
+- [ ] 同期を使わない場合も、SQLite のローカルデータが残る
 - [ ] ネットワークを切った状態で、想定しているオフライン操作ができる
-- [ ] 必要に応じて、アカウント切り替え・削除機能を実際のテストアカウントで確認する
+- [ ] 必要に応じて、アカウント切り替え・削除機能をテストアカウントで確認する
 
-`EXPO_PUBLIC_` の値を変更した場合、値はアプリのクライアント側に組み込まれるため、変更後に対象プラットフォームの新しいビルドを作成する。
+`EXPO_PUBLIC_` の値を変更した場合、その値はアプリのクライアント側に組み込まれるため、変更後に対象プラットフォームの新しいビルドを作成する。
 
 ## 8. よくある警告・注意点
 
 ### `npm warn Unknown project config "node-linker"`
 
-`node-linker` は pnpm 側の設定で、npm が未知の設定として警告している。今回の `npx eas-cli login` と `build:configure` はこの警告が出ても完了しているため、この警告だけを理由に設定ファイルを変更しない。
+`node-linker` は pnpm の設定で、npm が未知の設定として警告することがある。`npx eas-cli` コマンドが警告後も正常終了する場合、この警告だけを理由に `.npmrc` を変更しない。
 
 ### `pnpm dlx eas-cli` の `ERR_PNPM_IGNORED_BUILDS`
 
-以前 `pnpm dlx eas-cli login` は pnpm の依存パッケージのビルドスクリプト制限で失敗した。`npx eas-cli login`、`npx eas-cli whoami`、`npx eas-cli build:configure` は成功しているため、この手順では `npx eas-cli` を使用する。
+このプロジェクトでは `pnpm dlx eas-cli` が pnpm のビルドスクリプト制限で失敗したため、EAS CLI には `npx eas-cli` を使用する。`pnpm dlx eas-cli` に切り替えない。
 
-### APK と iOS アプリの違い
+### `eas.json` の `preview` が選ばれない
 
-Android の APK は Android 端末に直接インストールできる。iOS では、iPhone 実機への直接配布に必要な署名・端末登録などの条件があるため、APK と同じ方法ではインストールできない。
+ビルドコマンドに `--profile preview` を指定しているか確認する。`--profile` を省略すると、通常は `production` プロファイルが選択される。
 
-iOS シミュレーターだけで動作を確認する場合は、実機用とは異なるビルド設定を使用する。この文書の iOS 手順は、iPhone 実機への直接インストールを対象とする。
+### Supabase の値がビルド後のアプリに反映されない
+
+Expo ダッシュボードで、変数名が正しいことと `preview` 環境に登録されていることを確認する。変数を変更しただけでは既存の APK／IPA は変わらないため、対象プラットフォームを再ビルドする。
 
 ### ビルド上限・料金
 
-EAS Build の無料枠や利用上限はプランによって変わることがある。実際にビルドする前に、最新の [Expo 料金プラン](https://expo.dev/pricing) とアカウントの使用状況を確認する。
+EAS Build の利用枠や料金はプランにより異なり、変更されることがある。実際にビルドする前に [Expo の料金プラン](https://expo.dev/pricing) とアカウントの使用状況を確認する。設定の確認と、手順4または手順6.3の `build` コマンドは区別する。
 
-Apple Developer Program の登録料は EAS の利用料金とは別であり、iPhone 実機への直接配布では原則として有料登録が必要になる。
-
-設定コマンドの実行と実際の `eas build` は区別する。設定だけを済ませる場合は、手順 5.1 と手順 6.3 のビルドコマンドを実行しない。
-
-## 9. 共通の公式ドキュメント
+## 9. 公式ドキュメント
 
 - [EAS Build の初期設定](https://docs.expo.dev/build/setup/)
 - [eas.json と Build Profile](https://docs.expo.dev/build/eas-json/)
+- [Android APK の作成・インストール](https://docs.expo.dev/build-reference/apk/)
+- [EAS Build の内部配布](https://docs.expo.dev/build/internal-distribution/)
 - [EAS の環境変数の管理](https://docs.expo.dev/eas/environment-variables/manage/)
 - [EAS の環境変数の使用方法](https://docs.expo.dev/eas/environment-variables/usage/)
+- [iOS のビルド手順](https://docs.expo.dev/build-reference/ios-builds/)
+- [Apple Developer Program の登録・料金](https://developer.apple.com/help/account/membership/program-enrollment/)
+- [EAS の料金プラン](https://expo.dev/pricing)
