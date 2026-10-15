@@ -400,21 +400,29 @@ export const useAuthStore = create<AuthState>((set, get) => {
       if (!client || !identity || identity.local || identity.mode !== 'account')
         return notConfigured();
       try {
-        // 現在のパスワード確認と変更を Edge Function 側で行い、管理者キーをアプリに置かない。
-        const { error } = await client.functions.invoke('change-password', {
-          body: { currentPassword: current, newPassword: next },
+        // Supabase Auth で現在のパスワードを検証し、そのまま新しいパスワードへ変更する。
+        const { error } = await client.auth.updateUser({
+          password: next,
+          current_password: current,
         });
         if (error) {
-          const response = (error as { context?: Response }).context;
-          if (response && typeof response.clone === 'function') {
-            try {
-              const payload = (await response.clone().json()) as {
-                message?: string;
-              };
-              if (payload.message) return { ok: false, message: payload.message };
-            } catch {
-              // HTTP 応答が JSON でない場合は通常のエラー変換へ進む。
-            }
+          const code = (error.code ?? '').toLowerCase();
+          const message = error.message.toLowerCase();
+          if (
+            code === 'current_password_mismatch' ||
+            message.includes('current password')
+          ) {
+            return { ok: false, message: t('settings.currentPasswordIncorrect') };
+          }
+          if (
+            code === 'same_password' ||
+            message.includes('same password') ||
+            message.includes('different from the old password')
+          ) {
+            return {
+              ok: false,
+              message: t('settings.passwordMustDiffer'),
+            };
           }
           return { ok: false, message: mapAuthError(error) };
         }

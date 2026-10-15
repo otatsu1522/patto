@@ -278,6 +278,8 @@ export const ja = {
   'settings.emailLabel': 'メールアドレス',
   'settings.changePassword': 'パスワードを変更',
   'settings.passwordChanged': 'パスワードを変更しました。',
+  'settings.currentPasswordIncorrect': '現在のパスワードが正しくありません。',
+  'settings.passwordMustDiffer': '新しいパスワードは現在のパスワードと異なるものを指定してください。',
   'settings.newPassword': '新しいパスワード',
   'settings.saveProfile': '表示名を保存',
   'settings.profileSaved': '保存しました。',
