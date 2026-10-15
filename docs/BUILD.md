@@ -66,12 +66,12 @@ Android と iOS の両方で `preview` 環境を使用するため、同じ環�
 3. **Project settings → Environment variables** を開き、**Add Variables** を選ぶ。
 4. 変数を 1 つずつ追加し、`Environment(s)` は `preview` を選ぶ。
 
-| 項目 | 変数 1 | 変数 2 |
-| --- | --- | --- |
-| Name | `EXPO_PUBLIC_SUPABASE_URL` | `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` |
-| Value | `.env.local` の同名変数の値 | `.env.local` の同名変数の値 |
-| Environment(s) | `preview` | `preview` |
-| Visibility | `Plain text` | `Plain text` |
+| 項目           | 変数 1                      | 変数 2                                 |
+| -------------- | --------------------------- | -------------------------------------- |
+| Name           | `EXPO_PUBLIC_SUPABASE_URL`  | `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` |
+| Value          | `.env.local` の同名変数の値 | `.env.local` の同名変数の値            |
+| Environment(s) | `preview`                   | `preview`                              |
+| Visibility     | `Plain text`                | `Plain text`                           |
 
 値はローカルの `.env.local` から転記する。値を Markdown、Git、チャット、公開リポジトリへ貼り付けない。
 
@@ -113,10 +113,10 @@ Get-Content .\eas.json
 
 設定の意味：
 
-| 項目 | 意味 |
-| --- | --- |
-| `distribution: "internal"` | ストア公開ではなく、ビルド成果物を直接配布する |
-| `environment: "preview"` | EAS の `preview` 環境変数をビルドで利用する |
+| 項目                       | 意味                                                |
+| -------------------------- | --------------------------------------------------- |
+| `distribution: "internal"` | ストア公開ではなく、ビルド成果物を直接配布する      |
+| `environment: "preview"`   | EAS の `preview` 環境変数をビルドで利用する         |
 | `android.buildType: "apk"` | Android 端末に直接インストールできる APK を生成する |
 
 `distribution` と `environment` は Android・iOS の共通設定として使用する。`android.buildType` は Android 専用の設定であり、iOS のビルド形式には影響しない。
@@ -174,11 +174,11 @@ npx eas-cli build --platform android --profile preview
 
 iPhone 実機への直接インストールに Ad Hoc 方式の内部配布を使用する場合、原則として **Apple Developer Program への有料登録が必要**となる。
 
-| 項目 | 内容 |
-| --- | --- |
-| Apple Developer Program | 年額99米ドル（地域によって現地通貨で請求） |
-| EAS Build Free プラン | 現行の公式料金表では、Android は月15回、iOS は月15回までのビルド枠がある。ビルドは低優先度のキューで実行される |
-| 有料の EAS プラン | ビルドの優先度や利用可能なリソースなどを増やすためのもの。iOS ビルドを行うために必須ではない |
+| 項目                    | 内容                                                                                                           |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Apple Developer Program | 年額99米ドル（地域によって現地通貨で請求）                                                                     |
+| EAS Build Free プラン   | 現行の公式料金表では、Android は月15回、iOS は月15回までのビルド枠がある。ビルドは低優先度のキューで実行される |
+| 有料の EAS プラン       | ビルドの優先度や利用可能なリソースなどを増やすためのもの。iOS ビルドを行うために必須ではない                   |
 
 Apple Developer Program の登録料と EAS の利用料金は別である。EAS の無料枠を超えて利用する場合は、プランの変更や追加の利用料金が必要になることがある。
 

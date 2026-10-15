@@ -12,11 +12,11 @@
 
 ## 1. 環境構築
 
-| 対象 | バージョン | 確認コマンド |
-| --- | --- | --- |
-| Node.js | 24.18.0 | `node -v` |
-| pnpm | 12.4.1 | `pnpm -v` |
-| Expo Go アプリ（スマホで試す場合） | 最新 | ストアからインストール |
+| 対象                               | バージョン | 確認コマンド           |
+| ---------------------------------- | ---------- | ---------------------- |
+| Node.js                            | 24.18.0    | `node -v`              |
+| pnpm                               | 12.4.1     | `pnpm -v`              |
+| Expo Go アプリ（スマホで試す場合） | 最新       | ストアからインストール |
 
 ### Scoop によるインストール（Windows）
 
@@ -115,13 +115,13 @@ Supabase を設定しなくても、端末内へのデータ保存とゲスト�
 
 ## 5. よく使うコマンド
 
-| コマンド | 内容 |
-| --- | --- |
-| `pnpm typecheck` | 型チェック |
-| `pnpm lint` | ESLint によるコードチェック |
-| `pnpm format` | Prettier によるコード整形 |
-| `pnpm format:check` | コードを変更せずに整形状態を確認 |
-| `pnpm export:web` | Web 版を `dist/` に書き出す（Cloudflare Pages と同じビルド） |
+| コマンド            | 内容                                                         |
+| ------------------- | ------------------------------------------------------------ |
+| `pnpm typecheck`    | 型チェック                                                   |
+| `pnpm lint`         | ESLint によるコードチェック                                  |
+| `pnpm format`       | Prettier によるコード整形                                    |
+| `pnpm format:check` | コードを変更せずに整形状態を確認                             |
+| `pnpm export:web`   | Web 版を `dist/` に書き出す（Cloudflare Pages と同じビルド） |
 
 `pnpm format` はファイルを変更します。整形状態だけを確認する場合は `pnpm format:check` を使用してください。
 
@@ -173,15 +173,15 @@ patto/
 
 ## 9. 設定値の変更
 
-| 対象 | ファイル |
-| --- | --- |
-| アプリ名・説明・バージョン・リンク | `src/config/app.info.json` |
-| 色 | `src/theme/palette.ts` `src/theme/taskColors.ts` |
-| 画面の文言 | `src/i18n/ja.ts` |
-| 入力上限・同期間隔・ごみ箱の日数 | `src/config/limits.ts` |
-| 列数・ブレークポイント・ジェスチャー | `src/config/layout.ts` |
-| ショートカットの既定のキー | `src/shortcuts/actions.ts` |
-| ロゴ（view_kanban） | `src/config/logo.ts`（アプリ内）、`assets/`（アイコン画像） |
+| 対象                                 | ファイル                                                    |
+| ------------------------------------ | ----------------------------------------------------------- |
+| アプリ名・説明・バージョン・リンク   | `src/config/app.info.json`                                  |
+| 色                                   | `src/theme/palette.ts` `src/theme/taskColors.ts`            |
+| 画面の文言                           | `src/i18n/ja.ts`                                            |
+| 入力上限・同期間隔・ごみ箱の日数     | `src/config/limits.ts`                                      |
+| 列数・ブレークポイント・ジェスチャー | `src/config/layout.ts`                                      |
+| ショートカットの既定のキー           | `src/shortcuts/actions.ts`                                  |
+| ロゴ（view_kanban）                  | `src/config/logo.ts`（アプリ内）、`assets/`（アイコン画像） |
 
 アプリ名を変えたら、`package.json` の `name` と、Cloudflare Pages / Supabase 側の名前も必要に応じて合わせてください。
 
