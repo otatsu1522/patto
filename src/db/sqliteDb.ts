@@ -1,4 +1,5 @@
 import * as SQLite from 'expo-sqlite';
+import { Platform } from 'react-native';
 import { fromLocalRow, TABLE_DEFS, toLocalRow } from '@/domain/schema';
 import type { AnyRecord, Snapshot, TableName } from '@/domain/types';
 import { MIGRATIONS } from './migrations';
@@ -20,8 +21,30 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
 }
 
 export async function openLocalDb(scope: string): Promise<LocalDb> {
-  const db = await SQLite.openDatabaseAsync(`${dbNameFor(scope)}.db`);
-  await migrate(db);
+  const databaseName = `${dbNameFor(scope)}.db`;
+  const openAndMigrate = async (): Promise<SQLite.SQLiteDatabase> => {
+    const opened = await SQLite.openDatabaseAsync(databaseName);
+    try {
+      await migrate(opened);
+      return opened;
+    } catch (error) {
+      await opened.closeAsync().catch(() => undefined);
+      throw error;
+    }
+  };
+
+  // Web 版では別タブも同じ IndexedDB/SQLite ファイルを開くため、初回オープンと
+  // マイグレーションだけはタブ間でも直列化する。未対応ブラウザでは従来どおり開く。
+  type WebLockManager = {
+    request<T>(name: string, callback: () => Promise<T>): Promise<T>;
+  };
+  const locks =
+    Platform.OS === 'web' && typeof navigator !== 'undefined'
+      ? (navigator as Navigator & { locks?: WebLockManager }).locks
+      : undefined;
+  const db = locks
+    ? await locks.request(`patto:sqlite-init:${databaseName}`, openAndMigrate)
+    : await openAndMigrate();
 
   // withTransactionAsync() は排他的ではなく、同じ接続で複数のトランザクションが重なるとエラーになる。
   // そのため、この接続への読み書きはすべて1本の待ち行列に並べて、1つずつ順番に実行する。

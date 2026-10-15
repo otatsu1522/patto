@@ -366,6 +366,7 @@ export const ja = {
   'settings.shortcutsConflict': '「{key}」は「{action}」で使われています。',
   'settings.shortcutsFixed': 'Esc は常に「キャンセル」に使われます。',
   'about.version': 'バージョン',
+  'about.website': 'アプリのWeb版',
   'about.license': 'ライセンス',
   'about.terms': '利用規約',
   'about.privacy': 'プライバシーポリシー',

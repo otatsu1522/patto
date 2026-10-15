@@ -35,7 +35,7 @@ import {
 } from '@/hooks/useLayout';
 import { t } from '@/i18n';
 import type { Cursor } from '@/shortcuts/cursor';
-import { BORDER_WIDTH, RADIUS, SEPARATOR_WIDTH, SHADOW, SPACING, useTheme } from '@/theme';
+import { BORDER_WIDTH, RADIUS, SHADOW, SPACING, useTheme } from '@/theme';
 import { AppText } from '../ui/AppText';
 import { Sidebar } from '../shell/Sidebar';
 import { EmptyState } from '../ui/EmptyState';
@@ -726,19 +726,6 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                 },
               ]}
             />
-            {/* ScrollView 内の Sidebar の border が合成レイヤー移動中に一瞬欠ける Web 対策。
-                同じ Animated.Value に追従する独立線を常に描画する。 */}
-            <Animated.View
-              pointerEvents="none"
-              style={[
-                styles.menuEdgeLine,
-                {
-                  left: menuEdgeLeft,
-                  width: SEPARATOR_WIDTH,
-                  backgroundColor: colors.border,
-                },
-              ]}
-            />
           </>
         ) : null}
       </View>
@@ -751,7 +738,6 @@ const styles = StyleSheet.create({
   menuPane: { flexDirection: 'row' },
   headerOverlay: { position: 'absolute', left: 0, right: 0, top: 0 },
   headerLineBridge: { position: 'absolute', zIndex: 30 },
-  menuEdgeLine: { position: 'absolute', top: 0, bottom: 0, zIndex: 40, elevation: 40 },
   navBtn: {
     position: 'absolute',
     top: 0,

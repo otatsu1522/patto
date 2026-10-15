@@ -242,10 +242,7 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate, onSwipeClos
   return (
     <View
       nativeID="patto-mobile-sidebar"
-      style={[
-        styles.root,
-        { width, backgroundColor: colors.surface, borderRightColor: colors.border },
-      ]}
+      style={[styles.root, { width, backgroundColor: colors.surface }]}
     >
       {/* 画面上部のバーと同じ位置にメニューアイコンを置く（押すと閉じる） */}
       <View style={styles.brand}>
@@ -397,12 +394,23 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate, onSwipeClos
           }
         }}
       />
+      <View pointerEvents="none" style={[styles.rightEdge, { backgroundColor: colors.border }]} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { borderRightWidth: BORDER_WIDTH, flexShrink: 0, height: '100%', minHeight: 0 },
+  root: { flexShrink: 0, height: '100%', minHeight: 0 },
+  // 縦線はサイドバー自身のスクロールレイヤー内に置き、開閉スクロールと同じタイミングで移動させる。
+  rightEdge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    width: SEPARATOR_WIDTH,
+    zIndex: 40,
+    elevation: 40,
+  },
   flex: { flex: 1, minHeight: 0 },
   projectScroll: { flex: 1, minHeight: 0 },
   projectScrollContent: { flexGrow: 1 },

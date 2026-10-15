@@ -17,6 +17,8 @@ import { BOARD } from '@/config/layout';
 import { t, type StringKey } from '@/i18n';
 import { BORDER_WIDTH, RADIUS, SPACING, useTheme } from '@/theme';
 
+const APP_WEB_URL = 'https://patto-board.pages.dev';
+
 export default function AboutScreen() {
   const scrollRef = useWebWheelScroll();
   const router = useRouter();
@@ -74,6 +76,11 @@ export default function AboutScreen() {
             ))}
           </Section>
           <Section>
+            <LinkRow
+              label={t('about.website')}
+              description={APP_WEB_URL}
+              onPress={() => void Linking.openURL(APP_WEB_URL)}
+            />
             <LinkRow
               label={t('about.license')}
               value={APP_LICENSE}

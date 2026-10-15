@@ -33,11 +33,42 @@ import type { TaskColorKey } from '@/theme/taskColors';
 
 type Listener = () => void;
 const changeListeners = new Set<Listener>();
+const DB_OPEN_TIMEOUT_MS = 15_000;
 /** ローカルのデータが変わったときに呼ばれる（自動同期のきっかけに使う）。 */
 export const onLocalChange = (fn: Listener): (() => void) => {
   changeListeners.add(fn);
   return () => changeListeners.delete(fn);
 };
+
+/** DB オープンが停止した場合に、ログイン／起動を無期限に待たせない。 */
+async function openLocalDbWithTimeout(scope: string): Promise<LocalDb> {
+  const opening = openLocalDb(scope);
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(t('app.startupTimeout'))), DB_OPEN_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([opening, timeout]);
+  } catch (error) {
+    // タイムアウト後に open が遅れて完了した場合は、その接続を残さない。
+    void opening.then((lateDb) => lateDb.close().catch(() => undefined)).catch(() => undefined);
+    throw error;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
+async function loadDbWithTimeout(db: LocalDb): Promise<Snapshot> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(t('app.startupTimeout'))), DB_OPEN_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([db.loadAll(), timeout]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
 
 let db: LocalDb | null = null;
 /** 同期層などから DB に直接アクセスするための入口 */
@@ -176,13 +207,14 @@ export const useDataStore = create<DataState>((set, get) => {
           db = null;
           await previous.close();
         }
-        const opened = await openLocalDb(scope);
+        const opened = await openLocalDbWithTimeout(scope);
         try {
-          const snap = await opened.loadAll();
+          const snap = await loadDbWithTimeout(opened);
           db = opened;
           set({ ...snap, scope, ownerId, ready: true });
         } catch (error) {
-          await opened.close().catch(() => undefined);
+          // close() も同じ DB キューに並ぶので、ここでは完了を待たずに起動処理を解放する。
+          void opened.close().catch(() => undefined);
           db = null;
           set({ ready: false });
           throw error;
