@@ -397,15 +397,28 @@ export const useAuthStore = create<AuthState>((set, get) => {
     async changePassword(current, next) {
       const client = getSupabase();
       const identity = get().identity;
-      if (!client || !identity?.email) return notConfigured();
+      if (!client || !identity || identity.local || identity.mode !== 'account')
+        return notConfigured();
       try {
-        const check = await client.auth.signInWithPassword({
-          email: identity.email,
-          password: current,
+        // 現在のパスワード確認と変更を Edge Function 側で行い、管理者キーをアプリに置かない。
+        const { error } = await client.functions.invoke('change-password', {
+          body: { currentPassword: current, newPassword: next },
         });
-        if (check.error) return { ok: false, message: mapAuthError(check.error) };
-        const { error } = await client.auth.updateUser({ password: next });
-        return error ? { ok: false, message: mapAuthError(error) } : { ok: true };
+        if (error) {
+          const response = (error as { context?: Response }).context;
+          if (response && typeof response.clone === 'function') {
+            try {
+              const payload = (await response.clone().json()) as {
+                message?: string;
+              };
+              if (payload.message) return { ok: false, message: payload.message };
+            } catch {
+              // HTTP 応答が JSON でない場合は通常のエラー変換へ進む。
+            }
+          }
+          return { ok: false, message: mapAuthError(error) };
+        }
+        return { ok: true };
       } catch (e) {
         return fail(e, t('settings.onlineOnly'));
       }
