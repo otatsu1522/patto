@@ -1,10 +1,12 @@
 import { useRef } from 'react';
 import { Keyboard, Pressable, StyleSheet, View } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { GestureDetector } from 'react-native-gesture-handler';
 import { dueState, formatDue } from '@/domain/due';
 import type { Task } from '@/domain/types';
 import { t } from '@/i18n';
 import { nowMs } from '@/lib/clock';
+import { formatDateTime } from '@/lib/dates';
 import { SHADOW, SPACING, useTheme } from '@/theme';
 import { AppText } from '../ui/AppText';
 import { DropdownMenu, type MenuItem } from '../ui/DropdownMenu';
@@ -15,42 +17,49 @@ import { canHover } from '@/lib/hover';
 
 interface Props {
   task: Task;
-  /** 所属カンバンが DONE モードか（横線で表示する） */
   done: boolean;
-  /** 説明を隠してコンパクトに表示する */
   compact: boolean;
-  /** いちばん右のカンバンか（右へ移動の代わりに、最初へ戻るUターンを出す） */
+  detailed: boolean;
   isLast: boolean;
-  /** カンバンが1つだけのとき、移動ボタンを出さない */
   canAdvance: boolean;
   focused: boolean;
   grabbed: boolean;
   dragging: boolean;
   menuItems: MenuItem[];
+  showDescription: boolean;
+  showDueDate: boolean;
+  showUpdatedAt: boolean;
   onAdvance: () => void;
+  onCopyTitle: () => void;
+  onMeasure?: (id: string, node: View | null) => void;
   drag: DragHandlers;
 }
 
-/** タスクのカード。タップでメニュー、右端のボタンで次のカンバンへ、長押し（PCはドラッグ）でつかんで移動。 */
+/** タスクカード。色丸の押下でタイトルをコピーし、右端のボタンで次のカンバンへ移動する。 */
 export function TaskCard({
   task,
   done,
   compact,
+  detailed,
   isLast,
   canAdvance,
   focused,
   grabbed,
   dragging,
   menuItems,
+  showDescription,
+  showDueDate,
+  showUpdatedAt,
   onAdvance,
+  onCopyTitle,
+  onMeasure,
   drag,
 }: Props) {
-  const { colors, taskColor } = useTheme();
+  const { colors, taskColor, isDark } = useTheme();
   const lastDragEnd = useRef(0);
   const cardRef = useRef<View>(null);
   const gesture = useDragGesture({
     ...drag,
-    // つかんだ瞬間に、カードの位置と大きさを測って、指の位置とカードの位置を合わせる
     begin: (x, y) => {
       if (!cardRef.current) return drag.begin(x, y);
       cardRef.current.measureInWindow((cx, cy, w, h) =>
@@ -66,12 +75,36 @@ export function TaskCard({
   const due = task.dueAt !== null ? { dueAt: task.dueAt, dueHasTime: false } : null;
   const state = due ? dueState(due, nowMs()) : null;
   const dueColor =
-    state === 'overdue' ? colors.danger : state === 'today' ? colors.warning : colors.textMuted;
+    state === 'overdue'
+      ? colors.danger
+      : state === 'today'
+        ? isDark
+          ? '#FFB86B'
+          : '#B54708'
+        : state === 'tomorrow'
+          ? isDark
+            ? '#FDD663'
+            : '#9A6700'
+          : colors.textMuted;
+  const dueStatus =
+    state === 'overdue'
+      ? t('task.dueStatusOverdue')
+      : state === 'today'
+        ? t('task.dueStatusToday')
+        : state === 'tomorrow'
+          ? t('task.dueStatusTomorrow')
+          : '';
+  const dueText = due
+    ? `${t('task.due')}: ${formatDue(due)}${dueStatus ? ` ${dueStatus}` : ''}`
+    : '';
   const strike = done ? styles.done : undefined;
 
   return (
     <View
-      ref={cardRef}
+      ref={(node) => {
+        cardRef.current = node;
+        onMeasure?.(task.id, node);
+      }}
       collapsable={false}
       style={[
         styles.card,
@@ -85,6 +118,26 @@ export function TaskCard({
         grabbed && { backgroundColor: colors.hover, borderStyle: 'dashed' },
       ]}
     >
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t('task.copyTitleAction')}
+        onPress={async () => {
+          try {
+            const copied = await Clipboard.setStringAsync(task.title);
+            if (copied) onCopyTitle();
+          } catch {
+            // クリップボードが利用できない環境では、タスク操作自体には影響させない。
+          }
+        }}
+        style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
+          styles.colorButton,
+          { backgroundColor: pressed || (hovered && canHover) ? colors.hover : 'transparent' },
+        ]}
+      >
+        {task.color ? (
+          <View style={[styles.dot, { backgroundColor: taskColor(task.color) }]} />
+        ) : null}
+      </Pressable>
       <DropdownMenu
         items={menuItems}
         anchorStyle={styles.anchor}
@@ -96,37 +149,59 @@ export function TaskCard({
               onPress={() => {
                 if (Date.now() - lastDragEnd.current > 300) open();
               }}
-              style={styles.body}
+              style={[styles.body, compact && styles.compactBody]}
             >
               <View style={styles.titleRow}>
-                {task.color ? (
-                  <View style={[styles.dot, { backgroundColor: taskColor(task.color) }]} />
-                ) : null}
-                <AppText bold numberOfLines={2} style={[styles.title, strike]}>
+                <AppText
+                  bold
+                  numberOfLines={compact ? 2 : undefined}
+                  ellipsizeMode="tail"
+                  style={[styles.title, strike]}
+                >
                   {task.title}
                 </AppText>
               </View>
-              {task.description && !compact ? (
-                <AppText variant="caption" muted numberOfLines={2} style={strike}>
+              {showDescription && task.description ? (
+                <AppText
+                  variant="caption"
+                  muted
+                  numberOfLines={detailed ? undefined : 2}
+                  ellipsizeMode="tail"
+                  style={strike}
+                >
                   {task.description}
                 </AppText>
               ) : null}
-              {due ? (
-                <View style={styles.meta}>
-                  <Icon name="calendar" size={14} color={dueColor} />
-                  <AppText
-                    variant="caption"
-                    bold={state !== 'upcoming'}
-                    color={dueColor}
-                    style={strike}
-                  >
-                    {state === 'overdue'
-                      ? `${t('task.overdue')} `
-                      : state === 'today'
-                        ? `${t('task.today')} `
-                        : ''}
-                    {formatDue(due)}
-                  </AppText>
+              {(showDueDate && due) || showUpdatedAt ? (
+                <View style={styles.metadataList}>
+                  {showDueDate && due ? (
+                    <View style={styles.metadataItem}>
+                      <Icon name="calendar" size={16} color={dueColor} />
+                      <AppText
+                        variant="caption"
+                        numberOfLines={1}
+                        ellipsizeMode="tail"
+                        color={dueColor}
+                        style={[styles.metadataText, strike]}
+                      >
+                        {dueText}
+                      </AppText>
+                    </View>
+                  ) : null}
+                  {showUpdatedAt ? (
+                    <View style={styles.metadataItem}>
+                      <Icon name="refresh" size={16} color={colors.textMuted} />
+                      <AppText
+                        variant="caption"
+                        muted
+                        numberOfLines={1}
+                        ellipsizeMode="tail"
+                        style={[styles.metadataText, strike]}
+                      >
+                        {`${t('task.updatedShort')}: ${formatDateTime(task.updatedAt)}`}
+                      </AppText>
+                    </View>
+                  ) : null}
                 </View>
               ) : null}
             </Pressable>
@@ -155,19 +230,23 @@ export function TaskCard({
 
 const styles = StyleSheet.create({
   card: { flexDirection: 'row', alignItems: 'stretch', minHeight: 76 },
-  anchor: { flex: 1 },
+  colorButton: { width: 36, alignItems: 'center', justifyContent: 'center' },
+  anchor: { flex: 1, minWidth: 0 },
   body: {
     flex: 1,
+    minWidth: 0,
     paddingVertical: SPACING.md + 2,
-    paddingLeft: SPACING.lg,
-    paddingRight: SPACING.sm,
+    paddingHorizontal: 0,
     gap: SPACING.xs + 2,
     cursor: 'grab',
   } as never,
+  compactBody: { paddingVertical: SPACING.sm },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   title: { flexShrink: 1 },
   dot: { width: 12, height: 12, borderRadius: 6 },
-  meta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  metadataList: { flexDirection: 'column', alignItems: 'stretch', gap: SPACING.xs, minWidth: 0 },
+  metadataItem: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs, minWidth: 0 },
+  metadataText: { flex: 1, minWidth: 0 },
   advance: { width: 36, alignItems: 'center', justifyContent: 'center' },
   done: { textDecorationLine: 'line-through', opacity: 0.6 },
 });

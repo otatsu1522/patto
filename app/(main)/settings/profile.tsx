@@ -10,6 +10,7 @@ import { TextField } from '@/components/ui/TextField';
 import { isSupabaseConfigured } from '@/config/env';
 import { BOARD } from '@/config/layout';
 import { LIMITS } from '@/config/limits';
+import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
 import {
   firstError,
   validateEmail,
@@ -26,13 +27,19 @@ const pendingCount = () => {
   return [...s.projects, ...s.columns, ...s.tasks].filter((r) => r.dirty).length;
 };
 
-/** ゲスト: アカウント作成 / ログイン画面へ戻る。アカウント: 表示名・パスワード変更・ログアウト・削除。 */
+/** ゲスト: アカウント作成 / ログイン画面へ戻る。アカウント: 表示名・メールアドレス・パスワード変更・削除。 */
 export default function ProfileScreen() {
+  const scrollRef = useWebWheelScroll();
   const identity = useAuthStore((s) => s.identity);
   return (
     <View style={styles.fill}>
       <ScreenHeader title={t('settings.profile')} />
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        ref={scrollRef}
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={styles.inner}>
           {identity?.mode === 'guest' ? (
             <GuestSection local={!!identity.local} />
@@ -157,6 +164,10 @@ function AccountSections() {
   const identity = useAuthStore((s) => s.identity);
   const [name, setName] = useState(identity?.displayName ?? '');
   const [nameMessage, setNameMessage] = useState<string | null>(null);
+  const [email, setEmail] = useState(identity?.email ?? '');
+  const [emailSubmitted, setEmailSubmitted] = useState(false);
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailMessage, setEmailMessage] = useState<{ text: string; ok: boolean } | null>(null);
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
@@ -171,11 +182,33 @@ function AccountSections() {
     next: validatePassword(next),
     confirm: validatePasswordMatch(next, confirmPw),
   };
+  const emailError = emailSubmitted ? validateEmail(email) : null;
 
   const saveName = async () => {
-    if (validateMaxLength(name, LIMITS.displayNameMax)) return;
+    const error = validateMaxLength(name, LIMITS.displayNameMax);
+    if (error) {
+      setNameMessage(error);
+      return;
+    }
     await useAuthStore.getState().updateDisplayName(name);
     setNameMessage(t('settings.profileSaved'));
+  };
+
+  const changeEmail = async () => {
+    setEmailSubmitted(true);
+    setEmailMessage(null);
+    if (validateEmail(email)) return;
+    if (email.trim().toLowerCase() === identity?.email.toLowerCase()) {
+      setEmailMessage({ text: t('settings.emailSame'), ok: false });
+      return;
+    }
+    setEmailBusy(true);
+    const res = await useAuthStore.getState().changeEmail(email);
+    setEmailBusy(false);
+    if (res.ok) {
+      setEmailMessage({ text: res.message ?? t('settings.emailChanged'), ok: true });
+      setEmailSubmitted(false);
+    } else setEmailMessage({ text: res.message, ok: false });
   };
 
   const changePassword = async () => {
@@ -192,18 +225,6 @@ function AccountSections() {
       setConfirmPw('');
       setPwSubmitted(false);
     } else setPwMessage({ text: res.message, ok: false });
-  };
-
-  const logout = async () => {
-    const pending = pendingCount();
-    const r = await confirm({
-      title: t('settings.logoutTitle'),
-      message:
-        pending > 0 ? t('settings.logoutPending', { count: pending }) : t('settings.logoutMessage'),
-      confirmLabel: t('settings.logoutNow'),
-      destructive: true,
-    });
-    if (r === 'confirm') await useAuthStore.getState().signOut();
   };
 
   const deleteAccount = async () => {
@@ -226,12 +247,11 @@ function AccountSections() {
 
   return (
     <>
-      <Section title={t('settings.account')}>
+      <Section title={t('auth.displayName')}>
         <View style={styles.form}>
           <AppText variant="caption" muted>
-            {t('settings.emailLabel')}
+            {t('settings.displayNameHint')}
           </AppText>
-          <AppText>{identity?.email}</AppText>
           <TextField
             label={t('auth.displayName')}
             value={name}
@@ -246,8 +266,39 @@ function AccountSections() {
         </View>
       </Section>
 
+      {isSupabaseConfigured && !identity?.local ? (
+        <Section title={t('settings.emailChange')}>
+          <View style={styles.form}>
+            <AppText variant="caption" muted>
+              {t('settings.emailChangeHint')}
+            </AppText>
+            <TextField
+              label={t('auth.email')}
+              value={email}
+              onChangeText={(v) => {
+                setEmail(v);
+                setEmailMessage(null);
+              }}
+              error={emailError}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+            />
+            <Message text={emailMessage?.text ?? null} ok={emailMessage?.ok} />
+            <Button
+              label={t('settings.emailChangeSubmit')}
+              onPress={changeEmail}
+              loading={emailBusy}
+            />
+          </View>
+        </Section>
+      ) : null}
+
       <Section title={t('settings.changePassword')}>
         <View style={styles.form}>
+          <AppText variant="caption" muted>
+            {t('settings.passwordChangeHint')}
+          </AppText>
           <TextField
             label={t('auth.password')}
             value={current}
@@ -277,14 +328,6 @@ function AccountSections() {
         </View>
       </Section>
 
-      <Button
-        label={t('settings.logout')}
-        variant="secondary"
-        icon="logout"
-        onPress={logout}
-        fullWidth
-      />
-
       <Section title={t('settings.deleteAccount')}>
         <View style={styles.form}>
           <AppText variant="caption" muted>
@@ -311,7 +354,14 @@ function AccountSections() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  content: { padding: SPACING.lg, alignItems: 'center' },
+  scroll: {
+    flex: 1,
+    minHeight: 0,
+    overflowY: 'auto',
+    touchAction: 'pan-y',
+    overscrollBehaviorY: 'auto',
+  } as never,
+  content: { padding: SPACING.lg, alignItems: 'center', flexGrow: 1 },
   inner: { width: '100%', maxWidth: BOARD.dialogMaxWidth + 120, gap: SPACING.lg },
   form: { padding: SPACING.lg, gap: SPACING.md },
 });

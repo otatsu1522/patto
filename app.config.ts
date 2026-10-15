@@ -21,6 +21,7 @@ const config: ExpoConfig = {
     'expo-secure-store',
     'expo-sqlite',
     'expo-localization',
+    'expo-system-ui',
     ['expo-navigation-bar', { enforceContrast: false }],
     [
       'expo-splash-screen',

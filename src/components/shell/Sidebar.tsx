@@ -22,7 +22,7 @@ import { useFeedback } from '../ui/FeedbackProvider';
 import { Icon } from '../ui/Icon';
 import { IconButton } from '../ui/IconButton';
 import { useSyncLabel } from './SyncIndicator';
-import { BORDER_WIDTH } from '@/theme/tokens';
+import { BORDER_WIDTH, SEPARATOR_WIDTH } from '@/theme/tokens';
 import { canHover } from '@/lib/hover';
 
 interface Props {
@@ -52,7 +52,6 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate }: Props) {
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<Project | null>(null);
   const [showArchived, setShowArchived] = useState(false);
-  const [searchFocused, setSearchFocused] = useState(false);
   const searchRef = useRef<TextInput>(null);
   const mountedTick = useRef(searchTick);
 
@@ -121,13 +120,13 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate }: Props) {
           <AppText
             numberOfLines={1}
             ellipsizeMode="tail"
-            bold={selected}
+            bold
             color={fg}
-            style={styles.flex}
+            style={styles.projectTitle}
           >
             {p.title}
           </AppText>
-          <AppText variant="caption" color={selected ? colors.onPrimary : colors.textMuted}>
+          <AppText variant="caption" bold color={selected ? colors.onPrimary : colors.textMuted}>
             {t('column.taskCount', { count: taskCounts.get(p.id) ?? 0 })}
           </AppText>
         </Pressable>
@@ -145,6 +144,7 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate }: Props) {
             {
               label: t('common.duplicate'),
               icon: 'copy',
+              separator: true,
               onPress: () => {
                 void store.duplicateProject(p.id);
                 toast(t('toast.duplicated'));
@@ -198,9 +198,7 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate }: Props) {
         </AppText>
       </View>
 
-      <View
-        style={[styles.search, { borderBottomColor: searchFocused ? colors.text : 'transparent' }]}
-      >
+      <View style={[styles.search, { borderBottomColor: colors.divider }]}>
         <Icon name="search" size={18} color={colors.textMuted} />
         <TextInput
           ref={searchRef}
@@ -209,8 +207,6 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate }: Props) {
           placeholder={t('menu.search')}
           placeholderTextColor={colors.textMuted}
           accessibilityLabel={t('menu.search')}
-          onFocus={() => setSearchFocused(true)}
-          onBlur={() => setSearchFocused(false)}
           style={[styles.searchInput, { color: colors.text, fontSize: fs(FONT.body) }]}
         />
         {query ? (
@@ -296,8 +292,8 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate }: Props) {
           }}
           style={styles.footerRow}
         >
-          <Icon name="settings" size={20} color={colors.textMuted} />
-          <AppText>{t('menu.settings')}</AppText>
+          <Icon name="settings" size={20} color={colors.text} />
+          <AppText color={colors.text}>{t('menu.settings')}</AppText>
         </Pressable>
         <Pressable
           accessibilityRole="button"
@@ -334,6 +330,7 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate }: Props) {
 const styles = StyleSheet.create({
   root: { borderRightWidth: BORDER_WIDTH, flexShrink: 0 },
   flex: { flex: 1 },
+  projectTitle: { flexShrink: 1, minWidth: 0 },
   brandName: { paddingLeft: SPACING.sm + SPACING.xs },
   brand: {
     flexDirection: 'row',
@@ -347,9 +344,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: SPACING.sm,
     marginHorizontal: SPACING.lg,
-    borderBottomWidth: BORDER_WIDTH,
+    borderBottomWidth: SEPARATOR_WIDTH,
     minHeight: 44,
-    marginBottom: SPACING.sm,
+    marginBottom: 0,
   },
   searchInput: {
     flex: 1,
@@ -357,7 +354,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     outlineStyle: 'none',
   } as never,
-  listContent: { paddingVertical: SPACING.sm },
+  // 検索欄の下に余分な大きい空白を作らず、少しだけ間隔を空ける。
+  listContent: { paddingTop: SPACING.xs, paddingBottom: SPACING.xs },
   sectionTitle: { paddingHorizontal: SPACING.lg, paddingVertical: SPACING.xs },
   hint: { padding: SPACING.lg },
   item: { flexDirection: 'row', alignItems: 'center', paddingRight: 2 },
@@ -371,8 +369,16 @@ const styles = StyleSheet.create({
     paddingRight: SPACING.sm,
   },
   dot: { width: 12, height: 12, borderRadius: 6, borderWidth: BORDER_WIDTH },
-  divider: { height: BORDER_WIDTH, marginVertical: SPACING.xs, marginHorizontal: SPACING.lg },
-  rule: { height: BORDER_WIDTH },
+  divider: {
+    height: SEPARATOR_WIDTH,
+    minHeight: SEPARATOR_WIDTH,
+    maxHeight: SEPARATOR_WIDTH,
+    flexShrink: 0,
+    marginVertical: SPACING.xs,
+    marginHorizontal: SPACING.lg,
+  },
+  // プロジェクト内の区切り線と同じ太さ・左右の余白に揃える。
+  rule: { height: SEPARATOR_WIDTH, marginVertical: SPACING.xs, marginHorizontal: SPACING.lg },
   archiveToggle: {
     flexDirection: 'row',
     alignItems: 'center',

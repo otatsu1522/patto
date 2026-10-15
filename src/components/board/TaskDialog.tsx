@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { LIMITS } from '@/config/limits';
-import { formatDueInput, parseDue } from '@/domain/due';
+import { formatDueInput, formatDueTyping, normalizeDueInput, parseDue } from '@/domain/due';
 import type { Task } from '@/domain/types';
 import { firstError, validateMaxLength, validateTitle } from '@/domain/validation';
 import { useFocusOnOpen } from '@/hooks/useFocusOnOpen';
@@ -14,11 +14,12 @@ import { Button } from '../ui/Button';
 import { CalendarDialog } from '../ui/CalendarDialog';
 import { ColorPicker } from '../ui/ColorPicker';
 import { Dialog } from '../ui/Dialog';
-import { useFeedback } from '../ui/FeedbackProvider';
+import { DiscardChangesOverlay } from '../ui/DiscardChangesOverlay';
 import { Icon } from '../ui/Icon';
 import { IconButton } from '../ui/IconButton';
 import { TextField } from '../ui/TextField';
 import { canHover } from '@/lib/hover';
+import { useLayoutMode } from '@/hooks/useLayout';
 
 export interface TaskFormValues {
   title: string;
@@ -49,8 +50,8 @@ const dueText = (task: Task | null): string =>
  * 複製・アーカイブ・削除・ピン留めは、タスクをタップしたときのメニューから行う。
  */
 export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, onSubmit }: Props) {
-  const { confirm } = useFeedback();
   const { colors } = useTheme();
+  const { mode } = useLayoutMode();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [color, setColor] = useState<TaskColorKey | null>(null);
@@ -59,6 +60,7 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
   const [calendar, setCalendar] = useState(false);
   const [options, setOptions] = useState(false);
   const [selectOpen, setSelectOpen] = useState(false);
+  const [discardPrompt, setDiscardPrompt] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const titleInput = useFocusOnOpen(visible);
 
@@ -78,11 +80,12 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
     setDue(dueText(task));
     setColumnId(initialColumn);
     setCalendar(false);
-    setOptions(false);
+    setOptions(task !== null && mode === 'expanded');
     setSelectOpen(false);
     setSubmitted(false);
+    setDiscardPrompt(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, task?.id]);
+  }, [visible, task?.id, mode]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const titleError = submitted ? validateTitle(title, LIMITS.taskTitleMax) : null;
@@ -97,15 +100,14 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
     due.trim() !== dueText(task) ||
     columnId !== initialColumn;
 
-  const requestClose = async () => {
+  const requestClose = () => {
+    if (discardPrompt) {
+      setDiscardPrompt(false);
+      return;
+    }
     if (dirty) {
-      const r = await confirm({
-        title: t('task.discardTitle'),
-        message: t('task.discardMessage'),
-        confirmLabel: t('task.discard'),
-        destructive: true,
-      });
-      if (r !== 'confirm') return;
+      setDiscardPrompt(true);
+      return;
     }
     onClose();
   };
@@ -137,21 +139,17 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
         visible={visible}
         title={shownTask ? t('task.edit') : t('task.create')}
         onClose={requestClose}
-        footer={
-          <>
-            {shownTask ? (
-              <View style={styles.dates}>
-                <AppText variant="caption" muted>
-                  {t('task.createdAt')}: {formatDateTime(shownTask.createdAt)}
-                </AppText>
-                <AppText variant="caption" muted>
-                  {t('task.updatedAt')}: {formatDateTime(shownTask.updatedAt)}
-                </AppText>
-              </View>
-            ) : null}
-            <Button label={t('common.confirm')} variant="accent" onPress={submit} fullWidth />
-          </>
+        overlay={
+          <DiscardChangesOverlay
+            visible={discardPrompt}
+            onKeepEditing={() => setDiscardPrompt(false)}
+            onDiscard={() => {
+              setDiscardPrompt(false);
+              onClose();
+            }}
+          />
         }
+        footer={<Button label={t('common.confirm')} variant="accent" onPress={submit} fullWidth />}
       >
         <TextField
           label={t('task.title')}
@@ -191,12 +189,13 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
                 <TextField
                   label={t('task.due')}
                   value={due}
-                  onChangeText={(v) => setDue(v.replace(/\D/g, '').slice(0, 8))}
+                  onChangeText={(v) => setDue(formatDueTyping(v))}
+                  onBlur={() => setDue((v) => normalizeDueInput(v))}
                   onClear={() => setDue('')}
                   placeholder={t('task.dueHint')}
                   error={dueError}
                   keyboardType="number-pad"
-                  maxLength={8}
+                  maxLength={10}
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
@@ -253,6 +252,22 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
                 </View>
               ) : null}
             </View>
+            {shownTask ? (
+              <View style={styles.dates}>
+                <View style={styles.dateLine}>
+                  <Icon name="calendar" size={16} color={colors.textMuted} />
+                  <AppText variant="caption" muted>
+                    {t('task.createdAt')}: {formatDateTime(shownTask.createdAt)}
+                  </AppText>
+                </View>
+                <View style={styles.dateLine}>
+                  <Icon name="refresh" size={16} color={colors.textMuted} />
+                  <AppText variant="caption" muted>
+                    {t('task.updatedAt')}: {formatDateTime(shownTask.updatedAt)}
+                  </AppText>
+                </View>
+              </View>
+            ) : null}
           </>
         ) : null}
       </Dialog>
@@ -274,6 +289,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   dueRow: { flexDirection: 'row', alignItems: 'flex-end', gap: SPACING.sm },
   dueButton: { marginBottom: 2 },
+  dateLine: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs },
   field: { gap: SPACING.xs },
   select: {
     flexDirection: 'row',

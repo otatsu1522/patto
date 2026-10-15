@@ -1,6 +1,6 @@
 import { usePathname, useRouter } from 'expo-router';
-import type { ReactNode } from 'react';
-import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import { useEffect, useRef, type ReactNode } from 'react';
+import { BackHandler, Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { visibleProjects } from '@/domain/selectors';
 import { popUndo } from '@/features/undo';
@@ -39,6 +39,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const setNewProjectOpen = useUiStore((s) => s.setNewProjectOpen);
 
   const permanent = mode === 'expanded';
+  const lastBackPress = useRef(0);
 
   const width = sidebarWidthFor(windowWidth, permanent);
   const stepProject = (delta: number) => {
@@ -69,6 +70,29 @@ export function AppShell({ children }: { children: ReactNode }) {
     sync: () => void syncNow(),
     undo: () => void popUndo(),
   });
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      // Dialog コンポーネントの Modal は onRequestClose で自身を閉じる。
+      if (useUiStore.getState().dialogCount > 0) return false;
+      // 設定などのサブ画面では通常のナビゲーションを優先する。
+      const mainScreen = pathname === '/home' || pathname.startsWith('/project/');
+      if (!mainScreen && router.canGoBack()) {
+        router.back();
+        return true;
+      }
+      const now = Date.now();
+      if (now - lastBackPress.current < 2000) {
+        BackHandler.exitApp();
+        return true;
+      }
+      lastBackPress.current = now;
+      toast(t('app.pressBackAgain'), undefined, { force: true });
+      return true;
+    });
+    return () => subscription.remove();
+  }, [pathname, router, toast]);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.surface, paddingTop: insets.top }]}>

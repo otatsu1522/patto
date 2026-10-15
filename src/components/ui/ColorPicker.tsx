@@ -27,12 +27,17 @@ export function ColorPicker({ label, value, onChange }: Props) {
           style={[
             styles.swatch,
             {
-              borderColor: value === null ? colors.text : colors.border,
+              borderColor: colors.border,
               backgroundColor: colors.surface,
             },
           ]}
         >
-          <View style={[styles.slash, { backgroundColor: colors.textMuted }]} />
+          <View style={[styles.slash, { backgroundColor: colors.border }]} />
+          {value === null ? (
+            <View style={styles.checkBadge}>
+              <Icon name="check" size={12} color={colors.text} />
+            </View>
+          ) : null}
         </Pressable>
         {TASK_COLOR_KEYS.map((key) => (
           <Pressable
@@ -44,16 +49,18 @@ export function ColorPicker({ label, value, onChange }: Props) {
               styles.swatch,
               {
                 backgroundColor: taskColor(key),
-                borderColor: value === key ? colors.text : 'transparent',
+                borderColor: colors.border,
               },
             ]}
           >
             {value === key ? (
-              <Icon
-                name="check"
-                size={16}
-                color={isDark || key === 'yellow' ? '#000000' : '#FFFFFF'}
-              />
+              <View style={styles.checkBadge}>
+                <Icon
+                  name="check"
+                  size={16}
+                  color={isDark || key === 'yellow' ? '#000000' : '#FFFFFF'}
+                />
+              </View>
             ) : null}
           </Pressable>
         ))}
@@ -65,12 +72,26 @@ export function ColorPicker({ label, value, onChange }: Props) {
 const styles = StyleSheet.create({
   wrap: { gap: SPACING.xs },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
-  slash: { position: 'absolute', width: 44, height: 2, transform: [{ rotate: '-45deg' }] },
+  slash: {
+    position: 'absolute',
+    width: 44,
+    height: 2,
+    borderRadius: 1,
+    transform: [{ rotate: '-45deg' }],
+  },
+  checkBadge: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: RADIUS.pill,
+    backgroundColor: 'transparent',
+    zIndex: 1,
+  },
   swatch: {
     width: 34,
     height: 34,
     borderRadius: RADIUS.pill,
     borderWidth: 2,
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
   },

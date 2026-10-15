@@ -8,6 +8,7 @@ import { Divider, Section, SwitchRow } from '@/components/ui/Rows';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { BOARD } from '@/config/layout';
 import { t, type StringKey } from '@/i18n';
+import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
 import {
   SHORTCUT_ACTIONS,
   displayKey,
@@ -33,6 +34,7 @@ const INFO_KEYS: StringKey[] = [
 
 /** キーボードショートカットの確認・変更（Web版）。 */
 export default function ShortcutSettings() {
+  const scrollRef = useWebWheelScroll();
   const { colors } = useTheme();
   const settings = useSettingsStore((s) => s.settings);
   const update = useSettingsStore((s) => s.update);
@@ -96,7 +98,7 @@ export default function ShortcutSettings() {
   return (
     <View style={styles.fill}>
       <ScreenHeader title={t('settings.shortcuts')} />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.content}>
         <View style={styles.inner}>
           {Platform.OS !== 'web' ? <AppText muted>{t('settings.shortcutsWebOnly')}</AppText> : null}
           <Section>
@@ -210,7 +212,14 @@ export default function ShortcutSettings() {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   flex: { flex: 1 },
-  content: { padding: SPACING.lg, alignItems: 'center' },
+  scroll: {
+    flex: 1,
+    minHeight: 0,
+    overflowY: 'auto',
+    touchAction: 'pan-y',
+    overscrollBehaviorY: 'auto',
+  } as never,
+  content: { padding: SPACING.lg, alignItems: 'center', flexGrow: 1 },
   inner: { width: '100%', maxWidth: BOARD.dialogMaxWidth + 120, gap: SPACING.lg },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   row: {

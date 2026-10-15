@@ -49,19 +49,19 @@ export function ReauthBanner() {
 
 const styles = StyleSheet.create({
   bar: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
+    flexDirection: 'column',
+    alignItems: 'stretch',
     gap: SPACING.sm,
     padding: SPACING.sm,
   },
-  text: { flexGrow: 1, flexBasis: 200 },
+  text: { flexGrow: 0 },
   input: {
-    minWidth: 160,
-    flexGrow: 1,
+    width: '100%',
+    minWidth: 0,
     borderRadius: RADIUS.md,
     paddingHorizontal: SPACING.md,
     minHeight: 44,
     outlineStyle: 'none',
+    flexGrow: 0,
   } as never,
 });

@@ -1,0 +1,169 @@
+import { useEffect, useRef } from 'react';
+import { Platform, type ScrollView } from 'react-native';
+import { isTouchWeb } from '@/lib/hover';
+
+type ScrollViewHandle = {
+  getScrollableNode?: () => unknown;
+  _scrollNodeRef?: { current?: unknown };
+};
+
+/** react-native-web の ScrollView が実際にスクロールする DOM 要素を取得する。 */
+function getScrollElement(ref: { current: ScrollView | null }): HTMLElement | null {
+  const instance = ref.current as unknown as ScrollViewHandle | null;
+  const node = instance?.getScrollableNode?.() ?? instance?._scrollNodeRef?.current;
+  return typeof HTMLElement !== 'undefined' && node instanceof HTMLElement ? node : null;
+}
+
+/**
+ * Web の設定画面用スクロール ref。
+ * カード・選択肢・フォーム上から操作しても、画面全体の ScrollView が
+ * ホイールまたは縦スワイプを受け取れるようにする。
+ */
+export function useWebWheelScroll() {
+  const scrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+
+    let element: HTMLElement | null = null;
+    let frame = 0;
+    let attempts = 0;
+    let disposed = false;
+
+    let startX = 0;
+    let startY = 0;
+    let lastY = 0;
+    let touchAxis: 'pending' | 'vertical' | 'horizontal' = 'pending';
+    let trackingTouch = false;
+
+    const isInside = (event: Event) => {
+      const target = event.target;
+      return !!element && target instanceof Node && element.contains(target);
+    };
+
+    const hasNestedScrollable = (target: EventTarget | null, deltaY: number) => {
+      let node = target instanceof HTMLElement ? target : null;
+      while (node && node !== element) {
+        const overflowY = window.getComputedStyle(node).overflowY;
+        if (
+          (overflowY === 'auto' || overflowY === 'scroll') &&
+          node.scrollHeight > node.clientHeight
+        ) {
+          const canScroll =
+            deltaY < 0
+              ? node.scrollTop > 0
+              : node.scrollTop + node.clientHeight < node.scrollHeight - 1;
+          if (canScroll) return true;
+        }
+        node = node.parentElement;
+      }
+      return false;
+    };
+
+    const onWheel = (event: WheelEvent) => {
+      if (!element || !isInside(event) || event.ctrlKey || event.deltaY === 0) return;
+      if (hasNestedScrollable(event.target, event.deltaY)) return;
+
+      const delta =
+        event.deltaMode === WheelEvent.DOM_DELTA_LINE
+          ? event.deltaY * 16
+          : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+            ? event.deltaY * element.clientHeight
+            : event.deltaY;
+      const current = element.scrollTop;
+      const next = Math.max(
+        0,
+        Math.min(element.scrollHeight - element.clientHeight, current + delta),
+      );
+      if (next === current) return;
+
+      event.preventDefault();
+      element.scrollTop = next;
+    };
+
+    const onTouchStart = (event: TouchEvent) => {
+      if (!element || !isInside(event) || event.touches.length !== 1) {
+        trackingTouch = false;
+        return;
+      }
+      const touch = event.touches[0];
+      startX = touch.clientX;
+      startY = touch.clientY;
+      lastY = touch.clientY;
+      touchAxis = 'pending';
+      trackingTouch = true;
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+      if (!element || !trackingTouch || event.touches.length !== 1) return;
+      const touch = event.touches[0];
+      const dx = touch.clientX - startX;
+      const dy = touch.clientY - startY;
+
+      if (touchAxis === 'pending') {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) < 6) return;
+        touchAxis = Math.abs(dy) >= Math.abs(dx) ? 'vertical' : 'horizontal';
+      }
+      if (touchAxis !== 'vertical') return;
+
+      const delta = lastY - touch.clientY;
+      lastY = touch.clientY;
+      const current = element.scrollTop;
+      const next = Math.max(
+        0,
+        Math.min(element.scrollHeight - element.clientHeight, current + delta),
+      );
+      if (next === current) return;
+
+      if (event.cancelable) event.preventDefault();
+      element.scrollTop = next;
+    };
+
+    const resetTouch = () => {
+      trackingTouch = false;
+      touchAxis = 'pending';
+    };
+
+    const detach = () => {
+      if (!element) return;
+      document.removeEventListener('wheel', onWheel, true);
+      document.removeEventListener('touchstart', onTouchStart, true);
+      document.removeEventListener('touchmove', onTouchMove, true);
+      document.removeEventListener('touchend', resetTouch, true);
+      document.removeEventListener('touchcancel', resetTouch, true);
+    };
+
+    const attach = () => {
+      if (disposed) return;
+      element = getScrollElement(scrollRef);
+      if (!element) {
+        if (attempts++ < 8) frame = window.requestAnimationFrame(attach);
+        return;
+      }
+
+      // 子のカード・フォームの上でもページの縦スクロールを受け取る。
+      element.style.overflowY = 'auto';
+      element.style.minHeight = '0';
+      element.style.touchAction = 'pan-y';
+      element.style.overscrollBehaviorY = 'contain';
+      element.style.setProperty('-webkit-overflow-scrolling', 'touch');
+
+      document.addEventListener('wheel', onWheel, { capture: true, passive: false });
+      if (isTouchWeb) {
+        document.addEventListener('touchstart', onTouchStart, { capture: true, passive: true });
+        document.addEventListener('touchmove', onTouchMove, { capture: true, passive: false });
+        document.addEventListener('touchend', resetTouch, true);
+        document.addEventListener('touchcancel', resetTouch, true);
+      }
+    };
+
+    attach();
+    return () => {
+      disposed = true;
+      if (frame) window.cancelAnimationFrame(frame);
+      detach();
+    };
+  }, []);
+
+  return scrollRef;
+}

@@ -13,6 +13,7 @@ import { IconButton } from '../ui/IconButton';
 /** 同期の状態を表す文言とアイコン。 */
 export function useSyncLabel(): { icon: IconKey; label: string; color: string; enabled: boolean } {
   const { colors } = useTheme();
+  const normalColor = colors.text;
   const identity = useAuthStore((s) => s.identity);
   const syncMode = useSettingsStore((s) => s.settings.syncMode);
   const status = useSyncStore((s) => s.status);
@@ -22,10 +23,10 @@ export function useSyncLabel(): { icon: IconKey; label: string; color: string; e
   );
 
   if (!identity || identity.local || !isSupabaseConfigured) {
-    return { icon: 'offline', label: t('sync.localOnly'), color: colors.textMuted, enabled: false };
+    return { icon: 'offline', label: t('sync.localOnly'), color: normalColor, enabled: false };
   }
   if (syncMode === 'off')
-    return { icon: 'offline', label: t('sync.off'), color: colors.textMuted, enabled: false };
+    return { icon: 'offline', label: t('sync.off'), color: normalColor, enabled: false };
   if (status === 'syncing')
     return { icon: 'sync', label: t('sync.syncing'), color: colors.accent, enabled: true };
   if (status === 'offline')
@@ -34,22 +35,22 @@ export function useSyncLabel(): { icon: IconKey; label: string; color: string; e
       label: pending
         ? `${t('sync.offline')} · ${t('sync.pending', { count: pending })}`
         : t('sync.offline'),
-      color: colors.warning,
+      color: normalColor,
       enabled: true,
     };
   if (status === 'error')
-    return { icon: 'error', label: t('sync.error'), color: colors.danger, enabled: true };
+    return { icon: 'error', label: t('sync.error'), color: normalColor, enabled: true };
   if (pending > 0)
     return {
       icon: 'sync',
       label: t('sync.pending', { count: pending }),
-      color: colors.warning,
+      color: normalColor,
       enabled: true,
     };
   return {
     icon: 'synced',
     label: last ? t('sync.syncedAt', { time: formatTime(last) }) : t('sync.synced'),
-    color: colors.success,
+    color: normalColor,
     enabled: true,
   };
 }

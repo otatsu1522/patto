@@ -32,5 +32,11 @@ export const GESTURE = {
   webDragDistance: 6,
 } as const;
 
-export const FONT_SCALES = { small: 0.87, normal: 1, large: 1.15, xlarge: 1.3 } as const;
+export const FONT_SCALES = {
+  tiny: 0.75,
+  small: 0.87,
+  normal: 1,
+  large: 1.15,
+  xlarge: 1.3,
+} as const;
 export type FontScaleKey = keyof typeof FONT_SCALES;

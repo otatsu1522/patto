@@ -11,6 +11,8 @@ export interface MenuItem {
   disabled?: boolean;
   /** この項目の上に区切り線を入れる */
   separator?: boolean;
+  /** アイコンのみ控えめなテーマ色で表示する */
+  mutedIcon?: boolean;
 }
 
 interface Props {

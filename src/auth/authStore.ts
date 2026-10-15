@@ -26,7 +26,7 @@ export interface Identity {
   local?: boolean;
 }
 
-export type AuthResult = { ok: true } | { ok: false; message: string };
+export type AuthResult = { ok: true; message?: string } | { ok: false; message: string };
 
 interface AuthState {
   status: AuthStatus;
@@ -44,6 +44,7 @@ interface AuthState {
   signOut: () => Promise<void>;
   reauthenticate: (password: string) => Promise<AuthResult>;
   changePassword: (current: string, next: string) => Promise<AuthResult>;
+  changeEmail: (email: string) => Promise<AuthResult>;
   updateDisplayName: (name: string) => Promise<void>;
   deleteAccount: () => Promise<AuthResult>;
   setNeedsReauth: (v: boolean) => void;
@@ -108,10 +109,14 @@ export const useAuthStore = create<AuthState>((set, get) => {
       if (identity) await enter(identity);
       else set({ status: 'signedOut' });
 
-      getSupabase()?.auth.onAuthStateChange((event) => {
+      getSupabase()?.auth.onAuthStateChange((event, session) => {
         const current = get();
         if (event === 'SIGNED_OUT' && current.status === 'account' && !current.identity?.local) {
           set({ needsReauth: true });
+        } else if (event === 'USER_UPDATED' && current.identity && session?.user.email) {
+          const next = { ...current.identity, email: session.user.email };
+          void persist(next);
+          set({ identity: next });
         }
       });
     },
@@ -260,6 +265,27 @@ export const useAuthStore = create<AuthState>((set, get) => {
         if (check.error) return { ok: false, message: mapAuthError(check.error) };
         const { error } = await client.auth.updateUser({ password: next });
         return error ? { ok: false, message: mapAuthError(error) } : { ok: true };
+      } catch (e) {
+        return fail(e, t('settings.onlineOnly'));
+      }
+    },
+
+    async changeEmail(email) {
+      const client = getSupabase();
+      const identity = get().identity;
+      if (!client || !identity || identity.local || identity.mode !== 'account')
+        return notConfigured();
+      try {
+        const normalized = normalizeEmail(email);
+        const { data, error } = await client.auth.updateUser({ email: normalized });
+        if (error) return { ok: false, message: mapAuthError(error) };
+        if (data.user.new_email) {
+          return { ok: true, message: t('settings.emailChangePending') };
+        }
+        const next = { ...identity, email: data.user.email ?? normalized };
+        await persist(next);
+        set({ identity: next });
+        return { ok: true, message: t('settings.emailChanged') };
       } catch (e) {
         return fail(e, t('settings.onlineOnly'));
       }

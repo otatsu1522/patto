@@ -8,6 +8,7 @@ import type { TaskColorKey } from '@/theme/taskColors';
 import { Button } from '../ui/Button';
 import { ColorPicker } from '../ui/ColorPicker';
 import { Dialog } from '../ui/Dialog';
+import { DiscardChangesOverlay } from '../ui/DiscardChangesOverlay';
 import { TextField } from '../ui/TextField';
 
 interface ColumnDialogProps {
@@ -19,13 +20,13 @@ interface ColumnDialogProps {
 
 /** カンバンの作成・名前変更ダイアログ。 */
 export function ColumnDialog({ visible, column, onClose, onSubmit }: ColumnDialogProps) {
-  // 閉じるアニメーション中にタイトルが切り替わらないよう、開いている間の値を覚えておく
   const [lastColumn, setLastColumn] = useState(column);
   if (visible && lastColumn !== column) setLastColumn(column);
   const shownColumn = visible ? column : lastColumn;
   const [title, setTitle] = useState('');
   const [color, setColor] = useState<TaskColorKey | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [discardPrompt, setDiscardPrompt] = useState(false);
   const titleInput = useFocusOnOpen(visible);
 
   /* eslint-disable react-hooks/set-state-in-effect -- ダイアログを開くたびに、入力欄を元の値に戻す */
@@ -34,10 +35,23 @@ export function ColumnDialog({ visible, column, onClose, onSubmit }: ColumnDialo
     setTitle(column?.title ?? '');
     setColor(column?.color ?? null);
     setSubmitted(false);
+    setDiscardPrompt(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, column?.id]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  const dirty = title !== (column?.title ?? '') || color !== (column?.color ?? null);
+  const requestClose = () => {
+    if (discardPrompt) {
+      setDiscardPrompt(false);
+      return;
+    }
+    if (dirty) {
+      setDiscardPrompt(true);
+      return;
+    }
+    onClose();
+  };
   const error = submitted ? validateTitle(title, LIMITS.columnTitleMax) : null;
   const submit = () => {
     setSubmitted(true);
@@ -49,7 +63,17 @@ export function ColumnDialog({ visible, column, onClose, onSubmit }: ColumnDialo
     <Dialog
       visible={visible}
       title={shownColumn ? t('column.rename') : t('column.create')}
-      onClose={onClose}
+      onClose={requestClose}
+      overlay={
+        <DiscardChangesOverlay
+          visible={discardPrompt}
+          onKeepEditing={() => setDiscardPrompt(false)}
+          onDiscard={() => {
+            setDiscardPrompt(false);
+            onClose();
+          }}
+        />
+      }
       footer={<Button label={t('common.confirm')} variant="accent" onPress={submit} fullWidth />}
     >
       <TextField
@@ -81,6 +105,7 @@ export function ProjectDialog({ visible, project, onClose, onSubmit }: ProjectDi
   const [title, setTitle] = useState('');
   const [color, setColor] = useState<TaskColorKey | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [discardPrompt, setDiscardPrompt] = useState(false);
   const titleInput = useFocusOnOpen(visible);
 
   /* eslint-disable react-hooks/set-state-in-effect -- ダイアログを開くたびに、入力欄を元の値に戻す */
@@ -89,10 +114,23 @@ export function ProjectDialog({ visible, project, onClose, onSubmit }: ProjectDi
     setTitle(project?.title ?? '');
     setColor(project?.color ?? null);
     setSubmitted(false);
+    setDiscardPrompt(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, project?.id]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  const dirty = title !== (project?.title ?? '') || color !== (project?.color ?? null);
+  const requestClose = () => {
+    if (discardPrompt) {
+      setDiscardPrompt(false);
+      return;
+    }
+    if (dirty) {
+      setDiscardPrompt(true);
+      return;
+    }
+    onClose();
+  };
   const titleError = submitted ? validateTitle(title, LIMITS.projectTitleMax) : null;
   const submit = () => {
     setSubmitted(true);
@@ -104,7 +142,17 @@ export function ProjectDialog({ visible, project, onClose, onSubmit }: ProjectDi
     <Dialog
       visible={visible}
       title={shownProject ? t('project.edit') : t('project.create')}
-      onClose={onClose}
+      onClose={requestClose}
+      overlay={
+        <DiscardChangesOverlay
+          visible={discardPrompt}
+          onKeepEditing={() => setDiscardPrompt(false)}
+          onDiscard={() => {
+            setDiscardPrompt(false);
+            onClose();
+          }}
+        />
+      }
       footer={<Button label={t('common.confirm')} variant="accent" onPress={submit} fullWidth />}
     >
       <TextField

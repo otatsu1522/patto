@@ -121,7 +121,7 @@ export function ChoiceRow<T extends string>({
   options,
   onChange,
 }: {
-  label: string;
+  label?: string;
   value: T;
   options: { value: T; label: string }[];
   onChange: (v: T) => void;
@@ -129,7 +129,7 @@ export function ChoiceRow<T extends string>({
   const { colors } = useTheme();
   return (
     <View style={[styles.row, styles.column]}>
-      <AppText>{label}</AppText>
+      {label ? <AppText>{label}</AppText> : null}
       <View style={styles.choices}>
         {options.map((o) => {
           const selected = o.value === value;

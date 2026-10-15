@@ -1,5 +1,5 @@
 import { Slot } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
+import * as SystemUI from 'expo-system-ui';
 import { useEffect } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -7,6 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/auth/authStore';
 import { isSupabaseConfigured } from '@/config/env';
 import { FeedbackProvider } from '@/components/ui/FeedbackProvider';
+import { SystemBars } from '@/components/ui/SystemBars';
 import { MenuProvider } from '@/components/ui/MenuHost';
 import { autoPurgeLocal } from '@/features/maintenance';
 import { nowMs } from '@/lib/clock';
@@ -47,6 +48,15 @@ function Boot() {
   const syncMode = useSettingsStore((s) => s.settings.syncMode);
   const autoDelete = useSettingsStore((s) => s.settings.trashAutoDelete);
   const retention = useSettingsStore((s) => s.settings.trashRetentionDays);
+
+  // システムバーの背後にあるネイティブ Root View 背景を、アプリのテーマに同期する。
+  // Root View の背景色をテーマに同期する。各画面／Modal のシステムバー表示は SystemBars に統一する。
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    void SystemUI.setBackgroundColorAsync(colors.bg).catch(() => {
+      // 未対応環境では SystemBars が描画する上下の背景 View に任せる。
+    });
+  }, [colors.bg]);
 
   useEffect(() => {
     void useSettingsStore
@@ -91,22 +101,29 @@ function Boot() {
 
   if (Platform.OS === 'web' && !isolated()) {
     return (
-      <View style={[styles.center, { backgroundColor: colors.bg }]}>
-        <AppText style={styles.notice}>{t('app.webNotIsolated')}</AppText>
+      <View style={[styles.fill, { backgroundColor: colors.bg }]}>
+        <SystemBars />
+        <View style={styles.center}>
+          <AppText style={styles.notice}>{t('app.webNotIsolated')}</AppText>
+        </View>
       </View>
     );
   }
   if (!loaded || status === 'loading') {
     return (
-      <View style={[styles.center, { backgroundColor: colors.bg }]}>
-        <ActivityIndicator color={colors.primary} />
+      <View style={[styles.fill, { backgroundColor: colors.bg }]}>
+        <SystemBars />
+        <View style={styles.center}>
+          <ActivityIndicator color={colors.primary} />
+        </View>
       </View>
     );
   }
   return (
     <MenuProvider>
-      <StatusBar style={isDark ? 'light' : 'dark'} />
       <Slot />
+      {/* ルート画面より後ろに描画されないよう最後に置き、システム領域の背景を最前面で描画する。 */}
+      <SystemBars />
     </MenuProvider>
   );
 }

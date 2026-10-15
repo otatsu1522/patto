@@ -33,4 +33,5 @@ export const MIGRATIONS: string[][] = [
     'CREATE INDEX IF NOT EXISTS idx_tasks_column ON tasks(column_id);',
     'CREATE TABLE IF NOT EXISTS sync_meta (key TEXT PRIMARY KEY, value TEXT);',
   ],
+  [],
 ];

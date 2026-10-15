@@ -1,5 +1,6 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -16,6 +17,10 @@ import { useLayoutMode } from '@/hooks/useLayout';
 import { AppText } from './AppText';
 import { IconButton } from './IconButton';
 import { BORDER_WIDTH } from '@/theme/tokens';
+import { SystemBars } from './SystemBars';
+import { getSystemBarInsets } from '@/lib/systemBarInsets';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { isTouchWeb } from '@/lib/hover';
 
 interface Props {
   visible: boolean;
@@ -23,16 +28,41 @@ interface Props {
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  /** フォームより前面に重ねる確認 UI */
+  overlay?: ReactNode;
   /** 幅を広げたいとき（一覧表示など） */
   wide?: boolean;
 }
 
-/** ダイアログ。PCは中央のカード、スマホは下から出るシートとして表示する。 */
-export function Dialog({ visible, title, onClose, children, footer, wide }: Props) {
+/** ダイアログ。キーボードがないときは画面中央、入力中はキーボードの上の表示領域内に配置する。 */
+export function Dialog({ visible, title, onClose, children, footer, overlay, wide }: Props) {
   const { colors } = useTheme();
+  const insets = getSystemBarInsets(useSafeAreaInsets());
   const { mode } = useLayoutMode();
   const push = useUiStore((s) => s.pushDialog);
   const pop = useUiStore((s) => s.popDialog);
+  const bodyScrollRef = useRef<ScrollView>(null);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      if (!isTouchWeb || !window.visualViewport) return;
+      const viewport = window.visualViewport;
+      const update = () => setKeyboardVisible(window.innerHeight - viewport.height > 120);
+      update();
+      viewport.addEventListener('resize', update);
+      return () => viewport.removeEventListener('resize', update);
+    }
+
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const show = Keyboard.addListener(showEvent, () => setKeyboardVisible(true));
+    const hide = Keyboard.addListener(hideEvent, () => setKeyboardVisible(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
   useEffect(() => {
     if (!visible) return;
@@ -40,66 +70,122 @@ export function Dialog({ visible, title, onClose, children, footer, wide }: Prop
     return pop;
   }, [visible, push, pop]);
 
-  const sheet = mode === 'compact';
+  // Web ではフォームやカラーピッカー上でホイールイベントが内側の要素に留まり、
+  // ダイアログ本文がスクロールしない場合がある。スクロール要素で捕捉して本文を直接動かす。
+  useEffect(() => {
+    if (!visible || Platform.OS !== 'web') return;
+    const scrollable = (
+      bodyScrollRef.current as unknown as { getScrollableNode?: () => unknown } | null
+    )?.getScrollableNode?.();
+    const node = scrollable as HTMLElement | null;
+    if (!node) return;
+
+    const onWheel = (event: WheelEvent) => {
+      if (event.ctrlKey || event.deltaY === 0) return;
+      const maxScrollTop = node.scrollHeight - node.clientHeight;
+      if (maxScrollTop <= 0) return;
+      const next = Math.max(0, Math.min(maxScrollTop, node.scrollTop + event.deltaY));
+      if (next === node.scrollTop) return;
+      event.preventDefault();
+      node.scrollTop = next;
+    };
+
+    node.addEventListener('wheel', onWheel, { passive: false, capture: true });
+    return () => node.removeEventListener('wheel', onWheel, true);
+  }, [visible]);
+
+  const compact = mode === 'compact';
   return (
     <Modal
       visible={visible}
       transparent
-      animationType={sheet ? 'slide' : 'fade'}
+      animationType="fade"
       onRequestClose={onClose}
       statusBarTranslucent
+      navigationBarTranslucent
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.fill}
-      >
-        <Pressable
-          style={[styles.backdrop, { backgroundColor: colors.overlay }, sheet && styles.bottom]}
-          onPress={onClose}
-          accessibilityLabel={t('common.close')}
+      <View style={styles.modalRoot}>
+        <SystemBars />
+        <KeyboardAvoidingView
+          behavior={
+            Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined
+          }
+          style={styles.fill}
         >
           <Pressable
-            onPress={(e) => e.stopPropagation()}
             style={[
-              styles.card,
-              SHADOW.float,
+              styles.backdrop,
               {
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-                maxWidth: wide ? BOARD.dialogMaxWidth + 160 : BOARD.dialogMaxWidth,
+                backgroundColor: colors.overlay,
+                top: 0,
+                bottom: 0,
+                paddingTop: insets.top + SPACING.lg,
+                paddingBottom: keyboardVisible ? SPACING.md : insets.bottom + SPACING.lg,
               },
-              sheet && styles.sheet,
             ]}
+            onPress={onClose}
+            accessibilityLabel={t('common.close')}
           >
-            <View style={styles.header}>
-              <AppText variant="title" style={styles.title} numberOfLines={1}>
-                {title}
-              </AppText>
-              <IconButton icon="close" label={t('common.close')} onPress={onClose} />
-            </View>
-            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.body}>
-              {children}
-            </ScrollView>
-            {footer ? <View style={styles.footer}>{footer}</View> : null}
+            <Pressable
+              onPress={(e) => e.stopPropagation()}
+              style={[
+                styles.card,
+                SHADOW.float,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  maxWidth: compact
+                    ? ('100%' as never)
+                    : wide
+                      ? BOARD.dialogMaxWidth + 160
+                      : BOARD.dialogMaxWidth,
+                },
+              ]}
+            >
+              <View style={styles.header}>
+                <AppText variant="title" style={styles.title} numberOfLines={1}>
+                  {title}
+                </AppText>
+                <IconButton icon="close" label={t('common.close')} onPress={onClose} />
+              </View>
+              <ScrollView
+                ref={bodyScrollRef}
+                style={styles.bodyScroll}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={styles.body}
+                automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+              >
+                {children}
+              </ScrollView>
+              {footer ? <View style={styles.footer}>{footer}</View> : null}
+            </Pressable>
           </Pressable>
-        </Pressable>
-      </KeyboardAvoidingView>
+          {overlay}
+        </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  backdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.lg },
-  bottom: { justifyContent: 'flex-end', padding: 0 },
+  modalRoot: { flex: 1 },
+  backdrop: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: SPACING.lg,
+  },
   card: {
     width: '100%',
+    position: 'relative',
     maxHeight: '90%',
     borderRadius: RADIUS.lg,
     borderWidth: BORDER_WIDTH,
     overflow: 'hidden',
   },
-  sheet: { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, maxWidth: '100%' as never },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -108,6 +194,7 @@ const styles = StyleSheet.create({
     paddingTop: SPACING.sm,
   },
   title: { flex: 1 },
+  bodyScroll: { flexShrink: 1, minHeight: 0 },
   body: { padding: SPACING.lg, gap: SPACING.md },
   footer: { padding: SPACING.lg, paddingTop: SPACING.sm, gap: SPACING.sm },
 });

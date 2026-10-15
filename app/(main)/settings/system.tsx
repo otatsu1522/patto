@@ -1,14 +1,16 @@
 import { ScrollView, StyleSheet, View } from 'react-native';
+import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
 import { useAuthStore } from '@/auth/authStore';
 import { useFeedback } from '@/components/ui/FeedbackProvider';
 import { ChoiceRow, LinkRow, Section, SwitchRow } from '@/components/ui/Rows';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { AppText } from '@/components/ui/AppText';
+import { Button } from '@/components/ui/Button';
 import { isSupabaseConfigured } from '@/config/env';
 import type { CardDensity, SyncMode, ThemeMode } from '@/config/defaults';
 import { BOARD, type FontScaleKey } from '@/config/layout';
 import { exportProjects, importProjects } from '@/features/importExport';
-import { clearBucket, previewClear } from '@/features/maintenance';
+import { clearBucket, previewClear, resetAllData } from '@/features/maintenance';
 import { visibleProjects, archivedProjects } from '@/domain/selectors';
 import { t } from '@/i18n';
 import { formatDateTime } from '@/lib/dates';
@@ -18,7 +20,7 @@ import { syncNow } from '@/sync/controller';
 import { useSyncStore } from '@/sync/status';
 import { SPACING } from '@/theme';
 
-/** システム設定: 外観 / 同期 / ごみ箱 / インポート・エクスポート。 */
+/** システム設定: 外観 / システム / データ管理。 */
 export default function SystemSettings() {
   const { confirm, toast } = useFeedback();
   const settings = useSettingsStore((s) => s.settings);
@@ -26,6 +28,7 @@ export default function SystemSettings() {
   const identity = useAuthStore((s) => s.identity);
   const lastSyncedAt = useSyncStore((s) => s.lastSyncedAt);
   const syncAvailable = !!identity && !identity.local && isSupabaseConfigured;
+  const scrollRef = useWebWheelScroll();
 
   const doExport = async () => {
     const answer = await confirm({
@@ -66,48 +69,93 @@ export default function SystemSettings() {
     });
   };
 
+  const reset = async () => {
+    const result = await confirm({
+      title: t('settings.resetAllTitle'),
+      message: t('settings.resetAllMessage'),
+      confirmLabel: t('settings.resetAllConfirm'),
+      destructive: true,
+    });
+    if (result !== 'confirm') return;
+    const res = await resetAllData();
+    toast(res.ok ? t('settings.resetAllDone') : res.message, undefined, { force: !res.ok });
+  };
+
+  const category = (label: string) => (
+    <AppText variant="title" style={styles.category}>
+      {label}
+    </AppText>
+  );
+  const hint = (value: string) => (
+    <AppText variant="caption" muted style={styles.hint}>
+      {value}
+    </AppText>
+  );
+
   return (
     <View style={styles.fill}>
       <ScreenHeader title={t('settings.system')} />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.content}>
         <View style={styles.inner}>
-          <Section title={t('settings.appearance')} description={t('settings.appearanceHint')}>
+          {category(t('settings.appearance'))}
+          <Section title={t('settings.theme')}>
+            {hint(t('settings.themeHint'))}
             <ChoiceRow<ThemeMode>
-              label={t('settings.theme')}
               value={settings.themeMode}
               onChange={(v) => update({ themeMode: v })}
               options={[
-                { value: 'system', label: t('settings.theme.system') },
                 { value: 'light', label: t('settings.theme.light') },
                 { value: 'dark', label: t('settings.theme.dark') },
+                { value: 'system', label: t('settings.theme.system') },
               ]}
             />
+          </Section>
+          <Section title={t('settings.fontSize')}>
+            {hint(t('settings.fontSizeHint'))}
             <ChoiceRow<FontScaleKey>
-              label={t('settings.fontSize')}
               value={settings.fontScale}
               onChange={(v) => update({ fontScale: v })}
               options={[
+                { value: 'tiny', label: t('settings.fontSize.tiny') },
                 { value: 'small', label: t('settings.fontSize.small') },
                 { value: 'normal', label: t('settings.fontSize.normal') },
                 { value: 'large', label: t('settings.fontSize.large') },
                 { value: 'xlarge', label: t('settings.fontSize.xlarge') },
               ]}
             />
+          </Section>
+          <Section title={t('settings.density')}>
+            {hint(t('settings.densityHint'))}
             <ChoiceRow<CardDensity>
-              label={t('settings.density')}
               value={settings.cardDensity}
               onChange={(v) => update({ cardDensity: v })}
               options={[
-                { value: 'normal', label: t('settings.density.normal') },
                 { value: 'compact', label: t('settings.density.compact') },
+                { value: 'normal', label: t('settings.density.normal') },
+                { value: 'detailed', label: t('settings.density.detailed') },
               ]}
+            />
+            {hint(t('settings.cardFieldsHint'))}
+            <SwitchRow
+              label={t('settings.showDescription')}
+              value={settings.showTaskDescription}
+              onChange={(v) => update({ showTaskDescription: v })}
+            />
+            <SwitchRow
+              label={t('settings.showDueDate')}
+              value={settings.showTaskDueDate}
+              onChange={(v) => update({ showTaskDueDate: v })}
+            />
+            <SwitchRow
+              label={t('settings.showUpdatedAt')}
+              value={settings.showTaskUpdatedAt}
+              onChange={(v) => update({ showTaskUpdatedAt: v })}
             />
           </Section>
 
-          <Section
-            title={t('settings.syncSection')}
-            description={syncAvailable ? undefined : t('settings.syncHint')}
-          >
+          {category(t('settings.systemCategory'))}
+          <Section title={t('settings.syncSection')}>
+            {hint(syncAvailable ? t('settings.syncHint') : t('settings.syncLocalOnly'))}
             {syncAvailable ? (
               <>
                 <ChoiceRow<SyncMode>
@@ -120,6 +168,17 @@ export default function SystemSettings() {
                     { value: 'auto', label: t('settings.syncMode.auto') },
                   ]}
                 />
+                <View style={styles.syncDescs}>
+                  <AppText variant="caption" muted>
+                    {t('settings.syncModeOffDesc')}
+                  </AppText>
+                  <AppText variant="caption" muted>
+                    {t('settings.syncModeManualDesc')}
+                  </AppText>
+                  <AppText variant="caption" muted>
+                    {t('settings.syncModeAutoDesc')}
+                  </AppText>
+                </View>
                 <LinkRow
                   icon="sync"
                   label={t('settings.syncNow')}
@@ -133,31 +192,10 @@ export default function SystemSettings() {
                   onPress={() => void syncNow()}
                 />
               </>
-            ) : (
-              <View style={styles.note}>
-                <AppText muted>{t('settings.syncLocalOnly')}</AppText>
-              </View>
-            )}
+            ) : null}
           </Section>
-
-          {syncAvailable ? (
-            <View style={styles.syncDescs}>
-              <AppText variant="caption" muted>
-                {t('settings.syncHint')}
-              </AppText>
-              <AppText variant="caption" muted>
-                {t('settings.syncModeOffDesc')}
-              </AppText>
-              <AppText variant="caption" muted>
-                {t('settings.syncModeManualDesc')}
-              </AppText>
-              <AppText variant="caption" muted>
-                {t('settings.syncModeAutoDesc')}
-              </AppText>
-            </View>
-          ) : null}
-
-          <Section title={t('settings.toastSection')} description={t('settings.toastHint')}>
+          <Section title={t('settings.notification')}>
+            {hint(t('settings.notificationHint'))}
             <SwitchRow
               label={t('settings.toast')}
               value={settings.toastEnabled}
@@ -165,7 +203,14 @@ export default function SystemSettings() {
             />
           </Section>
 
-          <Section title={t('settings.trashSection')} description={t('settings.trashHint')}>
+          {category(t('settings.dataManagement'))}
+          <Section title={t('settings.dataSection')}>
+            {hint(t('settings.dataHint'))}
+            <LinkRow icon="download" label={t('settings.export')} onPress={() => void doExport()} />
+            <LinkRow icon="upload" label={t('settings.import')} onPress={() => void doImport()} />
+          </Section>
+          <Section title={t('settings.trashSection')}>
+            {hint(t('settings.trashHint'))}
             <SwitchRow
               label={t('settings.trashAutoDelete')}
               hint={t('settings.trashRetentionDays', { days: settings.trashRetentionDays })}
@@ -187,10 +232,17 @@ export default function SystemSettings() {
               onPress={() => void clearAll('archive')}
             />
           </Section>
-
-          <Section title={t('settings.dataSection')} description={t('settings.dataHint')}>
-            <LinkRow icon="download" label={t('settings.export')} onPress={() => void doExport()} />
-            <LinkRow icon="upload" label={t('settings.import')} onPress={() => void doImport()} />
+          <Section title={t('settings.resetAll')}>
+            {hint(t('settings.resetAllHint'))}
+            <View style={styles.resetButton}>
+              <Button
+                label={t('settings.resetAll')}
+                variant="danger"
+                icon="trash"
+                onPress={() => void reset()}
+                fullWidth
+              />
+            </View>
           </Section>
         </View>
       </ScrollView>
@@ -199,9 +251,18 @@ export default function SystemSettings() {
 }
 
 const styles = StyleSheet.create({
-  fill: { flex: 1 },
-  content: { padding: SPACING.lg, alignItems: 'center' },
+  fill: { flex: 1, minHeight: 0 },
+  scroll: {
+    flex: 1,
+    minHeight: 0,
+    overflowY: 'auto',
+    touchAction: 'pan-y',
+    overscrollBehaviorY: 'auto',
+  } as never,
+  content: { padding: SPACING.lg, alignItems: 'center', flexGrow: 1 },
   inner: { width: '100%', maxWidth: BOARD.dialogMaxWidth + 120, gap: SPACING.lg },
-  note: { padding: SPACING.lg },
-  syncDescs: { gap: SPACING.xs, marginTop: -SPACING.sm, paddingHorizontal: SPACING.sm },
+  category: { marginTop: SPACING.md, paddingHorizontal: SPACING.sm },
+  hint: { padding: SPACING.lg, paddingBottom: 0 },
+  syncDescs: { gap: SPACING.xs, paddingHorizontal: SPACING.lg, paddingBottom: SPACING.sm },
+  resetButton: { padding: SPACING.lg, paddingTop: SPACING.sm },
 });

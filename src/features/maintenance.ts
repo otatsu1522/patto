@@ -1,10 +1,12 @@
 import { getSupabase } from '@/auth/supabase';
+import { isSupabaseConfigured } from '@/config/env';
 import { useAuthStore } from '@/auth/authStore';
 import { countTargets, purgeTargets } from '@/domain/selectors';
 import { t } from '@/i18n';
 import { syncNow } from '@/sync/controller';
 import { useDataStore } from '@/store/dataStore';
 import { useSettingsStore } from '@/store/settingsStore';
+import { useSyncStore } from '@/sync/status';
 import type { TableName } from '@/domain/types';
 
 export type ClearKind = 'trash' | 'archive';
@@ -67,4 +69,39 @@ export async function autoPurgeLocal(retentionDays: number, now: number): Promis
     tasks: snap.tasks.filter(expired).map((r) => r.id),
   };
   if (countTargets(ids) > 0) await store.purgeLocal(ids);
+}
+
+/** 全データを完全削除し、アカウントを残したままアプリ設定を初期値へ戻す。 */
+export async function resetAllData(): Promise<ClearResult> {
+  const store = useDataStore.getState();
+  const identity = useAuthStore.getState().identity;
+  const ids = {
+    projects: store.projects.map((item) => item.id),
+    columns: store.columns.map((item) => item.id),
+    tasks: store.tasks.map((item) => item.id),
+  };
+  const count = ids.projects.length + ids.columns.length + ids.tasks.length;
+
+  if (identity && !identity.local && isSupabaseConfigured) {
+    const client = getSupabase();
+    if (!client) return { ok: false, message: t('settings.resetAllFailed') };
+    try {
+      // 親子の外部キーを設けていないため、子から順に削除する。
+      for (const table of ['tasks', 'kanban_columns', 'projects'] as const) {
+        const { error } = await client.from(table).delete().eq('owner_id', identity.userId);
+        if (error) throw error;
+      }
+    } catch {
+      return { ok: false, message: t('settings.resetAllFailed') };
+    }
+  }
+
+  try {
+    await store.purgeLocal(ids);
+    useSettingsStore.getState().reset();
+    useSyncStore.getState().set({ status: 'idle', lastSyncedAt: null, error: null });
+    return { ok: true, count };
+  } catch {
+    return { ok: false, message: t('settings.resetAllFailed') };
+  }
 }

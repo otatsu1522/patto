@@ -29,7 +29,7 @@ export interface BoardGeometry {
 }
 
 /** スマホ縦で、現在のカンバンが画面幅に占める割合。残りで前後のカンバンが見える */
-const COMPACT_RATIO = 0.82;
+const COMPACT_RATIO = 0.92;
 /** PCで、左右に隣のカンバンを見せる幅 */
 const PEEK_PX = 40;
 
@@ -45,18 +45,31 @@ export function boardGeometry(
   mode: LayoutMode,
   count: number,
 ): BoardGeometry {
-  const { boardPadding: p, columnGap: gap, minColumnWidth, visibleColumns } = BOARD;
+  const { columnGap: gap, minColumnWidth, visibleColumns } = BOARD;
+  // 外側の余白を、カンバン間の区切り線までの余白（gap / 2）と揃える。
+  // boardPadding は縦方向の余白にのみ使用し、横方向には流用しない。
+  const p = gap / 2;
   const n = Math.max(1, count);
 
   if (mode === 'compact') {
     const columnWidth =
       n === 1 ? containerWidth - p * 2 : Math.round(containerWidth * COMPACT_RATIO);
+    // 左右端の余白も、カンバン間の区切り線までの余白と同じにする。
+    const compactPadding = p;
     const step = columnWidth + gap;
-    const max = Math.max(0, p * 2 + n * columnWidth + (n - 1) * gap - containerWidth);
+    const max = Math.max(0, compactPadding * 2 + n * columnWidth + (n - 1) * gap - containerWidth);
     const offsets = Array.from({ length: n }, (_, k) =>
-      clamp(p + k * step - (containerWidth - columnWidth) / 2, 0, max),
+      clamp(compactPadding + k * step - (containerWidth - columnWidth) / 2, 0, max),
     );
-    return { visible: 1, columnWidth, step, padding: p, offsets, peek: 0, compact: true };
+    return {
+      visible: 1,
+      columnWidth,
+      step,
+      padding: compactPadding,
+      offsets,
+      peek: 0,
+      compact: true,
+    };
   }
 
   const fit = Math.max(1, Math.floor((containerWidth - p * 2 + gap) / (minColumnWidth + gap)));

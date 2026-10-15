@@ -58,6 +58,10 @@ interface Props {
   tasksOf: (columnId: string) => Task[];
   cursor: Cursor | null;
   compactCards: boolean;
+  detailedCards: boolean;
+  showTaskDescription: boolean;
+  showTaskDueDate: boolean;
+  showTaskUpdatedAt: boolean;
   menuItemsFor: (column: KanbanColumn, index: number) => MenuItem[];
   taskMenuFor: (task: Task) => MenuItem[];
   onAdvance: (task: Task) => void;
@@ -65,6 +69,7 @@ interface Props {
   onTaskDrop: (task: Task, target: KanbanColumn) => void;
   onColumnDrop: (column: KanbanColumn, toIndex: number) => void;
   onAddTask: (column: KanbanColumn) => void;
+  onCopyTitle: (task: Task) => void;
   onRefresh?: () => Promise<void>;
   /**
    * 画面上部のバー。スマホではメニューと一緒に横へ動かす（メニューを開くと、画面全体が右へずれてメニューが現れる）。
@@ -97,18 +102,17 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
   const [blurSignal, setBlurSignal] = useState(0);
   const [positioned, setPositioned] = useState(false);
   const scrollAnim = useRef(new Animated.Value(0)).current;
-  const snapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const touching = useRef(false);
 
   const scrollRef = useRef<ScrollView>(null);
   const containerRef = useRef<View>(null);
   const origin = useRef({ x: 0, y: 0 });
   const scrollXRef = useRef(0);
+  // プログラム操作中は、スクロール完了まで意図した開閉状態を優先する。
+  const menuTargetRef = useRef<boolean | null>(null);
   const pointer = useRef({ x: 0, y: 0 });
   const edge = useRef({ side: 0, since: 0 });
   const dragRef = useRef<DragInfo | null>(null);
   const hoverRef = useRef<number | null>(null);
-  const webTouchCleanup = useRef<(() => void) | null>(null);
   const pos = useRef(new Animated.ValueXY()).current;
 
   const geo = useMemo(
@@ -120,7 +124,7 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
   // メニューの幅ぶん、カンバンが右へずれるので、カンバンの止まる位置もその分ずらす。
   const pane = mode !== 'expanded';
   const menuWidth = sidebarWidthFor(windowWidth, false);
-  /** メニューのページが左端からはみ出す分（左の余白をメニューが使う）を引いた、カンバンのずれ */
+  /** メニューの幅と列間のすき間を加え、閉じた位置で先頭カンバンの外側余白を維持する。 */
   const menuShift = pane ? menuWidth + BOARD.columnGap - geo.padding : 0;
   /** カンバンごとの「止まる位置」（メニューを含む） */
   const offsets = useMemo(() => geo.offsets.map((o) => o + menuShift), [geo.offsets, menuShift]);
@@ -156,11 +160,13 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
     if (!pane) return;
 
     const open = () => {
+      menuTargetRef.current = true;
       useUiStore.setState({ menuVisible: true });
       scrollToX(0);
     };
 
     const close = () => {
+      menuTargetRef.current = false;
       useUiStore.setState({ menuVisible: false });
       scrollToX(closedXRef.current);
     };
@@ -172,6 +178,11 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
     });
   }, [pane, menuWidth, scrollToX]);
 
+  useEffect(() => {
+    useUiStore.setState({ menuVisible: false });
+    return () => useUiStore.setState({ menuVisible: false });
+  }, []);
+
   // 最初は、メニューを閉じた位置（最初のカンバンが左に揃う位置）から始める。位置が決まるまで表示しない
   useEffect(() => {
     if (!pane) return setPositioned(true);
@@ -182,21 +193,19 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
       scrollXRef.current = closedXRef.current;
       setScrollX(closedXRef.current);
       scrollAnim.setValue(closedXRef.current);
+      menuTargetRef.current = null;
+      useUiStore.setState({ menuVisible: false });
       setPositioned(true);
     });
     return () => cancelAnimationFrame(id);
   }, [pane, size.width, menuWidth]);
 
-  // メニューが見えているかを、ヘッダーのメニューアイコンの表示に反映する
-  useEffect(() => {
-    useUiStore.setState({ menuVisible });
-    return () => useUiStore.setState({ menuVisible: false });
-  }, [menuVisible]);
-
   // プロジェクトが切り替わったら、最初の位置（メニューを閉じた位置）に戻す
   useEffect(() => {
     if (!positioned) return;
     scrollRef.current?.scrollTo({ x: pane ? closedXRef.current : 0, animated: false });
+    menuTargetRef.current = null;
+    useUiStore.setState({ menuVisible: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.resetKey]);
 
@@ -211,27 +220,21 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
     setBlurSignal((n) => n + 1);
   };
 
-  /**
-   * Web のスクロールには「決まった位置で止まる」機能がないので、スクロールが止まってから最も近い位置へ寄せる。
-   * （スマホ・スマホ横のメニュー付きの並びのとき。PC は自由にスクロールできるままにする）
-   */
-  const scheduleWebSnap = () => {
-    if (Platform.OS !== 'web' || !pane) return;
-    if (snapTimer.current) clearTimeout(snapTimer.current);
-    snapTimer.current = setTimeout(() => {
-      if (touching.current || dragRef.current) return;
-      const x = scrollXRef.current;
-      const target = snapOffsets[nearestOffsetIndex(snapOffsets, x)];
-      if (target !== undefined && Math.abs(target - x) > 1)
-        scrollRef.current?.scrollTo({ x: target, animated: true });
-    }, 130);
-  };
-
   const onScrollEvent = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const x = e.nativeEvent.contentOffset.x;
     scrollXRef.current = x;
     setScrollX(x);
-    scheduleWebSnap();
+
+    const target = menuTargetRef.current;
+    const reachedTarget =
+      target === true ? x <= 2 : target === false ? x >= closedXRef.current - 2 : false;
+    if (reachedTarget) menuTargetRef.current = null;
+    if (menuTargetRef.current === null) {
+      const nextMenuVisible = pane && x < closedXRef.current - 2;
+      if (useUiStore.getState().menuVisible !== nextMenuVisible) {
+        useUiStore.setState({ menuVisible: nextMenuVisible });
+      }
+    }
   };
   // スクロール位置をアニメーション値に渡す（ヘッダーをカンバンと同じ動きで動かすため。ネイティブ側で処理するのでずれない）
   const onScroll = Animated.event([{ nativeEvent: { contentOffset: { x: scrollAnim } } }], {
@@ -341,84 +344,10 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
   const page = nearestOffsetIndex(offsets, scrollX);
   const showButtons = geo.peek > 0;
   const maxOffset = offsets[offsets.length - 1] ?? 0;
-  const columnHeight = Math.max(
-    0,
-    size.height -
-      headerOffset -
-      (geo.compact && columns.length > 1 ? 32 : 0) -
-      BOARD.boardPadding * 2,
-  );
-
-  // スマホのWeb版: 列内からの横スワイプをボードのスクロールに転送する
-  const beginColumnTouch = useCallback(
-    (startX: number, startY: number) => {
-      if (Platform.OS !== 'web' || !isTouchWeb || typeof document === 'undefined') {
-        return;
-      }
-
-      webTouchCleanup.current?.();
-
-      let lastX = startX;
-      let currentScrollX = scrollXRef.current;
-      let axis: 'x' | 'y' | null = null;
-
-      const onMove = (event: TouchEvent) => {
-        // タスクやカンバンのドラッグ中は、通常の横スクロールを行わない
-        if (dragRef.current) return;
-
-        const touch = event.touches[0];
-        if (!touch) return;
-
-        const dx = touch.pageX - startX;
-        const dy = touch.pageY - startY;
-
-        // 最初の移動方向で、横スクロールと縦スクロールを区別する
-        if (axis === null) {
-          if (Math.max(Math.abs(dx), Math.abs(dy)) < 6) return;
-
-          axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
-
-          if (axis === 'x') {
-            currentScrollX = scrollXRef.current;
-          }
-        }
-
-        if (axis !== 'x') return;
-
-        event.preventDefault();
-
-        const deltaX = touch.pageX - lastX;
-        lastX = touch.pageX;
-
-        currentScrollX = Math.max(0, Math.min(maxOffset, currentScrollX - deltaX));
-
-        scrollXRef.current = currentScrollX;
-        setScrollX(currentScrollX);
-        scrollToX(currentScrollX, false);
-      };
-
-      const cleanup = () => {
-        document.removeEventListener('touchmove', onMove);
-        document.removeEventListener('touchend', cleanup);
-        document.removeEventListener('touchcancel', cleanup);
-
-        if (webTouchCleanup.current === cleanup) {
-          webTouchCleanup.current = null;
-        }
-      };
-
-      document.addEventListener('touchmove', onMove, { passive: false });
-      document.addEventListener('touchend', cleanup, { once: true });
-      document.addEventListener('touchcancel', cleanup, { once: true });
-
-      webTouchCleanup.current = cleanup;
-    },
-    [maxOffset, scrollToX],
-  );
-
-  useEffect(() => {
-    return () => webTouchCleanup.current?.();
-  }, []);
+  // スマホ縦では、ページインジケーター用のフッターを確保し、
+  // カンバン本体はその上端まで伸ばす。PC では下部に余白を残さない。
+  const pagerHeight = geo.compact && columns.length > 1 ? 32 : 0;
+  const columnHeight = Math.max(0, size.height - headerOffset - pagerHeight);
 
   return (
     <View style={styles.fill}>
@@ -431,7 +360,9 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
             <Animated.ScrollView
               ref={scrollRef}
               horizontal
-              snapToOffsets={snapOffsets.length > 1 ? snapOffsets : undefined}
+              snapToOffsets={
+                Platform.OS === 'web' ? undefined : snapOffsets.length > 1 ? snapOffsets : undefined
+              }
               decelerationRate="fast"
               disableIntervalMomentum={geo.compact}
               showsHorizontalScrollIndicator={!geo.compact}
@@ -439,23 +370,23 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
               indicatorStyle={isDark ? 'white' : 'black'}
               onScroll={onScroll}
               onScrollBeginDrag={blurInputs}
-              onTouchStart={() => {
-                touching.current = true;
-              }}
-              onTouchEnd={() => {
-                touching.current = false;
-                scheduleWebSnap();
-              }}
-              onTouchCancel={() => {
-                touching.current = false;
-                scheduleWebSnap();
-              }}
               scrollEventThrottle={16}
               scrollEnabled={!dragInfo}
-              style={{ opacity: positioned ? 1 : 0 }}
+              style={[
+                { opacity: positioned ? 1 : 0 },
+                Platform.OS === 'web'
+                  ? ({
+                      touchAction: 'pan-x pan-y',
+                      WebkitOverflowScrolling: 'touch',
+                      overscrollBehaviorX: 'contain',
+                      scrollSnapType: geo.compact ? 'x mandatory' : undefined,
+                      WebkitScrollSnapType: geo.compact ? 'x mandatory' : undefined,
+                    } as never)
+                  : undefined,
+              ]}
               contentContainerStyle={{
-                paddingTop: headerOffset + BOARD.boardPadding,
-                paddingBottom: BOARD.boardPadding,
+                paddingTop: headerOffset,
+                paddingBottom: 0,
                 paddingHorizontal: geo.padding,
                 gap: BOARD.columnGap,
               }}
@@ -468,9 +399,11 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                       width: menuWidth,
                       height: size.height,
                       marginLeft: -geo.padding,
-                      marginTop: -(headerOffset + BOARD.boardPadding),
-                      marginBottom: -BOARD.boardPadding,
+                      marginTop: -headerOffset,
                     },
+                    Platform.OS === 'web' && geo.compact
+                      ? ({ scrollSnapAlign: 'start', scrollSnapStop: 'always' } as never)
+                      : undefined,
                   ]}
                 >
                   <Sidebar
@@ -497,7 +430,19 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                   count={columns.length}
                   width={geo.columnWidth}
                   height={columnHeight}
+                  webSnapAlign={
+                    Platform.OS === 'web' && geo.compact
+                      ? index === 0
+                        ? 'start'
+                        : 'center'
+                      : undefined
+                  }
+                  webSnapPadding={geo.padding}
                   compactCards={props.compactCards}
+                  detailedCards={props.detailedCards}
+                  showTaskDescription={props.showTaskDescription}
+                  showTaskDueDate={props.showTaskDueDate}
+                  showTaskUpdatedAt={props.showTaskUpdatedAt}
                   cursorTaskIndex={cursor && cursor.columnIndex === index ? cursor.taskIndex : null}
                   grabbed={!!cursor?.grabbed}
                   dropTarget={
@@ -511,11 +456,11 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                   taskMenu={props.taskMenuFor}
                   onAdvance={props.onAdvance}
                   onAddTask={() => props.onAddTask(column)}
+                  onCopyTitle={props.onCopyTitle}
                   taskDrag={taskDragHandlers}
                   columnDrag={columnDragHandlers(column)}
                   blurSignal={blurSignal}
                   onRefresh={props.onRefresh}
-                  onColumnTouchStart={beginColumnTouch}
                 />
               ))}
             </Animated.ScrollView>
@@ -565,27 +510,42 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
               </>
             ) : null}
 
-            {geo.compact && columns.length > 1 && !menuVisible ? (
-              <View style={styles.dots}>
-                {columns.map((c, i) => (
-                  <Pressable
-                    key={c.id}
-                    accessibilityRole="button"
-                    accessibilityLabel={c.title}
-                    onPress={() => scrollToX(offsets[i] ?? 0)}
-                    hitSlop={8}
-                  >
-                    <View
-                      style={[
-                        styles.dot,
-                        { backgroundColor: i === page ? colors.text : colors.border },
-                      ]}
-                    />
-                  </Pressable>
-                ))}
-                <AppText variant="caption" muted style={styles.pageText}>
-                  {t('board.pageIndicator', { index: page + 1, total: columns.length })}
-                </AppText>
+            {pagerHeight > 0 ? (
+              <View
+                pointerEvents={menuVisible ? 'none' : 'auto'}
+                style={[
+                  styles.pagerFooter,
+                  {
+                    height: pagerHeight,
+                    backgroundColor: menuVisible ? 'transparent' : colors.bg,
+                    borderTopColor: colors.divider,
+                    borderTopWidth: menuVisible ? 0 : BORDER_WIDTH,
+                  },
+                ]}
+              >
+                {!menuVisible ? (
+                  <View style={styles.dots}>
+                    {columns.map((c, i) => (
+                      <Pressable
+                        key={c.id}
+                        accessibilityRole="button"
+                        accessibilityLabel={c.title}
+                        onPress={() => scrollToX(offsets[i] ?? 0)}
+                        hitSlop={8}
+                      >
+                        <View
+                          style={[
+                            styles.dot,
+                            { backgroundColor: i === page ? colors.text : colors.border },
+                          ]}
+                        />
+                      </Pressable>
+                    ))}
+                    <AppText variant="caption" muted style={styles.pageText}>
+                      {t('board.pageIndicator', { index: page + 1, total: columns.length })}
+                    </AppText>
+                  </View>
+                ) : null}
               </View>
             ) : null}
           </>
@@ -645,16 +605,22 @@ const styles = StyleSheet.create({
   },
   navLeft: { left: 2 },
   navRight: { right: 2 },
+  pagerFooter: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    left: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 20,
+  },
   dots: {
-    height: 32,
+    height: 31,
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: SPACING.sm,
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
   },
   dot: { width: 8, height: 8, borderRadius: 4 },
   pageText: { marginLeft: SPACING.sm },

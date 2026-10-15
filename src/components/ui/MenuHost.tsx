@@ -1,12 +1,13 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BOARD } from '@/config/layout';
 import { t } from '@/i18n';
 import { RADIUS, SHADOW, SPACING, useTheme } from '@/theme';
 import { AppText } from './AppText';
 import type { MenuItem } from './DropdownMenu';
 import { Icon } from './Icon';
-import { BORDER_WIDTH } from '@/theme/tokens';
+import { BORDER_WIDTH, SEPARATOR_WIDTH } from '@/theme/tokens';
 import { canHover } from '@/lib/hover';
 
 interface Rect {
@@ -31,6 +32,8 @@ export const useMenuHost = (): Host => {
 
 const ITEM_HEIGHT = BOARD.touchTarget;
 const ICON_SLOT = 18;
+const MENU_SEPARATOR_HEIGHT = SEPARATOR_WIDTH;
+const MENU_SEPARATOR_INSET = SPACING.sm;
 
 /**
  * ドロップダウンメニューを表示する層。アプリ全体の最上位に置き、ボタンの下にメニューを描く。
@@ -39,28 +42,57 @@ const ICON_SLOT = 18;
 export function MenuProvider({ children }: { children: ReactNode }) {
   const { colors } = useTheme();
   const win = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const [menu, setMenu] = useState<{ anchor: Rect; items: MenuItem[] } | null>(null);
 
   const hide = useCallback(() => setMenu(null), []);
   const show = useCallback((anchor: Rect, items: MenuItem[]) => setMenu({ anchor, items }), []);
   const host = useMemo(() => ({ show, hide }), [show, hide]);
 
-  let position = { left: 0, top: 0 };
-  const width = BOARD.menuMinWidth + 40;
+  const width = Math.min(BOARD.menuMinWidth + 40, Math.max(0, win.width - SPACING.md * 2));
+  let menuLayout: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } = { left: SPACING.sm, top: SPACING.sm, width, height: 0 };
   if (menu) {
-    const height = menu.items.length * ITEM_HEIGHT + SPACING.sm;
+    const separatorCount = menu.items.filter((item) => item.separator).length;
+    const desiredHeight =
+      menu.items.length * ITEM_HEIGHT +
+      separatorCount * MENU_SEPARATOR_HEIGHT +
+      SPACING.sm +
+      BORDER_WIDTH * 2;
+    // Safe-area の内側にメニューを収め、Android の下部ナビゲーション領域や
+    // ステータスバー領域にメニュー項目が重ならないようにする。
+    const safeTop = Math.max(insets.top, 0) + SPACING.sm;
+    const safeBottom = win.height - Math.max(insets.bottom, 0) - SPACING.sm;
+    const safeHeight = Math.max(ITEM_HEIGHT + BORDER_WIDTH * 2, safeBottom - safeTop);
+    const height = Math.min(desiredHeight, safeHeight);
     const below = menu.anchor.y + menu.anchor.h + 2;
     const above = menu.anchor.y - height - 2;
-    const fitsBelow = below + height <= win.height - SPACING.sm;
-    const top =
-      fitsBelow || above < SPACING.sm
-        ? Math.min(below, Math.max(SPACING.sm, win.height - height - SPACING.sm))
-        : above;
+    const availableBelow = Math.max(0, safeBottom - below);
+    const availableAbove = Math.max(0, menu.anchor.y - safeTop - 2);
+
+    // 基本はアンカーの下、入らなければ上。どちらも足りない場合は余白が広い側に置き、
+    // SafeArea の内側へ収めてメニュー内部をスクロール可能にする。
+    let top: number;
+    if (desiredHeight <= availableBelow) {
+      top = below;
+    } else if (desiredHeight <= availableAbove) {
+      top = menu.anchor.y - desiredHeight - 2;
+    } else if (availableBelow >= availableAbove) {
+      top = below;
+    } else {
+      top = above;
+    }
+    top = Math.max(safeTop, Math.min(top, safeBottom - height));
+
     const left = Math.max(
       SPACING.sm,
       Math.min(menu.anchor.x + menu.anchor.w - width, win.width - width - SPACING.sm),
     );
-    position = { left, top };
+    menuLayout = { left, top, width, height };
   }
 
   const hasIcons = menu?.items.some((i) => i.icon) ?? false;
@@ -80,51 +112,70 @@ export function MenuProvider({ children }: { children: ReactNode }) {
               style={[
                 styles.menu,
                 SHADOW.float,
-                { ...position, width, backgroundColor: colors.surface, borderColor: colors.border },
+                { ...menuLayout, backgroundColor: colors.surface, borderColor: colors.border },
               ]}
             >
-              {menu.items.map((item, i) => (
-                <View key={`${item.label}-${i}`}>
-                  {item.separator ? (
-                    <View style={[styles.sep, { backgroundColor: colors.divider }]} />
-                  ) : null}
-                  <Pressable
-                    accessibilityRole="menuitem"
-                    disabled={item.disabled}
-                    onPress={() => {
-                      hide();
-                      item.onPress();
-                    }}
-                    style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
-                      styles.item,
-                      {
-                        backgroundColor:
-                          pressed || (hovered && canHover) ? colors.hover : 'transparent',
-                        opacity: item.disabled ? 0.4 : 1,
-                      },
-                    ]}
-                  >
-                    {hasIcons ? (
-                      <View style={styles.iconSlot}>
-                        {item.icon ? (
-                          <Icon
-                            name={item.icon}
-                            size={ICON_SLOT}
-                            color={item.destructive ? colors.danger : colors.text}
-                          />
-                        ) : null}
-                      </View>
+              <ScrollView
+                style={styles.menuScroll}
+                contentContainerStyle={styles.menuItems}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
+                {menu.items.map((item, i) => (
+                  <View key={`${item.label}-${i}`}>
+                    {item.separator ? (
+                      <View style={[styles.sep, { backgroundColor: colors.divider }]} />
                     ) : null}
-                    <AppText
-                      color={item.destructive ? colors.danger : colors.text}
-                      numberOfLines={1}
-                      style={styles.label}
+                    <Pressable
+                      accessibilityRole="menuitem"
+                      disabled={item.disabled}
+                      onPress={() => {
+                        hide();
+                        item.onPress();
+                      }}
+                      style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
+                        styles.item,
+                        {
+                          backgroundColor:
+                            pressed || (hovered && canHover) ? colors.hover : 'transparent',
+                          opacity: item.disabled ? 0.4 : 1,
+                        },
+                      ]}
                     >
-                      {item.label}
-                    </AppText>
-                  </Pressable>
-                </View>
-              ))}
+                      {hasIcons ? (
+                        <View style={styles.iconSlot}>
+                          {item.icon ? (
+                            <Icon
+                              name={item.icon}
+                              size={ICON_SLOT}
+                              color={
+                                item.destructive
+                                  ? colors.danger
+                                  : item.mutedIcon
+                                    ? colors.textMuted
+                                    : colors.text
+                              }
+                            />
+                          ) : null}
+                        </View>
+                      ) : null}
+                      <AppText
+                        color={
+                          item.destructive
+                            ? colors.danger
+                            : item.mutedIcon
+                              ? colors.textMuted
+                              : colors.text
+                        }
+                        numberOfLines={1}
+                        style={styles.label}
+                      >
+                        {item.label}
+                      </AppText>
+                    </Pressable>
+                  </View>
+                ))}
+              </ScrollView>
             </View>
           </View>
         ) : null}
@@ -140,9 +191,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     borderRadius: RADIUS.md,
     borderWidth: BORDER_WIDTH,
-    paddingVertical: SPACING.xs,
     overflow: 'hidden',
   },
+  menuScroll: { flex: 1, minHeight: 0 },
+  menuItems: { paddingVertical: SPACING.xs },
   item: {
     height: ITEM_HEIGHT,
     flexDirection: 'row',
@@ -152,5 +204,11 @@ const styles = StyleSheet.create({
   },
   iconSlot: { width: ICON_SLOT, alignItems: 'center' },
   label: { flex: 1 },
-  sep: { height: BORDER_WIDTH, marginHorizontal: SPACING.sm },
+  sep: {
+    height: MENU_SEPARATOR_HEIGHT,
+    minHeight: MENU_SEPARATOR_HEIGHT,
+    maxHeight: MENU_SEPARATOR_HEIGHT,
+    flexShrink: 0,
+    marginHorizontal: MENU_SEPARATOR_INSET,
+  },
 });

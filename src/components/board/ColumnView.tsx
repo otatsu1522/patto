@@ -1,7 +1,7 @@
-import { useRef, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Platform, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { GestureDetector } from 'react-native-gesture-handler';
-import { GESTURE } from '@/config/layout';
+import { BOARD, GESTURE } from '@/config/layout';
 import type { KanbanColumn, Task } from '@/domain/types';
 import { t } from '@/i18n';
 import { RADIUS, SPACING, useTheme } from '@/theme';
@@ -11,7 +11,7 @@ import { Icon } from '../ui/Icon';
 import { IconButton } from '../ui/IconButton';
 import { useDragGesture, type DragHandlers } from './dragGesture';
 import { TaskCard } from './TaskCard';
-import { BORDER_WIDTH } from '@/theme/tokens';
+import { BORDER_WIDTH, SEPARATOR_WIDTH } from '@/theme/tokens';
 import { canHover } from '@/lib/hover';
 
 export interface ColumnViewProps {
@@ -21,7 +21,14 @@ export interface ColumnViewProps {
   count: number;
   width: number;
   height: number;
+  /** Web のスマホ表示で、この列を ScrollView のスナップ位置にする */
+  webSnapAlign?: 'start' | 'center';
+  webSnapPadding?: number;
   compactCards: boolean;
+  detailedCards: boolean;
+  showTaskDescription: boolean;
+  showTaskDueDate: boolean;
+  showTaskUpdatedAt: boolean;
   /** キーボードのカーソル: 自分のカンバンなら taskIndex（-1 はヘッダー）、それ以外は null */
   cursorTaskIndex: number | null;
   grabbed: boolean;
@@ -34,12 +41,11 @@ export interface ColumnViewProps {
   onAdvance: (task: Task) => void;
   /** 「タスクを追加」を押したとき（作成ダイアログを開く） */
   onAddTask: () => void;
+  onCopyTitle: (task: Task) => void;
   taskDrag: (task: Task) => DragHandlers;
   columnDrag: DragHandlers;
   /** 横スクロールなど他の操作が始まったら増える。入力欄のフォーカスを外す合図 */
   blurSignal: number;
-  /** スマホのWeb版で列内からの横スワイプをボードへ転送する */
-  onColumnTouchStart?: (x: number, y: number) => void;
   onRefresh?: () => Promise<void>;
 }
 
@@ -47,6 +53,10 @@ export interface ColumnViewProps {
 export function ColumnView(p: ColumnViewProps) {
   const { colors, taskColor, isDark } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
+  const listRef = useRef<ScrollView>(null);
+  const listViewportRef = useRef<View>(null);
+  const listOffset = useRef(0);
+  const taskRefs = useRef(new Map<string, View>());
   const headerGesture = useDragGesture({
     ...p.columnDrag,
     begin: (x, y) => {
@@ -62,6 +72,30 @@ export function ColumnView(p: ColumnViewProps) {
   const others = p.tasks.filter((x) => !x.isFavorite);
   const showDivider = favorites.length > 0 && others.length > 0;
 
+  // キーボード操作で選択されたタスクが画面外へ出たら、一覧を必要な分だけスクロールする。
+  useEffect(() => {
+    if (p.cursorTaskIndex === null || p.cursorTaskIndex < 0) return;
+    const current = p.tasks[p.cursorTaskIndex];
+    const node = current ? taskRefs.current.get(current.id) : undefined;
+    const list = listRef.current;
+    const listViewport = listViewportRef.current;
+    if (!node || !list || !listViewport) return;
+    const frame = requestAnimationFrame(() => {
+      node.measureInWindow((_x, taskY, _w, taskHeight) => {
+        listViewport.measureInWindow((_lx, listY, _lw, listHeight) => {
+          const top = listY + 4;
+          const bottom = listY + listHeight - 4;
+          if (taskY < top) {
+            list.scrollTo({ y: Math.max(0, listOffset.current - (top - taskY)), animated: true });
+          } else if (taskY + taskHeight > bottom) {
+            list.scrollTo({ y: listOffset.current + taskY + taskHeight - bottom, animated: true });
+          }
+        });
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [p.cursorTaskIndex, p.tasks, p.height]);
+
   const card = (task: Task) => {
     const i = p.tasks.indexOf(task);
     return (
@@ -70,6 +104,10 @@ export function ColumnView(p: ColumnViewProps) {
         task={task}
         done={p.column.isDoneColumn}
         compact={p.compactCards}
+        detailed={p.detailedCards}
+        showDescription={p.showTaskDescription}
+        showDueDate={p.showTaskDueDate}
+        showUpdatedAt={p.showTaskUpdatedAt}
         isLast={p.index === p.count - 1}
         canAdvance={p.count > 1}
         focused={p.cursorTaskIndex === i}
@@ -77,6 +115,11 @@ export function ColumnView(p: ColumnViewProps) {
         dragging={p.draggingTaskId === task.id}
         menuItems={p.taskMenu(task)}
         onAdvance={() => p.onAdvance(task)}
+        onCopyTitle={() => p.onCopyTitle(task)}
+        onMeasure={(id, node) => {
+          if (node) taskRefs.current.set(id, node);
+          else taskRefs.current.delete(id);
+        }}
         drag={p.taskDrag(task)}
       />
     );
@@ -85,26 +128,28 @@ export function ColumnView(p: ColumnViewProps) {
   const headerFocused = p.cursorTaskIndex === -1;
   return (
     <View
-      onTouchStart={(event) => {
-        const touch = event.nativeEvent.touches[0];
-        if (!touch) return;
-
-        p.onColumnTouchStart?.(touch.pageX, touch.pageY);
-      }}
       style={[
         styles.column,
         {
           width: p.width,
           height: p.height,
           backgroundColor: colors.column,
-          borderColor: p.dropTarget ? colors.accent : colors.border,
           opacity: p.draggingColumn ? 0.5 : 1,
+          borderRightWidth: 0,
         },
+        Platform.OS === 'web' && p.webSnapAlign
+          ? ({
+              scrollSnapAlign: p.webSnapAlign,
+              scrollSnapStop: 'always',
+              scrollMarginLeft: p.webSnapAlign === 'start' ? (p.webSnapPadding ?? 0) : 0,
+            } as never)
+          : undefined,
       ]}
     >
       <View
         style={[
           styles.header,
+          { borderBottomColor: colors.divider },
           headerFocused && { borderColor: colors.focus, borderWidth: 2 },
           p.grabbed && headerFocused && { backgroundColor: colors.border },
         ]}
@@ -121,14 +166,15 @@ export function ColumnView(p: ColumnViewProps) {
             <AppText bold numberOfLines={1} style={styles.title}>
               {p.column.title}
             </AppText>
-            <AppText variant="caption" muted>
+            <AppText variant="caption" muted bold>
               {t('column.taskCount', { count: p.tasks.length })}
             </AppText>
             {p.column.isDoneColumn ? (
-              <Icon name="doneMode" size={22} color={colors.success} />
+              <Icon name="doneModeOutline" size={22} color={colors.textMuted} />
             ) : null}
           </View>
         </GestureDetector>
+        <IconButton icon="add" label={t('task.add')} onPress={p.onAddTask} box={40} size={22} />
         <DropdownMenu
           items={p.menuItems}
           trigger={(open) => (
@@ -137,71 +183,122 @@ export function ColumnView(p: ColumnViewProps) {
         />
       </View>
 
-      <ScrollView
-        style={styles.list}
-        contentContainerStyle={styles.listContent}
-        keyboardShouldPersistTaps="handled"
-        persistentScrollbar
-        indicatorStyle={isDark ? 'white' : 'black'}
-        refreshControl={
-          p.onRefresh ? (
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={async () => {
-                setRefreshing(true);
-                try {
-                  await p.onRefresh?.();
-                } finally {
-                  setRefreshing(false);
-                }
-              }}
-            />
-          ) : undefined
-        }
-      >
-        {favorites.map(card)}
-        {showDivider ? (
-          <View style={[styles.divider, { backgroundColor: colors.divider }]} />
-        ) : null}
-        {others.map(card)}
-
-        <Pressable
-          accessibilityRole="button"
-          onPress={p.onAddTask}
-          style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
-            styles.add,
-            { backgroundColor: pressed || (hovered && canHover) ? colors.hover : 'transparent' },
-          ]}
+      <View ref={listViewportRef} collapsable={false} style={styles.listViewport}>
+        <ScrollView
+          ref={listRef}
+          style={[styles.list, Platform.OS === 'web' ? styles.webList : undefined]}
+          onScroll={(event) => {
+            listOffset.current = event.nativeEvent.contentOffset.y;
+          }}
+          scrollEventThrottle={16}
+          contentContainerStyle={styles.listContent}
+          keyboardShouldPersistTaps="handled"
+          persistentScrollbar
+          indicatorStyle={isDark ? 'white' : 'black'}
+          refreshControl={
+            p.onRefresh ? (
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={async () => {
+                  setRefreshing(true);
+                  try {
+                    await p.onRefresh?.();
+                  } finally {
+                    setRefreshing(false);
+                  }
+                }}
+              />
+            ) : undefined
+          }
         >
-          <Icon name="add" size={20} color={colors.textMuted} />
-          <AppText muted>{t('task.add')}</AppText>
-        </Pressable>
-      </ScrollView>
+          {favorites.map(card)}
+          {showDivider ? (
+            <View style={[styles.divider, { backgroundColor: colors.divider }]} />
+          ) : null}
+          {others.map(card)}
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={p.onAddTask}
+            style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
+              styles.add,
+              { backgroundColor: pressed || (hovered && canHover) ? colors.hover : 'transparent' },
+            ]}
+          >
+            <Icon name="add" size={20} color={colors.textMuted} />
+            <AppText muted>{t('task.add')}</AppText>
+          </Pressable>
+        </ScrollView>
+      </View>
+      {p.dropTarget ? (
+        <View
+          pointerEvents="none"
+          style={[styles.dropTargetFrame, { borderColor: colors.accent }]}
+        />
+      ) : null}
+      {p.index < p.count - 1 ? (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.columnDivider,
+            { right: -(BOARD.columnGap / 2), backgroundColor: colors.divider },
+          ]}
+        />
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  column: { borderRadius: RADIUS.lg, borderWidth: BORDER_WIDTH, overflow: 'hidden' },
+  column: { position: 'relative', overflow: 'visible' },
+  dropTargetFrame: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    borderWidth: 2,
+    borderRadius: RADIUS.sm,
+    zIndex: 5,
+  },
+  columnDivider: { position: 'absolute', top: 0, bottom: 0, width: BORDER_WIDTH },
   header: {
+    // 上のヘッダー区切り線と、この下線の間でタイトル行を中央に配置する。
+    height: BOARD.touchTarget + BORDER_WIDTH,
     flexDirection: 'row',
     alignItems: 'center',
     paddingLeft: SPACING.md,
     paddingRight: SPACING.xs,
-    margin: 2,
+    paddingBottom: 0,
+    borderBottomWidth: BORDER_WIDTH,
   },
   titleWrap: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
-    minHeight: GESTURE.edgeZone,
+    minHeight: BOARD.touchTarget,
     cursor: 'grab',
   } as never,
   dot: { width: 12, height: 12, borderRadius: 6 },
-  title: { flex: 1 },
+  title: { flexShrink: 1 },
+  listViewport: { flex: 1, minHeight: 0 },
   list: { flex: 1 },
+  webList: {
+    overflowX: 'auto',
+    touchAction: 'pan-x pan-y',
+    WebkitOverflowScrolling: 'touch',
+    overscrollBehaviorX: 'auto',
+    overscrollBehaviorY: 'contain',
+  } as never,
   listContent: { padding: SPACING.sm, gap: SPACING.sm },
-  divider: { height: BORDER_WIDTH, marginVertical: SPACING.xs, marginHorizontal: SPACING.xs },
+  divider: {
+    height: SEPARATOR_WIDTH,
+    minHeight: SEPARATOR_WIDTH,
+    maxHeight: SEPARATOR_WIDTH,
+    flexShrink: 0,
+    marginVertical: SPACING.xs,
+    marginHorizontal: SPACING.sm,
+  },
   add: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, padding: SPACING.md },
 });

@@ -14,6 +14,9 @@ import { RADIUS, SHADOW, SPACING, useTheme } from '@/theme';
 import { AppText } from './AppText';
 import { Button } from './Button';
 import { BORDER_WIDTH } from '@/theme/tokens';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SystemBars } from './SystemBars';
+import { getSystemBarInsets } from '@/lib/systemBarInsets';
 
 export interface ConfirmOptions {
   title: string;
@@ -49,11 +52,12 @@ export const useFeedback = (): Feedback => {
   return v;
 };
 
-const TOAST_MS = 5000;
+const TOAST_MS = 1000;
 
 /** 確認ダイアログとスナックバー（「元に戻す」付き通知）を提供する。 */
 export function FeedbackProvider({ children }: { children: ReactNode }) {
   const { colors } = useTheme();
+  const insets = getSystemBarInsets(useSafeAreaInsets());
   const [dialog, setDialog] = useState<ConfirmOptions | null>(null);
   const resolver = useRef<((r: ConfirmResult) => void) | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
@@ -92,7 +96,10 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     <Ctx.Provider value={value}>
       {children}
       {toast ? (
-        <View pointerEvents="box-none" style={styles.toastWrap}>
+        <View
+          pointerEvents="box-none"
+          style={[styles.toastWrap, { bottom: insets.bottom + SPACING.lg }]}
+        >
           <View style={[styles.toast, SHADOW.float, { backgroundColor: colors.inverse }]}>
             <AppText color={colors.onInverse} style={styles.toastText}>
               {toast.message}
@@ -119,35 +126,50 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
         animationType="fade"
         onRequestClose={() => close('cancel')}
         statusBarTranslucent
+        navigationBarTranslucent
       >
-        <View style={[styles.backdrop, { backgroundColor: colors.overlay }]}>
+        <View style={styles.modalRoot}>
+          <SystemBars />
           <View
             style={[
-              styles.card,
-              SHADOW.float,
-              { backgroundColor: colors.surface, borderColor: colors.border },
+              styles.backdrop,
+              {
+                backgroundColor: colors.overlay,
+                top: 0,
+                bottom: 0,
+                paddingTop: insets.top + SPACING.lg,
+                paddingBottom: insets.bottom + SPACING.lg,
+              },
             ]}
           >
-            <AppText variant="title">{dialog?.title}</AppText>
-            {dialog?.message ? <AppText muted>{dialog.message}</AppText> : null}
-            <View style={styles.actions}>
-              <Button
-                label={t('common.cancel')}
-                variant="secondary"
-                onPress={() => close('cancel')}
-              />
-              {dialog?.extraLabel ? (
+            <View
+              style={[
+                styles.card,
+                SHADOW.float,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
+            >
+              <AppText variant="title">{dialog?.title}</AppText>
+              {dialog?.message ? <AppText muted>{dialog.message}</AppText> : null}
+              <View style={styles.actions}>
                 <Button
-                  label={dialog.extraLabel}
+                  label={t('common.cancel')}
                   variant="secondary"
-                  onPress={() => close('extra')}
+                  onPress={() => close('cancel')}
                 />
-              ) : null}
-              <Button
-                label={dialog?.confirmLabel ?? t('common.ok')}
-                variant={dialog?.destructive ? 'danger' : 'primary'}
-                onPress={() => close('confirm')}
-              />
+                {dialog?.extraLabel ? (
+                  <Button
+                    label={dialog.extraLabel}
+                    variant="secondary"
+                    onPress={() => close('extra')}
+                  />
+                ) : null}
+                <Button
+                  label={dialog?.confirmLabel ?? t('common.ok')}
+                  variant={dialog?.destructive ? 'danger' : 'primary'}
+                  onPress={() => close('confirm')}
+                />
+              </View>
             </View>
           </View>
         </View>
@@ -157,7 +179,17 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.lg },
+  modalRoot: { flex: 1 },
+  backdrop: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: SPACING.lg,
+  },
   card: {
     width: '100%',
     maxWidth: 440,

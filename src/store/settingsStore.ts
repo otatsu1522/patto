@@ -12,6 +12,7 @@ interface SettingsState {
   loaded: boolean;
   load: () => Promise<void>;
   update: (patch: Partial<AppSettings>) => void;
+  reset: () => void;
 }
 
 /** 端末ごとの設定（テーマ・文字サイズ・同期モードなど）。この端末のストレージに保存する。 */
@@ -30,6 +31,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
   update(patch) {
     const next = { ...get().settings, ...patch };
+    set({ settings: next });
+    void kv.set(STORAGE_KEY, JSON.stringify(next));
+  },
+  reset() {
+    const next = defaultSettings(isWeb, TRASH.retentionDays);
     set({ settings: next });
     void kv.set(STORAGE_KEY, JSON.stringify(next));
   },

@@ -1,4 +1,3 @@
-import * as NavigationBar from 'expo-navigation-bar';
 import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react';
 import { Appearance, Platform, useColorScheme } from 'react-native';
 import { FONT_SCALES } from '@/config/layout';
@@ -13,7 +12,7 @@ import {
   ThemeProvider as NavigationThemeProvider,
 } from 'expo-router';
 
-export { BORDER_WIDTH, FONT, RADIUS, SHADOW, SPACING } from './tokens';
+export { BORDER_WIDTH, FONT, RADIUS, SEPARATOR_WIDTH, SHADOW, SPACING } from './tokens';
 
 interface Theme {
   colors: Palette;
@@ -68,19 +67,6 @@ function useWebChrome(isDark: boolean, colors: Palette) {
   }, []);
 }
 
-/** Android: 画面下のナビゲーションボタンの色を、背景に対して見える色にする。 */
-function useNavigationBar(isDark: boolean) {
-  useEffect(() => {
-    if (Platform.OS !== 'android') return;
-    try {
-      // style はボタンの色。暗い画面なら明るいボタン('light')、明るい画面なら暗いボタン('dark')
-      NavigationBar.setStyle(isDark ? 'light' : 'dark');
-    } catch {
-      /* 未対応の端末では何もしない */
-    }
-  }, [isDark]);
-}
-
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const system = useColorScheme();
   const mode = useSettingsStore((s) => s.settings.themeMode);
@@ -125,7 +111,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [mode]);
 
   useWebChrome(value.isDark, value.colors);
-  useNavigationBar(value.isDark);
 
   return (
     <NavigationThemeProvider value={navigationTheme}>

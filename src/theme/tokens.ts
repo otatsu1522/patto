@@ -1,3 +1,5 @@
+import { Platform, StyleSheet } from 'react-native';
+
 /** 余白・角丸・文字の基準値。角丸はなし（直角）。pill は「色の丸」だけに使う。 */
 export const SPACING = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
 export const RADIUS = { sm: 0, md: 0, lg: 0, pill: 999 } as const;
@@ -21,3 +23,6 @@ export const SHADOW = {
 
 /** 線（枠線・区切り線・ヘッダー下の線）の太さ。すべての線をこの値にそろえる。 */
 export const BORDER_WIDTH = 1;
+
+/** 区切り線専用の太さ。Web はサブピクセル、ネイティブは hairline に統一する。 */
+export const SEPARATOR_WIDTH = Platform.OS === 'web' ? 0.5 : StyleSheet.hairlineWidth;
