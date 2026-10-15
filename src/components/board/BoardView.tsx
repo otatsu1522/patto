@@ -154,10 +154,22 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
   // メニューの開閉は、このスクロール位置だけで決まる（メニューが開いている = 左端付近）
   useEffect(() => {
     if (!pane) return;
-    const isOpen = () => scrollXRef.current < menuWidth / 2;
-    const open = () => scrollToX(0);
-    const close = () => scrollToX(closedXRef.current);
-    return registerBoardMenu({ open, close, toggle: () => (isOpen() ? close() : open()) });
+
+    const open = () => {
+      useUiStore.setState({ menuVisible: true });
+      scrollToX(0);
+    };
+
+    const close = () => {
+      useUiStore.setState({ menuVisible: false });
+      scrollToX(closedXRef.current);
+    };
+
+    return registerBoardMenu({
+      open,
+      close,
+      toggle: () => (useUiStore.getState().menuVisible ? close() : open()),
+    });
   }, [pane, menuWidth, scrollToX]);
 
   // 最初は、メニューを閉じた位置（最初のカンバンが左に揃う位置）から始める。位置が決まるまで表示しない
@@ -168,6 +180,8 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
     const id = requestAnimationFrame(() => {
       scrollRef.current?.scrollTo({ x: closedXRef.current, animated: false });
       scrollXRef.current = closedXRef.current;
+      setScrollX(closedXRef.current);
+      scrollAnim.setValue(closedXRef.current);
       setPositioned(true);
     });
     return () => cancelAnimationFrame(id);
@@ -461,7 +475,7 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                 >
                   <Sidebar
                     width={menuWidth}
-                    showMenuIcon
+                    showMenuIcon={false}
                     onToggle={closeBoardMenu}
                     onNavigate={closeBoardMenu}
                   />

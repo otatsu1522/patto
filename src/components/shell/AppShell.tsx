@@ -74,7 +74,12 @@ export function AppShell({ children }: { children: ReactNode }) {
     <View style={[styles.root, { backgroundColor: colors.surface, paddingTop: insets.top }]}>
       <View style={[styles.row, { backgroundColor: colors.bg }]}>
         {permanent && !collapsed ? (
-          <Sidebar width={width} showMenuIcon onToggle={toggleCollapsed} onNavigate={() => {}} />
+          <Sidebar
+            width={width}
+            showMenuIcon={false}
+            onToggle={toggleCollapsed}
+            onNavigate={() => {}}
+          />
         ) : null}
         <View style={[styles.content, { paddingBottom: insets.bottom }]}>
           <ReauthBanner />

@@ -29,8 +29,8 @@ export function BoardHeader({ title, right, search, menu = true }: Props) {
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
   const permanent = mode === 'expanded';
   const menuVisible = useUiStore((s) => s.menuVisible);
-  // スマホでメニューが見えている間は、メニュー側のアイコンと重ならないよう隠す
-  const showMenu = menu && (!permanent || collapsed) && !menuVisible;
+  const menuOpen = permanent ? !collapsed : menuVisible;
+  const showMenu = menu;
   const input = useRef<TextInput>(null);
 
   const searching = !!search;
@@ -45,8 +45,8 @@ export function BoardHeader({ title, right, search, menu = true }: Props) {
       <View style={styles.side}>
         {showMenu ? (
           <IconButton
-            icon="menu"
-            label={t('menu.open')}
+            icon={menuOpen ? 'menuOpen' : 'menu'}
+            label={menuOpen ? t('common.close') : t('menu.open')}
             onPress={() =>
               permanent ? useUiStore.getState().toggleSidebarCollapsed() : toggleBoardMenu()
             }

@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { create } from 'zustand';
 
 interface UiState {
@@ -23,7 +24,7 @@ interface UiState {
 
 export const useUiStore = create<UiState>((set) => ({
   dialogCount: 0,
-  sidebarCollapsed: false,
+  sidebarCollapsed: Platform.OS === 'web',
   helpOpen: false,
   menuVisible: false,
   searchFocusTick: 0,

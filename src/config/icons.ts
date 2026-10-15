@@ -6,6 +6,7 @@ export type IconName = ComponentProps<typeof Ionicons>['name'];
 /** アプリ内で使うアイコンの対応表（アイコンを変えるときはここだけ編集）。 */
 export const ICONS = {
   menu: 'menu',
+  menuOpen: 'menu',
   more: 'ellipsis-horizontal',
   moreHorizontal: 'ellipsis-horizontal',
   add: 'add',
