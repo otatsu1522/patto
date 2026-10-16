@@ -1,4 +1,5 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 import {
   Platform,
   Pressable,
@@ -11,7 +12,7 @@ import { AppText } from '@/components/ui/AppText';
 import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
 import { IconButton } from '@/components/ui/IconButton';
-import { Divider, Section, SwitchRow } from '@/components/ui/Rows';
+import { Section, SwitchRow } from '@/components/ui/Rows';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { BOARD } from '@/config/layout';
 import { t, type StringKey } from '@/i18n';
@@ -44,8 +45,10 @@ const INFO_KEYS: StringKey[] = [
 /** 表示するキーの幅から、キー欄を必要最小限の幅で表示するための概算。 */
 const estimatedComboWidth = (shortcut: string) => {
   const parts = displayKeyParts(shortcut);
-  const keysWidth = parts.reduce((width, part) => width + Math.max(18, part.length * 7) + 4, 0);
-  return keysWidth + Math.max(0, parts.length - 1) * 4 + 2;
+  const keyCapsWidth = parts.reduce((width, part) => width + Math.max(18, part.length * 7 + 4), 0);
+  // キー間の「+」表示・gap と、キー枠自体の左右 padding／border を含める。
+  const modifierSeparatorsWidth = Math.max(0, parts.length - 1) * 12;
+  return keyCapsWidth + modifierSeparatorsWidth + 10;
 };
 
 /** キーボードショートカットの確認・変更（Web版）。 */
@@ -59,12 +62,27 @@ export default function ShortcutSettings() {
   const [capturing, setCapturing] = useState<ActionId | null>(null);
   const [message, setMessage] = useState<{ id: ActionId; text: string } | null>(null);
   const [info, setInfo] = useState(false);
+  const [shortcutRowWidth, setShortcutRowWidth] = useState(0);
 
-  // この画面を開いている間は、ほかのショートカット（タスク作成など）が反応しないようにする。
+  // 設定画面が実際に表示されている間だけ、ボード側のショートカットを停止する。
+  // Expo Router は前の画面をスタックに保持するため、mount/unmount ではなく focus/blur に同期する。
+  useFocusEffect(
+    useCallback(() => {
+      useUiStore.getState().pushDialog();
+      return () => {
+        setCapturing(null);
+        useUiStore.getState().popDialog();
+      };
+    }, []),
+  );
+
+  // 入力待ち中にフォーム外の余白をクリックしたら待ち受けを解除する。
   useEffect(() => {
-    useUiStore.getState().pushDialog();
-    return () => useUiStore.getState().popDialog();
-  }, []);
+    if (!capturing || Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const cancelCapture = () => setCapturing(null);
+    document.addEventListener('pointerdown', cancelCapture, true);
+    return () => document.removeEventListener('pointerdown', cancelCapture, true);
+  }, [capturing]);
 
   // キー入力の待ち受け。
   useEffect(() => {
@@ -112,21 +130,25 @@ export default function ShortcutSettings() {
     setCapturing(id);
   };
 
-  const maxKeyFieldWidth = Math.max(120, Math.min(440, windowWidth * 0.52));
   const keyFieldWidth = (id: ActionId) => {
     const keys = bindings[id];
-    const chipsWidth = keys.reduce(
-      (total, key) => total + estimatedComboWidth(key) + SPACING.xs,
-      0,
-    );
-    const desiredWidth =
-      SPACING.sm * 2 +
-      BORDER_WIDTH * 2 +
-      chipsWidth +
-      (capturing === id ? 92 : 52) +
-      (keys.length ? SPACING.xs : 0);
-    return Math.min(maxKeyFieldWidth, Math.max(120, desiredWidth));
+    const keyWidths = keys.reduce((total, key) => total + estimatedComboWidth(key), 0);
+    const slotWidth = capturing === id ? 60 : 34;
+    const fieldChrome = BORDER_WIDTH * 2 + SPACING.sm * 2;
+    // キー欄の後ろに「追加」枠が来る。gap は各キーと追加枠の間だけ必要。
+    const desiredWidth = fieldChrome + keyWidths + keys.length * SPACING.xs + slotWidth;
+    // 行幅からリセットボタン・余白・タイトル用の幅を差し引き、タイトルと重ならない最大幅を求める。
+    const measuredMax = shortcutRowWidth - SPACING.md * 2 - 34 - SPACING.sm * 2 - 96;
+    const fallbackMax = Math.max(70, Math.min(440, windowWidth * 0.6));
+    const maxWidth = shortcutRowWidth > 0 ? Math.max(70, measuredMax) : fallbackMax;
+    return Math.max(fieldChrome + slotWidth, Math.min(desiredWidth, maxWidth));
   };
+
+  const handleShortcutRowLayout = (width: number) => {
+    setShortcutRowWidth((current) => (Math.abs(current - width) > 1 ? width : current));
+  };
+
+  const separator = <View style={[styles.separator, { backgroundColor: colors.border }]} />;
 
   const renderComboParts = (shortcut: string) =>
     displayKeyParts(shortcut).map((part, index) => (
@@ -197,12 +219,17 @@ export default function ShortcutSettings() {
                 </View>
               </View>
             </View>
-            <Divider />
+            {separator}
             {SHORTCUT_ACTIONS.map((a, i) => (
               <View key={a.id}>
-                {i > 0 ? <Divider /> : null}
-                <View style={styles.row}>
-                  <AppText style={styles.label}>{t(a.labelKey)}</AppText>
+                {i > 0 ? separator : null}
+                <View
+                  style={styles.row}
+                  onLayout={(event) => handleShortcutRowLayout(event.nativeEvent.layout.width)}
+                >
+                  <AppText style={styles.label} numberOfLines={2}>
+                    {t(a.labelKey)}
+                  </AppText>
                   <View
                     accessibilityLabel={t('settings.shortcutsAdd')}
                     accessibilityHint={t('settings.shortcutsGuide')}
@@ -249,7 +276,7 @@ export default function ShortcutSettings() {
                         pointerEvents="none"
                         style={[styles.captureSlot, { borderColor: colors.accent }]}
                       >
-                        <AppText variant="caption" color={colors.accent}>
+                        <AppText variant="caption" color={colors.accent} numberOfLines={1}>
                           {t('settings.shortcutsPressShort')}
                         </AppText>
                       </View>
@@ -261,7 +288,7 @@ export default function ShortcutSettings() {
                           { borderColor: colors.border, backgroundColor: colors.bg },
                         ]}
                       >
-                        <AppText variant="caption" muted style={styles.addHint}>
+                        <AppText variant="caption" muted style={styles.addHint} numberOfLines={1}>
                           {t('settings.shortcutsAddShort')}
                         </AppText>
                       </View>
@@ -319,7 +346,7 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
-    minHeight: 56,
+    minHeight: 60,
   },
   labelBlock: { flex: 1, minWidth: 0, gap: SPACING.xs },
   label: { flex: 1, minWidth: 0 },
@@ -327,7 +354,7 @@ const styles = StyleSheet.create({
     flexGrow: 0,
     flexShrink: 1,
     minWidth: 0,
-    minHeight: 42,
+    minHeight: 40,
     borderWidth: BORDER_WIDTH,
     borderRadius: RADIUS.md,
     paddingHorizontal: SPACING.sm,
@@ -359,7 +386,7 @@ const styles = StyleSheet.create({
   },
   comboPlus: { paddingHorizontal: 1 },
   addSlot: {
-    minWidth: 52,
+    minWidth: 0,
     minHeight: 30,
     paddingHorizontal: SPACING.xs,
     borderWidth: BORDER_WIDTH,
@@ -369,9 +396,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   addHint: { textAlign: 'center' },
+  separator: { height: BORDER_WIDTH, alignSelf: 'stretch', flexShrink: 0 },
   captureSlot: {
     minHeight: 30,
-    minWidth: 92,
+    minWidth: 0,
     paddingHorizontal: SPACING.xs,
     borderWidth: BORDER_WIDTH,
     borderStyle: 'dashed',

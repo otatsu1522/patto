@@ -158,6 +158,7 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
           key={`${visible ? 'open' : 'closed'}-${shownTask?.id ?? 'new'}`}
           autoGrow
           onSubmitEditing={submit}
+          onEnter={submit}
         />
         <ColorPicker label={t('task.color')} value={color} onChange={setColor} />
 

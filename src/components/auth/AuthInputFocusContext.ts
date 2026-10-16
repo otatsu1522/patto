@@ -16,6 +16,27 @@ const AuthInputFocusContext = createContext<AuthInputFocusHandler | null>(null);
 export const AuthInputFocusProvider = AuthInputFocusContext.Provider;
 export const useAuthInputFocus = () => useContext(AuthInputFocusContext);
 
+type WebTextInputHandle = { getNativeRef?: () => unknown };
+type WebScrollViewHandle = {
+  getScrollableNode?: () => unknown;
+  _scrollNodeRef?: { current?: unknown };
+};
+
+function getWebInputNode(input: TextInput): HTMLElement | null {
+  if (typeof HTMLElement === 'undefined') return null;
+  // React Native Web forwards the TextInput ref to the actual input/textarea DOM element.
+  if (input instanceof HTMLElement) return input;
+  const node = (input as unknown as WebTextInputHandle).getNativeRef?.();
+  return node instanceof HTMLElement ? node : null;
+}
+
+function getWebScrollNode(scrollRef: RefObject<ScrollView | null>): HTMLElement | null {
+  if (typeof HTMLElement === 'undefined') return null;
+  const handle = scrollRef.current as unknown as WebScrollViewHandle | null;
+  const node = handle?.getScrollableNode?.() ?? handle?._scrollNodeRef?.current;
+  return node instanceof HTMLElement ? node : null;
+}
+
 /**
  * フォーカス中の入力欄を、キーボードを除いた表示領域へスクロールする。
  * 認証画面・設定フォーム・ダイアログで共通利用し、Web の visual viewport と
@@ -42,6 +63,32 @@ export function useInputFocusScroller(scrollRef: RefObject<ScrollView | null>, e
         if (focusedInput.current !== target) return;
         requestAnimationFrame(() => {
           if (focusedInput.current !== target) return;
+
+          if (Platform.OS === 'web' && typeof window !== 'undefined') {
+            const inputNode = getWebInputNode(target);
+            const scrollNode = getWebScrollNode(scrollRef);
+            if (inputNode && scrollNode) {
+              const rect = inputNode.getBoundingClientRect();
+              const viewport = window.visualViewport;
+              const visibleTop = viewport?.offsetTop ?? 0;
+              const visibleBottom = viewport ? visibleTop + viewport.height : window.innerHeight;
+              const margin = 16;
+              let delta = 0;
+              if (rect.bottom > visibleBottom - margin) {
+                delta = rect.bottom - (visibleBottom - margin);
+              } else if (rect.top < visibleTop + margin) {
+                delta = rect.top - (visibleTop + margin);
+              }
+              const maxScrollTop = Math.max(0, scrollNode.scrollHeight - scrollNode.clientHeight);
+              const nextTop = Math.max(0, Math.min(maxScrollTop, scrollNode.scrollTop + delta));
+              if (Math.abs(nextTop - scrollNode.scrollTop) > 1) {
+                scrollNode.scrollTop = nextTop;
+                scrollY.current = nextTop;
+              }
+              return;
+            }
+          }
+
           target.measureInWindow((_x, y, _width, inputHeight) => {
             let visibleTop = 0;
             let visibleBottom = height;

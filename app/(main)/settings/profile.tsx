@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useAuthStore } from '@/auth/authStore';
 import { AppText } from '@/components/ui/AppText';
 import { Button } from '@/components/ui/Button';
@@ -25,6 +25,7 @@ import {
 import { t } from '@/i18n';
 import { useDataStore } from '@/store/dataStore';
 import { SPACING, useTheme } from '@/theme';
+import { isTouchWeb } from '@/lib/hover';
 
 const pendingCount = () => {
   const s = useDataStore.getState();
@@ -36,28 +37,110 @@ export default function ProfileScreen() {
   const scrollRef = useWebWheelScroll();
   const { revealFocusedInput, onScroll } = useInputFocusScroller(scrollRef);
   const identity = useAuthStore((s) => s.identity);
+
+  // モバイル Web の一部ブラウザーは、ソフトウェアキーボード表示時も layout viewport を縮めない。
+  // その場合はアカウント画面のスクロール領域自体を visual viewport に合わせる。
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !isTouchWeb || typeof window === 'undefined') return;
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+
+    type WebScrollHandle = {
+      getScrollableNode?: () => unknown;
+      _scrollNodeRef?: { current?: unknown };
+    };
+    const getScrollNode = (): HTMLElement | null => {
+      const handle = scrollRef.current as unknown as WebScrollHandle | null;
+      const node = handle?.getScrollableNode?.() ?? handle?._scrollNodeRef?.current;
+      return typeof HTMLElement !== 'undefined' && node instanceof HTMLElement ? node : null;
+    };
+
+    let adjustedNode: HTMLElement | null = null;
+    let originalStyles: {
+      height: string;
+      maxHeight: string;
+      flex: string;
+      minHeight: string;
+    } | null = null;
+    const restore = () => {
+      if (adjustedNode && originalStyles) {
+        adjustedNode.style.height = originalStyles.height;
+        adjustedNode.style.maxHeight = originalStyles.maxHeight;
+        adjustedNode.style.flex = originalStyles.flex;
+        adjustedNode.style.minHeight = originalStyles.minHeight;
+      }
+      adjustedNode = null;
+      originalStyles = null;
+    };
+
+    const syncViewport = () => {
+      const node = getScrollNode();
+      if (!node) return;
+      const keyboardVisible = window.innerHeight - viewport.height > 100;
+      if (!keyboardVisible) {
+        restore();
+        return;
+      }
+      if (adjustedNode !== node) {
+        restore();
+        adjustedNode = node;
+        originalStyles = {
+          height: node.style.height,
+          maxHeight: node.style.maxHeight,
+          flex: node.style.flex,
+          minHeight: node.style.minHeight,
+        };
+      }
+      const rect = node.getBoundingClientRect();
+      const visibleBottom = viewport.offsetTop + viewport.height;
+      const availableHeight = Math.max(1, visibleBottom - rect.top);
+      node.style.height = `${availableHeight}px`;
+      node.style.maxHeight = `${availableHeight}px`;
+      node.style.flex = '0 0 auto';
+      node.style.minHeight = '0';
+      window.requestAnimationFrame(() => revealFocusedInput());
+    };
+
+    viewport.addEventListener('resize', syncViewport);
+    viewport.addEventListener('scroll', syncViewport);
+    window.addEventListener('resize', syncViewport);
+    syncViewport();
+    return () => {
+      viewport.removeEventListener('resize', syncViewport);
+      viewport.removeEventListener('scroll', syncViewport);
+      window.removeEventListener('resize', syncViewport);
+      restore();
+    };
+  }, [revealFocusedInput, scrollRef]);
+
   return (
     <View style={styles.fill}>
       <ScreenHeader title={t('settings.profile')} />
-      <AuthInputFocusProvider value={revealFocusedInput}>
-        <ScrollView
-          ref={scrollRef}
-          style={styles.scroll}
-          contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled"
-          onScroll={onScroll}
-          scrollEventThrottle={16}
-          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
-        >
-          <View style={styles.inner}>
-            {identity?.mode === 'guest' ? (
-              <GuestSection local={!!identity.local} />
-            ) : (
-              <AccountSections />
-            )}
-          </View>
-        </ScrollView>
-      </AuthInputFocusProvider>
+      <KeyboardAvoidingView
+        behavior={
+          Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined
+        }
+        style={styles.fill}
+      >
+        <AuthInputFocusProvider value={revealFocusedInput}>
+          <ScrollView
+            ref={scrollRef}
+            style={styles.scroll}
+            contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="handled"
+            onScroll={onScroll}
+            scrollEventThrottle={16}
+          >
+            <View style={styles.inner}>
+              {identity?.mode === 'guest' ? (
+                <GuestSection local={!!identity.local} />
+              ) : (
+                <AccountSections />
+              )}
+            </View>
+          </ScrollView>
+        </AuthInputFocusProvider>
+      </KeyboardAvoidingView>
     </View>
   );
 }
