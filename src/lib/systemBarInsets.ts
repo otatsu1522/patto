@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { UI_METRICS } from '@/config/layout';
 
 export interface SystemBarInsets {
   top: number;
@@ -13,7 +14,7 @@ export function getSystemBarInsets(insets: SystemBarInsets): SystemBarInsets {
   if (Platform.OS !== 'android') return insets;
 
   return {
-    top: Math.max(insets.top, 24),
-    bottom: Math.max(insets.bottom, 24),
+    top: Math.max(insets.top, UI_METRICS.systemBars.androidMinimumInsetPx),
+    bottom: Math.max(insets.bottom, UI_METRICS.systemBars.androidMinimumInsetPx),
   };
 }

@@ -14,7 +14,7 @@ import { Dialog } from '@/components/ui/Dialog';
 import { IconButton } from '@/components/ui/IconButton';
 import { Section, SwitchRow } from '@/components/ui/Rows';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
-import { BOARD } from '@/config/layout';
+import { BOARD, UI_METRICS } from '@/config/layout';
 import { t, type StringKey } from '@/i18n';
 import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
 import {
@@ -29,7 +29,15 @@ import {
 } from '@/shortcuts/actions';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useUiStore } from '@/store/uiStore';
-import { BORDER_WIDTH, RADIUS, SPACING, useTheme } from '@/theme';
+import {
+  BORDER_WIDTH,
+  RADIUS,
+  SPACING,
+  useTheme,
+  ICON_SIZE,
+  ICON_BUTTON_BOX,
+  OPACITY,
+} from '@/theme';
 
 const INFO_KEYS: StringKey[] = [
   'shortcut.info1',
@@ -45,10 +53,20 @@ const INFO_KEYS: StringKey[] = [
 /** 表示するキーの幅から、キー欄を必要最小限の幅で表示するための概算。 */
 const estimatedComboWidth = (shortcut: string) => {
   const parts = displayKeyParts(shortcut);
-  const keyCapsWidth = parts.reduce((width, part) => width + Math.max(18, part.length * 7 + 4), 0);
+  const keyCapsWidth = parts.reduce(
+    (width, part) =>
+      width +
+      Math.max(
+        UI_METRICS.shortcuts.keyCapMinWidth,
+        part.length * UI_METRICS.shortcuts.estimatedKeyCapCharWidth +
+          UI_METRICS.shortcuts.comboPaddingHorizontal,
+      ),
+    0,
+  );
   // キー間の「+」表示・gap と、キー枠自体の左右 padding／border を含める。
-  const modifierSeparatorsWidth = Math.max(0, parts.length - 1) * 12;
-  return keyCapsWidth + modifierSeparatorsWidth + 10;
+  const modifierSeparatorsWidth =
+    Math.max(0, parts.length - 1) * UI_METRICS.shortcuts.estimatedComboSeparatorWidth;
+  return keyCapsWidth + modifierSeparatorsWidth + UI_METRICS.shortcuts.estimatedComboTrailingWidth;
 };
 
 /** キーボードショートカットの確認・変更（Web版）。 */
@@ -141,13 +159,26 @@ export default function ShortcutSettings() {
       0,
     );
     const slotWidth =
-      capturing === id ? measuredSlotWidths.capture || 72 : measuredSlotWidths.add || 42;
+      capturing === id
+        ? measuredSlotWidths.capture || UI_METRICS.shortcuts.captureActionSlotWidth
+        : measuredSlotWidths.add || UI_METRICS.shortcuts.addActionSlotWidth;
     const fieldChrome = BORDER_WIDTH * 2 + SPACING.sm * 2;
     // キー欄の後ろに「追加」枠が来る。gap は各キーと追加枠の間だけ必要。
     const desiredWidth = fieldChrome + keyWidths + keys.length * SPACING.xs + slotWidth;
     // 行幅からリセットボタン・余白・タイトル用の幅を差し引き、タイトルと重ならない最大幅を求める。
-    const measuredMax = shortcutRowWidth - SPACING.md * 2 - 34 - SPACING.sm * 2 - 96;
-    const fallbackMax = Math.max(70, Math.min(440, windowWidth * 0.6));
+    const measuredMax =
+      shortcutRowWidth -
+      SPACING.md * 2 -
+      UI_METRICS.shortcuts.resetButtonWidth -
+      SPACING.sm * 2 -
+      UI_METRICS.shortcuts.fixedLabelAreaWidth;
+    const fallbackMax = Math.max(
+      UI_METRICS.shortcuts.fallbackMinWidth,
+      Math.min(
+        UI_METRICS.shortcuts.fallbackMaxWidth,
+        windowWidth * UI_METRICS.shortcuts.fallbackWidthRatio,
+      ),
+    );
     const minimumWidth = fieldChrome + slotWidth;
     const maxWidth =
       shortcutRowWidth > 0
@@ -161,20 +192,26 @@ export default function ShortcutSettings() {
   };
 
   const handleShortcutRowLayout = (width: number) => {
-    setShortcutRowWidth((current) => (Math.abs(current - width) > 1 ? width : current));
+    setShortcutRowWidth((current) =>
+      Math.abs(current - width) > UI_METRICS.shortcuts.rowWidthChangeThreshold ? width : current,
+    );
   };
 
   const recordComboWidth = (key: string, width: number) => {
     if (!Number.isFinite(width) || width <= 0) return;
     setMeasuredComboWidths((current) =>
-      Math.abs((current[key] ?? 0) - width) > 0.5 ? { ...current, [key]: width } : current,
+      Math.abs((current[key] ?? 0) - width) > UI_METRICS.shortcuts.measuredWidthChangeThreshold
+        ? { ...current, [key]: width }
+        : current,
     );
   };
 
   const recordSlotWidth = (kind: 'add' | 'capture', width: number) => {
     if (!Number.isFinite(width) || width <= 0) return;
     setMeasuredSlotWidths((current) =>
-      Math.abs(current[kind] - width) > 0.5 ? { ...current, [kind]: width } : current,
+      Math.abs(current[kind] - width) > UI_METRICS.shortcuts.measuredWidthChangeThreshold
+        ? { ...current, [kind]: width }
+        : current,
     );
   };
 
@@ -185,7 +222,7 @@ export default function ShortcutSettings() {
       <Fragment key={`${part}-${index}`}>
         {index > 0 ? (
           <AppText variant="caption" muted style={styles.comboPlus}>
-            +
+            {t('shortcut.comboPlus')}
           </AppText>
         ) : null}
         <View style={[styles.keyCap, { backgroundColor: 'transparent' }]}>
@@ -218,8 +255,8 @@ export default function ShortcutSettings() {
               icon="info"
               label={t('shortcut.infoTitle')}
               onPress={() => setInfo(true)}
-              box={36}
-              size={20}
+              box={ICON_BUTTON_BOX.medium}
+              size={ICON_SIZE.xl}
               color={colors.textMuted}
             />
           </View>
@@ -243,7 +280,7 @@ export default function ShortcutSettings() {
                 <View style={[styles.combo, styles.fixedCombo, { borderColor: colors.divider }]}>
                   <View style={styles.keyCap}>
                     <AppText variant="caption" bold>
-                      Esc
+                      {t('shortcut.keyEscape')}
                     </AppText>
                   </View>
                 </View>
@@ -257,7 +294,7 @@ export default function ShortcutSettings() {
                   style={styles.row}
                   onLayout={(event) => handleShortcutRowLayout(event.nativeEvent.layout.width)}
                 >
-                  <AppText style={styles.label} numberOfLines={2}>
+                  <AppText style={styles.label} numberOfLines={UI_METRICS.text.previewLines}>
                     {t(a.labelKey)}
                   </AppText>
                   <View
@@ -313,7 +350,11 @@ export default function ShortcutSettings() {
                         }
                         style={[styles.captureSlot, { borderColor: colors.accent }]}
                       >
-                        <AppText variant="caption" color={colors.accent} numberOfLines={1}>
+                        <AppText
+                          variant="caption"
+                          color={colors.accent}
+                          numberOfLines={UI_METRICS.text.singleLineMax}
+                        >
                           {t('settings.shortcutsPressShort')}
                         </AppText>
                       </View>
@@ -326,7 +367,12 @@ export default function ShortcutSettings() {
                           { borderColor: colors.border, backgroundColor: colors.bg },
                         ]}
                       >
-                        <AppText variant="caption" muted style={styles.addHint} numberOfLines={1}>
+                        <AppText
+                          variant="caption"
+                          muted
+                          style={styles.addHint}
+                          numberOfLines={UI_METRICS.text.singleLineMax}
+                        >
                           {t('settings.shortcutsAddShort')}
                         </AppText>
                       </View>
@@ -336,8 +382,8 @@ export default function ShortcutSettings() {
                     icon="restore"
                     label={t('settings.shortcutsReset')}
                     onPress={() => reset(a.id)}
-                    box={34}
-                    size={18}
+                    box={ICON_BUTTON_BOX.navigation}
+                    size={ICON_SIZE.lg}
                   />
                 </View>
                 {message?.id === a.id ? (
@@ -376,7 +422,11 @@ const styles = StyleSheet.create({
     overscrollBehaviorY: 'auto',
   } as never,
   content: { padding: SPACING.lg, alignItems: 'center', flexGrow: 1 },
-  inner: { width: '100%', maxWidth: BOARD.dialogMaxWidth + 120, gap: SPACING.lg },
+  inner: {
+    width: '100%',
+    maxWidth: BOARD.dialogMaxWidth + UI_METRICS.dialog.settingsPanelExtraWidth,
+    gap: SPACING.lg,
+  },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   row: {
     flexDirection: 'row',
@@ -384,7 +434,7 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
-    minHeight: 60,
+    minHeight: UI_METRICS.shortcuts.rowMinHeight,
   },
   labelBlock: { flex: 1, minWidth: 0, gap: SPACING.xs },
   label: { flex: 1, minWidth: 0 },
@@ -392,7 +442,7 @@ const styles = StyleSheet.create({
     flexGrow: 0,
     flexShrink: 0,
     minWidth: 0,
-    minHeight: 40,
+    minHeight: UI_METRICS.shortcuts.keyFieldMinHeight,
     borderWidth: BORDER_WIDTH,
     borderRadius: RADIUS.md,
     paddingHorizontal: SPACING.sm,
@@ -403,30 +453,30 @@ const styles = StyleSheet.create({
     gap: SPACING.xs,
   },
   emptyKeyField: { justifyContent: 'center' },
-  fixedKeyField: { opacity: 0.65 },
+  fixedKeyField: { opacity: OPACITY.muted },
   combo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
+    gap: UI_METRICS.shortcuts.comboGap,
     borderWidth: BORDER_WIDTH,
     borderRadius: RADIUS.sm,
-    paddingHorizontal: 4,
-    paddingVertical: 3,
-    minHeight: 30,
+    paddingHorizontal: UI_METRICS.shortcuts.comboPaddingHorizontal,
+    paddingVertical: UI_METRICS.shortcuts.comboPaddingVertical,
+    minHeight: UI_METRICS.shortcuts.comboMinHeight,
     flexShrink: 0,
   },
   fixedCombo: { backgroundColor: 'transparent' },
   keyCap: {
-    minWidth: 18,
-    minHeight: 22,
-    paddingHorizontal: 2,
+    minWidth: UI_METRICS.shortcuts.keyCapMinWidth,
+    minHeight: UI_METRICS.shortcuts.keyCapMinHeight,
+    paddingHorizontal: UI_METRICS.shortcuts.keyCapPaddingHorizontal,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  comboPlus: { paddingHorizontal: 1 },
+  comboPlus: { paddingHorizontal: UI_METRICS.shortcuts.comboPlusPaddingHorizontal },
   addSlot: {
     minWidth: 0,
-    minHeight: 30,
+    minHeight: UI_METRICS.shortcuts.comboMinHeight,
     paddingHorizontal: SPACING.sm,
     borderWidth: BORDER_WIDTH,
     borderStyle: 'dashed',
@@ -438,7 +488,7 @@ const styles = StyleSheet.create({
   addHint: { textAlign: 'center' },
   separator: { height: BORDER_WIDTH, alignSelf: 'stretch', flexShrink: 0 },
   captureSlot: {
-    minHeight: 30,
+    minHeight: UI_METRICS.shortcuts.comboMinHeight,
     minWidth: 0,
     paddingHorizontal: SPACING.sm,
     borderWidth: BORDER_WIDTH,

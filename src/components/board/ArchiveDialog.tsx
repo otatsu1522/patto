@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { archivedTasks, trashItems } from '@/domain/selectors';
 import { t } from '@/i18n';
+import { useFeedback } from '../ui/FeedbackProvider';
 import { formatDateTime } from '@/lib/dates';
 import { useDataStore } from '@/store/dataStore';
 import { RADIUS, SPACING, useTheme } from '@/theme';
@@ -10,6 +12,7 @@ import { Dialog } from '../ui/Dialog';
 import { EmptyState } from '../ui/EmptyState';
 import { IconButton } from '../ui/IconButton';
 import { BORDER_WIDTH } from '@/theme/tokens';
+import { UI_METRICS } from '@/config/layout';
 
 interface Props {
   /** null のときは閉じている */
@@ -24,16 +27,18 @@ interface Row {
   title: string;
   kindLabel: string;
   at: number | null;
-  restore: () => void;
+  restore: () => Promise<void>;
 }
 
 /** アーカイブ済みタスク / ごみ箱の中身を一覧し、復元やクリアができるダイアログ。 */
 export function ArchiveDialog({ kind, projectId, onClose, onClear }: Props) {
   const { colors } = useTheme();
+  const { alert } = useFeedback();
   const projects = useDataStore((s) => s.projects);
   const columns = useDataStore((s) => s.columns);
   const tasks = useDataStore((s) => s.tasks);
   const store = useDataStore.getState();
+  const [restoringAll, setRestoringAll] = useState(false);
 
   const rows: Row[] =
     kind === 'archive'
@@ -42,7 +47,7 @@ export function ArchiveDialog({ kind, projectId, onClose, onClear }: Props) {
           title: task.title,
           kindLabel: t('board.kind.task'),
           at: task.archivedAt,
-          restore: () => void store.archiveTask(task.id, false),
+          restore: () => store.archiveTask(task.id, false),
         }))
       : kind === 'trash'
         ? trashItems({ projects, columns, tasks }, projectId).map((item) => ({
@@ -56,25 +61,50 @@ export function ArchiveDialog({ kind, projectId, onClose, onClear }: Props) {
                   : 'board.kind.project',
             ),
             at: item.record.deletedAt,
-            restore: () => void store.restoreItem(item.kind, item.record.id),
+            restore: () => store.restoreItem(item.kind, item.record.id),
           }))
         : [];
+
+  const restoreAll = async () => {
+    if (restoringAll) return;
+    setRestoringAll(true);
+    try {
+      // ごみ箱一覧では親項目の復元が同じ削除時刻の子も復元するため、
+      // セレクターが提示した復元単位を順に処理する。
+      for (const row of rows) await row.restore();
+    } catch {
+      alert(t('common.error'), t('board.restoreAllFailed'));
+    } finally {
+      setRestoringAll(false);
+    }
+  };
 
   return (
     <Dialog
       visible={kind !== null}
-      wide
       title={kind === 'trash' ? t('board.trashTitle') : t('board.archiveTitle')}
       onClose={onClose}
       footer={
         rows.length > 0 ? (
-          <Button
-            label={kind === 'trash' ? t('board.clearTrash') : t('board.clearArchive')}
-            variant="danger"
-            icon="trash"
-            onPress={onClear}
-            fullWidth
-          />
+          <View style={styles.footerActions}>
+            <Button
+              label={t('board.restoreAll')}
+              variant="outline"
+              icon="restore"
+              loading={restoringAll}
+              disabled={restoringAll}
+              onPress={() => void restoreAll()}
+              fullWidth
+            />
+            <Button
+              label={kind === 'trash' ? t('board.clearTrash') : t('board.clearArchive')}
+              variant="danger"
+              icon="trash"
+              disabled={restoringAll}
+              onPress={onClear}
+              fullWidth
+            />
+          </View>
         ) : undefined
       }
     >
@@ -84,13 +114,18 @@ export function ArchiveDialog({ kind, projectId, onClose, onClear }: Props) {
         rows.map((r) => (
           <View key={r.key} style={[styles.row, { borderColor: colors.border }]}>
             <View style={styles.texts}>
-              <AppText numberOfLines={2}>{r.title}</AppText>
+              <AppText numberOfLines={UI_METRICS.text.previewLines}>{r.title}</AppText>
               <AppText variant="caption" muted>
                 {r.kindLabel}
                 {r.at ? ` · ${formatDateTime(r.at)}` : ''}
               </AppText>
             </View>
-            <IconButton icon="restore" label={t('common.restore')} onPress={r.restore} />
+            <IconButton
+              icon="restore"
+              label={t('common.restore')}
+              disabled={restoringAll}
+              onPress={r.restore}
+            />
           </View>
         ))
       )}
@@ -110,4 +145,5 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.xs,
   },
   texts: { flex: 1 },
+  footerActions: { gap: SPACING.sm },
 });

@@ -8,8 +8,10 @@ interface UiState {
   shortcutsSuspended: boolean;
   sidebarCollapsed: boolean;
   helpOpen: boolean;
-  /** スマホ: メニューが画面に見えている（ヘッダーのメニューアイコンを隠す） */
+  /** スマホ: メニューのページが実際に画面内に見えているか。 */
   menuVisible: boolean;
+  /** スマホ: メニューを開閉する操作の意図。スクロールアニメーションより先にアイコンへ反映する。 */
+  menuIconOpen: boolean;
   /** 全タスク検索ダイアログ */
   globalSearchOpen: boolean;
   /** 全タスク検索を開く際、最初に選択するプロジェクト（null はすべて） */
@@ -37,6 +39,7 @@ export const useUiStore = create<UiState>((set) => ({
   sidebarCollapsed: Platform.OS === 'web',
   helpOpen: false,
   menuVisible: false,
+  menuIconOpen: false,
   globalSearchOpen: false,
   globalSearchProjectId: null,
   boardSearchFocusTick: 0,

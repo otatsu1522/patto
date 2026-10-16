@@ -91,4 +91,4 @@ export const darkPalette: Palette = {
 };
 
 /** アプリアイコン・ロゴ: 白背景に黒 */
-export const BRAND = { background: '#FFFFFF', foreground: '#000000' } as const;
+export const BRAND = { background: '#FFFFFF', foreground: '#000000', border: '#D4D4D4' } as const;

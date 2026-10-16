@@ -8,6 +8,7 @@ import {
   TUTORIAL_TASKS_VERSION,
 } from '@/config/tutorial';
 import { LIMITS } from '@/config/limits';
+import { TIMING } from '@/config/timing';
 import { openLocalDb } from '@/db/sqliteDb';
 import type { LocalDb } from '@/db/types';
 import {
@@ -21,7 +22,8 @@ import {
   type TaskInput,
 } from '@/domain/mutations';
 import { compareBySortKey, keyAtEnd, keyAtStart, keyForIndex } from '@/domain/ordering';
-import type { ImportedBoard } from '@/domain/trello';
+import { validateImportedBoards, type ImportedBoard } from '@/domain/trello';
+import { UserActionError } from '@/domain/operationError';
 import { columnsOf, isActive, purgeTargets, tasksOf } from '@/domain/selectors';
 import type {
   AnyRecord,
@@ -36,10 +38,10 @@ import { emptySnapshot } from '@/domain/types';
 import { t } from '@/i18n';
 import { nowMs } from '@/lib/clock';
 import type { TaskColorKey } from '@/theme/taskColors';
+import { DIAGNOSTIC_MESSAGES } from '@/config/diagnostics';
 
 type Listener = () => void;
 const changeListeners = new Set<Listener>();
-const DB_OPEN_TIMEOUT_MS = 15_000;
 /** ローカルのデータが変わったときに呼ばれる（自動同期のきっかけに使う）。 */
 export const onLocalChange = (fn: Listener): (() => void) => {
   changeListeners.add(fn);
@@ -51,7 +53,10 @@ async function openLocalDbWithTimeout(scope: string): Promise<LocalDb> {
   const opening = openLocalDb(scope);
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => reject(new Error(t('app.startupTimeout'))), DB_OPEN_TIMEOUT_MS);
+    timeoutId = setTimeout(
+      () => reject(new Error(t('app.startupTimeout'))),
+      TIMING.dbOpenTimeoutMs,
+    );
   });
   try {
     return await Promise.race([opening, timeout]);
@@ -67,7 +72,10 @@ async function openLocalDbWithTimeout(scope: string): Promise<LocalDb> {
 async function loadDbWithTimeout(db: LocalDb): Promise<Snapshot> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => reject(new Error(t('app.startupTimeout'))), DB_OPEN_TIMEOUT_MS);
+    timeoutId = setTimeout(
+      () => reject(new Error(t('app.startupTimeout'))),
+      TIMING.dbOpenTimeoutMs,
+    );
   });
   try {
     return await Promise.race([db.loadAll(), timeout]);
@@ -79,7 +87,7 @@ async function loadDbWithTimeout(db: LocalDb): Promise<Snapshot> {
 let db: LocalDb | null = null;
 /** 同期層などから DB に直接アクセスするための入口 */
 export const getDb = (): LocalDb => {
-  if (!db) throw new Error('DB が開かれていません');
+  if (!db) throw new Error(DIAGNOSTIC_MESSAGES.databaseNotOpen);
   return db;
 };
 
@@ -126,7 +134,7 @@ interface DataState extends Snapshot {
     patch: Partial<Pick<KanbanColumn, 'title' | 'color' | 'sortMode' | 'isDoneColumn'>>,
   ) => Promise<void>;
   deleteColumn: (id: string, moveTasksToColumnId: string | null) => Promise<void>;
-  duplicateColumn: (id: string) => Promise<void>;
+  duplicateColumn: (id: string) => Promise<boolean>;
   moveColumn: (id: string, toIndex: number) => Promise<void>;
 
   createTask: (input: TaskInput) => Promise<Task | null>;
@@ -139,7 +147,7 @@ interface DataState extends Snapshot {
   moveTask: (id: string, toColumnId: string) => Promise<void>;
   reorderTask: (id: string, toIndex: number) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
-  duplicateTask: (id: string) => Promise<void>;
+  duplicateTask: (id: string) => Promise<boolean>;
   archiveTask: (id: string, archived: boolean) => Promise<void>;
   archiveDoneTasks: (projectId: string) => Promise<number>;
 
@@ -525,13 +533,22 @@ export const useDataStore = create<DataState>((set, get) => {
     async duplicateProject(id) {
       const src = project(id);
       if (!src) return null;
+      const copyTitle = src.title + t('project.copySuffix');
+      if (copyTitle.length > LIMITS.projectTitleMax) {
+        throw new UserActionError(
+          t('operation.duplicateTitleTooLong', {
+            item: t('common.project'),
+            max: LIMITS.projectTitleMax,
+          }),
+        );
+      }
       const ts = now();
       const allKeys = get().projects.slice().sort(compareBySortKey);
       const copy = buildProject(
         owner(),
         ts,
         {
-          title: src.title + t('project.copySuffix'),
+          title: copyTitle,
           description: src.description,
           color: src.color,
         },
@@ -646,9 +663,22 @@ export const useDataStore = create<DataState>((set, get) => {
 
     async duplicateColumn(id) {
       const c = column(id);
-      if (!c) return;
+      if (!c) return false;
+      const copyTitle = c.title + t('project.copySuffix');
+      if (copyTitle.length > LIMITS.columnTitleMax) {
+        throw new UserActionError(
+          t('operation.duplicateTitleTooLong', {
+            item: t('common.column'),
+            max: LIMITS.columnTitleMax,
+          }),
+        );
+      }
       const cols = activeColumns(c.projectId);
-      if (cols.length >= LIMITS.maxColumnsPerProject) return;
+      if (cols.length >= LIMITS.maxColumnsPerProject) {
+        throw new UserActionError(
+          t('operation.duplicateColumnLimit', { max: LIMITS.maxColumnsPerProject }),
+        );
+      }
       const ts = now();
       const idx = cols.findIndex((x) => x.id === id);
       const copy = {
@@ -657,7 +687,7 @@ export const useDataStore = create<DataState>((set, get) => {
           ts,
           {
             projectId: c.projectId,
-            title: c.title + t('project.copySuffix'),
+            title: copyTitle,
             color: c.color,
             isDoneColumn: c.isDoneColumn,
           },
@@ -687,6 +717,7 @@ export const useDataStore = create<DataState>((set, get) => {
           completedAt: x.completedAt,
         }));
       await commit({ columns: [copy], tasks: tks });
+      return true;
     },
 
     async moveColumn(id, toIndex) {
@@ -748,7 +779,16 @@ export const useDataStore = create<DataState>((set, get) => {
 
     async duplicateTask(id) {
       const x = task(id);
-      if (!x) return;
+      if (!x) return false;
+      const copyTitle = x.title + t('project.copySuffix');
+      if (copyTitle.length > LIMITS.taskTitleMax) {
+        throw new UserActionError(
+          t('operation.duplicateTitleTooLong', {
+            item: t('common.task'),
+            max: LIMITS.taskTitleMax,
+          }),
+        );
+      }
       const col = column(x.columnId);
       const ts = now();
       const copy = {
@@ -758,7 +798,7 @@ export const useDataStore = create<DataState>((set, get) => {
           {
             projectId: x.projectId,
             columnId: x.columnId,
-            title: x.title + t('project.copySuffix'),
+            title: copyTitle,
             description: x.description,
             color: x.color,
             dueAt: x.dueAt,
@@ -770,6 +810,7 @@ export const useDataStore = create<DataState>((set, get) => {
         ),
       };
       await commit({ tasks: [copy] });
+      return true;
     },
 
     async archiveTask(id, archived) {
@@ -896,6 +937,8 @@ export const useDataStore = create<DataState>((set, get) => {
     },
 
     async importBoards(boards) {
+      // 呼び出し元にかかわらず、上限超過を含むデータを一部だけ保存することはしない。
+      validateImportedBoards(boards);
       const ts = now();
       const projects: Project[] = [];
       const columns: KanbanColumn[] = [];

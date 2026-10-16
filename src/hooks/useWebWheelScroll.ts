@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Platform, type ScrollView } from 'react-native';
 import { isTouchWeb } from '@/lib/hover';
+import { GESTURE } from '@/config/layout';
 
 type ScrollViewHandle = {
   getScrollableNode?: () => unknown;
@@ -67,7 +68,8 @@ export function useWebWheelScroll({
           const canScroll =
             deltaY < 0
               ? node.scrollTop > 0
-              : node.scrollTop + node.clientHeight < node.scrollHeight - 1;
+              : node.scrollTop + node.clientHeight <
+                node.scrollHeight - GESTURE.nestedScrollEndTolerancePx;
           if (canScroll) return true;
         }
         node = node.parentElement;
@@ -81,7 +83,7 @@ export function useWebWheelScroll({
 
       const delta =
         event.deltaMode === WheelEvent.DOM_DELTA_LINE
-          ? event.deltaY * 16
+          ? event.deltaY * GESTURE.webWheelLineDeltaPx
           : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
             ? event.deltaY * element.clientHeight
             : event.deltaY;
@@ -127,7 +129,7 @@ export function useWebWheelScroll({
       const dy = touch.clientY - startY;
 
       if (touchAxis === 'pending') {
-        if (Math.max(Math.abs(dx), Math.abs(dy)) < 6) return;
+        if (Math.max(Math.abs(dx), Math.abs(dy)) < GESTURE.webScrollAxisThresholdPx) return;
         touchAxis = Math.abs(dy) >= Math.abs(dx) ? 'vertical' : 'horizontal';
       }
       if (touchAxis !== 'vertical') return;
@@ -163,7 +165,7 @@ export function useWebWheelScroll({
       if (disposed) return;
       const found = getScrollElement(scrollRef);
       if (!found) {
-        if (attempts++ < 8) {
+        if (attempts++ < GESTURE.webScrollAttachAttempts) {
           frame = window.requestAnimationFrame(attach);
         } else if (!observer && typeof MutationObserver !== 'undefined') {
           // 条件表示される検索結果など、フックの初回実行時にまだ DOM がない場合も接続する。

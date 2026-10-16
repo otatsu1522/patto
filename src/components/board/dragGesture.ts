@@ -3,6 +3,7 @@ import { useMemo, useRef } from 'react';
 import { Platform } from 'react-native';
 import { Gesture } from 'react-native-gesture-handler';
 import { GESTURE } from '@/config/layout';
+import { TIMING } from '@/config/timing';
 import { isTouchWeb } from '@/lib/hover';
 
 /** つかんだカードの大きさと、カードの左上から見た指の位置（ドラッグ中の見た目を指に合わせるため） */
@@ -38,7 +39,7 @@ export function useDragGesture(handlers: DragHandlers) {
       .onStart((e) => {
         active.current = true;
         if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        else if (isTouchWeb) navigator.vibrate?.(15);
+        else if (isTouchWeb) navigator.vibrate?.(TIMING.webDragVibrationMs);
         ref.current.begin(e.absoluteX, e.absoluteY);
       })
       .onUpdate((e) => {

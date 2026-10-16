@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
 import { useAuthStore } from '@/auth/authStore';
@@ -8,8 +9,9 @@ import { AppText } from '@/components/ui/AppText';
 import { Button } from '@/components/ui/Button';
 import { isSupabaseConfigured } from '@/config/env';
 import type { CardDensity, SyncMode, ThemeMode } from '@/config/defaults';
-import { BOARD, type FontScaleKey } from '@/config/layout';
+import { BOARD, UI_METRICS, type FontScaleKey } from '@/config/layout';
 import { exportProjects, importProjects } from '@/features/importExport';
+import { UserActionError } from '@/domain/operationError';
 import { clearBucket, previewClear, resetAllData } from '@/features/maintenance';
 import { visibleProjects, archivedProjects } from '@/domain/selectors';
 import { t } from '@/i18n';
@@ -18,17 +20,32 @@ import { useDataStore } from '@/store/dataStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { syncNow } from '@/sync/controller';
 import { useSyncStore } from '@/sync/status';
-import { SPACING } from '@/theme';
+import { SPACING, useTheme } from '@/theme';
 
 /** システム設定: 外観 / システム / データ管理。 */
 export default function SystemSettings() {
-  const { confirm, toast } = useFeedback();
+  const { confirm, toast, alert } = useFeedback();
+  const { colors } = useTheme();
+  const [syncRequested, setSyncRequested] = useState(false);
   const settings = useSettingsStore((s) => s.settings);
   const update = useSettingsStore((s) => s.update);
   const identity = useAuthStore((s) => s.identity);
   const lastSyncedAt = useSyncStore((s) => s.lastSyncedAt);
+  const syncStatus = useSyncStore((s) => s.status);
+  const syncInProgress = syncStatus === 'syncing' || syncRequested;
   const syncAvailable = !!identity && !identity.local && isSupabaseConfigured;
   const scrollRef = useWebWheelScroll();
+
+  const runManualSync = async () => {
+    if (syncInProgress) return;
+    // 状態ストアの更新を待たずにボタンを即時表示へ切り替える。
+    setSyncRequested(true);
+    try {
+      await syncNow();
+    } finally {
+      setSyncRequested(false);
+    }
+  };
 
   const doExport = async () => {
     const answer = await confirm({
@@ -48,8 +65,11 @@ export default function SystemSettings() {
     try {
       const count = await importProjects();
       if (count !== null) toast(t('settings.importDone', { count }));
-    } catch {
-      toast(t('settings.importFailed'), undefined, { force: true });
+    } catch (error) {
+      alert(
+        t('common.error'),
+        error instanceof UserActionError ? error.message : t('settings.importFailed'),
+      );
     }
   };
 
@@ -192,11 +212,13 @@ export default function SystemSettings() {
                 </View>
                 <View style={styles.syncAction}>
                   <Button
-                    label={t('settings.syncNow')}
+                    label={syncInProgress ? t('sync.syncing') : t('settings.syncNow')}
                     variant="outline"
-                    icon="sync"
-                    disabled={settings.syncMode === 'off'}
-                    onPress={() => void syncNow()}
+                    icon="upload"
+                    loading={syncInProgress}
+                    disabled={settings.syncMode === 'off' || syncInProgress}
+                    textColor={syncInProgress ? colors.accent : undefined}
+                    onPress={() => void runManualSync()}
                     fullWidth
                   />
                   <AppText variant="caption" muted style={styles.syncLast}>
@@ -278,7 +300,11 @@ const styles = StyleSheet.create({
     overscrollBehaviorY: 'auto',
   } as never,
   content: { padding: SPACING.lg, alignItems: 'center', flexGrow: 1 },
-  inner: { width: '100%', maxWidth: BOARD.dialogMaxWidth + 120, gap: SPACING.lg },
+  inner: {
+    width: '100%',
+    maxWidth: BOARD.dialogMaxWidth + UI_METRICS.dialog.settingsPanelExtraWidth,
+    gap: SPACING.lg,
+  },
   category: { marginTop: SPACING.md, paddingHorizontal: SPACING.sm },
   hint: { padding: SPACING.lg, paddingBottom: 0 },
   syncDescs: { gap: SPACING.xs, paddingHorizontal: SPACING.lg, paddingBottom: SPACING.sm },

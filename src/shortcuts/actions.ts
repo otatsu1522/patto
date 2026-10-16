@@ -1,4 +1,4 @@
-import type { StringKey } from '@/i18n';
+import { t, type StringKey } from '@/i18n';
 
 /**
  * ショートカットで実行できる操作の一覧と既定のキー。
@@ -134,4 +134,5 @@ export function displayKeyParts(shortcut: string): string[] {
 }
 
 /** 説明文・エラーメッセージ用（例: Ctrl + Shift + Z）。 */
-export const displayKey = (key: string): string => displayKeyParts(key).join(' + ');
+export const displayKey = (key: string): string =>
+  displayKeyParts(key).join(t('shortcut.comboJoiner'));

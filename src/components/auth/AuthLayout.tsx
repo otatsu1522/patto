@@ -2,6 +2,8 @@ import { useRef, type ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { APP_NAME } from '@/config/app';
+import { UI_METRICS } from '@/config/layout';
+import { TIMING } from '@/config/timing';
 import { RADIUS, SHADOW, SPACING, useTheme } from '@/theme';
 import { AppText } from '../ui/AppText';
 import { Logo } from '../ui/Logo';
@@ -28,11 +30,11 @@ export function AuthLayout({ children, subtitle }: { children: ReactNode; subtit
             contentContainerStyle={styles.scroll}
             keyboardShouldPersistTaps="handled"
             onScroll={onScroll}
-            scrollEventThrottle={16}
+            scrollEventThrottle={TIMING.scrollEventThrottleMs}
             automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
           >
             <View style={styles.brand}>
-              <Logo size={72} />
+              <Logo size={UI_METRICS.brand.authLogoSize} />
               <AppText variant="headline">{APP_NAME}</AppText>
               {subtitle ? (
                 <AppText muted style={styles.center}>
@@ -69,7 +71,7 @@ const styles = StyleSheet.create({
   center: { textAlign: 'center' },
   card: {
     width: '100%',
-    maxWidth: 420,
+    maxWidth: UI_METRICS.dialog.contentMaxWidth,
     borderRadius: RADIUS.lg,
     borderWidth: BORDER_WIDTH,
     padding: SPACING.xl,

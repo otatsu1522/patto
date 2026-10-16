@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { t } from '@/i18n';
+import { BOARD, UI_METRICS } from '@/config/layout';
 import { SPACING, useTheme } from '@/theme';
 import { AppText } from './AppText';
 import { IconButton } from './IconButton';
@@ -21,7 +22,7 @@ export function ScreenHeader({ title, onBack }: { title: string; onBack?: () => 
           onBack ?? (() => (router.canGoBack() ? router.back() : router.replace('/settings')))
         }
       />
-      <AppText variant="title" numberOfLines={1} style={styles.title}>
+      <AppText variant="title" numberOfLines={UI_METRICS.text.singleLineMax} style={styles.title}>
         {title}
       </AppText>
       <View style={styles.spacer} />
@@ -35,8 +36,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: SPACING.sm,
     borderBottomWidth: BORDER_WIDTH,
-    minHeight: 56,
+    minHeight: BOARD.headerHeight,
   },
   title: { flex: 1, textAlign: 'center' },
-  spacer: { width: 44 },
+  spacer: { width: BOARD.touchTarget },
 });

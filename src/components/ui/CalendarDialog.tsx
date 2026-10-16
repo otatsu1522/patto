@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { monthGrid, shiftMonth } from '@/domain/calendar';
+import { BOARD } from '@/config/layout';
 import { t } from '@/i18n';
 import { startOfDay } from '@/lib/dates';
-import { SPACING, useTheme } from '@/theme';
+import { BORDER_WIDTH_EMPHASIS, SPACING, useTheme } from '@/theme';
 import { AppText } from './AppText';
 import { Button } from './Button';
 import { Dialog } from './Dialog';
@@ -19,7 +20,7 @@ interface Props {
   onSelect: (value: number | null) => void;
 }
 
-const CELL = 44;
+const CELL = BOARD.touchTarget;
 
 /** 期限を選ぶカレンダー（年月日のみ）。 */
 export function CalendarDialog({ visible, value, onClose, onSelect }: Props) {
@@ -130,7 +131,13 @@ export function CalendarDialog({ visible, value, onClose, onSelect }: Props) {
 const styles = StyleSheet.create({
   nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   row: { flexDirection: 'row' },
-  cell: { flex: 1, height: CELL, alignItems: 'center', justifyContent: 'center', borderWidth: 2 },
+  cell: {
+    flex: 1,
+    height: CELL,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: BORDER_WIDTH_EMPHASIS,
+  },
   footer: { flexDirection: 'row', gap: SPACING.sm },
   flex: { flex: 1 },
 });

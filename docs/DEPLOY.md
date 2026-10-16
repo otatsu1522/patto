@@ -87,17 +87,17 @@ Supabase のURLとPublishable Keyは、`.env.local` に設定した値と同じ�
 
 expo-sqlite の Web 版は WebAssembly と Worker を使うため、次の2つが必要。リポジトリの構成では、どちらも用意済みであることを想定する。
 
-| 必要なもの                                                                                           | 用意されている場所                                                                            |
-| ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| ヘッダー `Cross-Origin-Embedder-Policy: credentialless` と `Cross-Origin-Opener-Policy: same-origin` | `public/_headers`（ビルドで `dist/_headers` にコピーされ、Cloudflare Pages が配信時に付ける） |
-| `.wasm` をアセットとして扱うビルド設定                                                               | `metro.config.js`（`assetExts` に `wasm`）                                                    |
+| 必要なもの                                                                                         | 用意されている場所                                                                            |
+| -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| ヘッダー `Cross-Origin-Embedder-Policy: require-corp` と `Cross-Origin-Opener-Policy: same-origin` | `public/_headers`（ビルドで `dist/_headers` にコピーされ、Cloudflare Pages が配信時に付ける） |
+| `.wasm` をアセットとして扱うビルド設定                                                             | `metro.config.js`（`assetExts` に `wasm`）                                                    |
 
 `pnpm start`（開発サーバー）でも、`metro.config.js` が同じヘッダーを付ける。
 
 公開後、ブラウザーの開発者ツール > `Network` で、ページ本体（Document）のレスポンスヘッダーに次の2つが付いていることを確認する。
 
 ```text
-Cross-Origin-Embedder-Policy: credentialless
+Cross-Origin-Embedder-Policy: require-corp
 Cross-Origin-Opener-Policy: same-origin
 ```
 
@@ -173,7 +173,7 @@ Site URL を公開URLにしてもローカル開発が使えなくなるわけ�
 
 ### 7.2 ヘッダーとWASM
 
-- [ ] 開発者ツールの Network で Document のレスポンスに `Cross-Origin-Embedder-Policy: credentialless` がある
+- [ ] 開発者ツールの Network で Document のレスポンスに `Cross-Origin-Embedder-Policy: require-corp` がある
 - [ ] 開発者ツールの Network で Document のレスポンスに `Cross-Origin-Opener-Policy: same-origin` がある
 - [ ] Console に SharedArrayBuffer、WASM、COOP/COEP のエラーが出ていない
 

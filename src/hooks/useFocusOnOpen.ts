@@ -1,17 +1,21 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import type { TextInput } from 'react-native';
 
 /**
- * ダイアログを開いたら、入力欄にフォーカスする。
- * メニューを閉じた直後にダイアログが開くと、autoFocus が効かないことがあるため、
- * 開く動きが落ち着いてから focus() を呼ぶ。
+ * ダイアログの表示完了イベントから入力欄へフォーカスするための参照を管理する。
+ * 固定時間の待機は使わず、Dialog の onShow から focus を呼び出す。
  */
-export function useFocusOnOpen(visible: boolean, delayMs = 350) {
-  const ref = useRef<TextInput>(null);
-  useEffect(() => {
-    if (!visible) return;
-    const id = setTimeout(() => ref.current?.focus(), delayMs);
-    return () => clearTimeout(id);
-  }, [visible, delayMs]);
-  return ref;
+export function useFocusOnOpen() {
+  const inputRef = useRef<TextInput | null>(null);
+
+  // JSX render 中に ref.current を読む必要がないよう、コールバック ref を渡す。
+  const setRef = useCallback((input: TextInput | null) => {
+    inputRef.current = input;
+  }, []);
+
+  const focus = useCallback(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  return { setRef, focus };
 }

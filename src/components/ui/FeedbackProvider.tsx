@@ -8,6 +8,8 @@ import {
   type ReactNode,
 } from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { UI_METRICS } from '@/config/layout';
+import { TIMING } from '@/config/timing';
 import { t } from '@/i18n';
 import { useSettingsStore } from '@/store/settingsStore';
 import { RADIUS, SHADOW, SPACING, useTheme } from '@/theme';
@@ -17,6 +19,7 @@ import { BORDER_WIDTH } from '@/theme/tokens';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SystemBars } from './SystemBars';
 import { getSystemBarInsets } from '@/lib/systemBarInsets';
+import { DIAGNOSTIC_MESSAGES } from '@/config/diagnostics';
 
 export interface ConfirmOptions {
   title: string;
@@ -36,6 +39,8 @@ interface Toast {
 
 interface Feedback {
   confirm: (o: ConfirmOptions) => Promise<ConfirmResult>;
+  /** 理由を伝える単一ボタンのダイアログ。 */
+  alert: (title: string, message: string) => void;
   /** force: true は、設定でトーストをOFFにしていても出す（失敗の知らせなど） */
   toast: (
     message: string,
@@ -48,17 +53,16 @@ const Ctx = createContext<Feedback | null>(null);
 
 export const useFeedback = (): Feedback => {
   const v = useContext(Ctx);
-  if (!v) throw new Error('FeedbackProvider が見つかりません');
+  if (!v) throw new Error(DIAGNOSTIC_MESSAGES.feedbackProviderMissing);
   return v;
 };
-
-const TOAST_MS = 1000;
 
 /** 確認ダイアログとスナックバー（「元に戻す」付き通知）を提供する。 */
 export function FeedbackProvider({ children }: { children: ReactNode }) {
   const { colors } = useTheme();
   const insets = getSystemBarInsets(useSafeAreaInsets());
   const [dialog, setDialog] = useState<ConfirmOptions | null>(null);
+  const [dialogMode, setDialogMode] = useState<'confirm' | 'alert'>('confirm');
   const resolver = useRef<((r: ConfirmResult) => void) | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -66,14 +70,23 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   const confirm = useCallback((o: ConfirmOptions) => {
     return new Promise<ConfirmResult>((resolve) => {
       resolver.current = resolve;
+      setDialogMode('confirm');
       setDialog(o);
     });
   }, []);
 
+  const alert = useCallback((title: string, message: string) => {
+    resolver.current = null;
+    setDialogMode('alert');
+    setDialog({ title, message, confirmLabel: t('common.ok') });
+  }, []);
+
   const close = (r: ConfirmResult) => {
     setDialog(null);
-    resolver.current?.(r);
+    const resolve = resolver.current;
     resolver.current = null;
+    setDialogMode('confirm');
+    resolve?.(r);
   };
 
   const showToast = useCallback(
@@ -85,12 +98,12 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
       if (!options?.force && !useSettingsStore.getState().settings.toastEnabled) return;
       if (timer.current) clearTimeout(timer.current);
       setToast({ message, actionLabel: action?.label, onAction: action?.onPress });
-      timer.current = setTimeout(() => setToast(null), TOAST_MS);
+      timer.current = setTimeout(() => setToast(null), TIMING.toastDurationMs);
     },
     [],
   );
 
-  const value = useMemo(() => ({ confirm, toast: showToast }), [confirm, showToast]);
+  const value = useMemo(() => ({ confirm, alert, toast: showToast }), [confirm, alert, showToast]);
 
   return (
     <Ctx.Provider value={value}>
@@ -152,12 +165,14 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
               <AppText variant="title">{dialog?.title}</AppText>
               {dialog?.message ? <AppText muted>{dialog.message}</AppText> : null}
               <View style={styles.actions}>
-                <Button
-                  label={t('common.cancel')}
-                  variant="secondary"
-                  onPress={() => close('cancel')}
-                />
-                {dialog?.extraLabel ? (
+                {dialogMode === 'confirm' ? (
+                  <Button
+                    label={t('common.cancel')}
+                    variant="secondary"
+                    onPress={() => close('cancel')}
+                  />
+                ) : null}
+                {dialogMode === 'confirm' && dialog?.extraLabel ? (
                   <Button
                     label={dialog.extraLabel}
                     variant="secondary"
@@ -166,7 +181,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
                 ) : null}
                 <Button
                   label={dialog?.confirmLabel ?? t('common.ok')}
-                  variant={dialog?.destructive ? 'danger' : 'primary'}
+                  variant={dialogMode === 'confirm' && dialog?.destructive ? 'danger' : 'primary'}
                   onPress={() => close('confirm')}
                 />
               </View>
@@ -192,7 +207,7 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '100%',
-    maxWidth: 440,
+    maxWidth: UI_METRICS.dialog.feedbackCardMaxWidth,
     borderRadius: RADIUS.lg,
     borderWidth: BORDER_WIDTH,
     padding: SPACING.lg,
@@ -220,7 +235,7 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.md,
     paddingVertical: SPACING.md,
     paddingHorizontal: SPACING.lg,
-    maxWidth: 520,
+    maxWidth: UI_METRICS.dialog.toastMaxWidth,
   },
   toastText: { flexShrink: 1 },
 });

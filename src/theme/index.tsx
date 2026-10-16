@@ -1,10 +1,16 @@
 import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react';
 import { Appearance, Platform, useColorScheme } from 'react-native';
-import { FONT_SCALES } from '@/config/layout';
+import { FONT_SCALES, UI_METRICS } from '@/config/layout';
 import { isTouchWeb } from '@/lib/hover';
 import { useSettingsStore } from '@/store/settingsStore';
 import { darkPalette, lightPalette, type Palette } from './palette';
-import { TASK_COLORS, TASK_COLORS_DARK, type TaskColorKey } from './taskColors';
+import {
+  TASK_COLORS,
+  TASK_COLORS_DARK,
+  TASK_COLOR_FALLBACK,
+  type TaskColorKey,
+} from './taskColors';
+import { DIAGNOSTIC_MESSAGES } from '@/config/diagnostics';
 
 import {
   DarkTheme as NavigationDarkTheme,
@@ -12,7 +18,23 @@ import {
   ThemeProvider as NavigationThemeProvider,
 } from 'expo-router';
 
-export { BORDER_WIDTH, FONT, RADIUS, SEPARATOR_WIDTH, SHADOW, SPACING } from './tokens';
+export {
+  BORDER_WIDTH,
+  BORDER_WIDTH_NONE,
+  BORDER_WIDTH_EMPHASIS,
+  FONT,
+  FONT_WEIGHT,
+  FONT_SCALE,
+  HIT_SLOP,
+  ICON_BUTTON_BOX,
+  ICON_SIZE,
+  LAYER,
+  OPACITY,
+  RADIUS,
+  SEPARATOR_WIDTH,
+  SHADOW,
+  SPACING,
+} from './tokens';
 
 interface Theme {
   colors: Palette;
@@ -41,7 +63,7 @@ function useWebChrome(isDark: boolean, colors: Palette) {
       document.head.appendChild(style);
     }
     style.textContent = `* { scrollbar-width: thin; scrollbar-color: ${colors.scrollThumb} transparent; overscroll-behavior: none; }
-*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar { width: ${UI_METRICS.scrollbar.width}px; height: ${UI_METRICS.scrollbar.width}px; }
 *::-webkit-scrollbar-thumb { background: ${colors.scrollThumb}; }
 *::-webkit-scrollbar-track { background: transparent; }`;
     document.body.style.backgroundColor = colors.bg;
@@ -81,7 +103,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       isDark,
       fontScale,
       fs: (size: number) => Math.round(size * fontScale),
-      taskColor: (key) => map[key] ?? '#888888',
+      taskColor: (key) => map[key] ?? TASK_COLOR_FALLBACK,
     };
   }, [mode, system, scaleKey]);
 
@@ -121,6 +143,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
 export function useTheme(): Theme {
   const ctx = useContext(ThemeContext);
-  if (!ctx) throw new Error('ThemeProvider が見つかりません');
+  if (!ctx) throw new Error(DIAGNOSTIC_MESSAGES.themeProviderMissing);
   return ctx;
 }

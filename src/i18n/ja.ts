@@ -30,8 +30,11 @@ export const ja = {
   'common.noDescription': '説明はありません。',
   'common.createdAt': '作成日',
   'common.updatedAt': '更新日',
+  'common.labelValueSeparator': ': ',
+  'common.breadcrumbSeparator': ' › ',
   'common.project': 'プロジェクト',
   'common.column': 'カンバン',
+  'common.task': 'タスク',
   'common.close': '閉じる',
   'common.create': '作成',
   'common.back': '戻る',
@@ -86,6 +89,17 @@ export const ja = {
   'validation.passwordComplexity': 'パスワードには英字と数字を含めてください',
   'validation.passwordMismatch': 'パスワードが一致しません',
   'validation.tooLong': '{max} 文字以内で入力してください',
+  'operation.duplicateTitleTooLong':
+    '{item}を複製できません。コピー後の名前が上限の{max}文字を超えます。',
+  'operation.duplicateColumnLimit':
+    'カンバンを複製できません。1プロジェクトあたり {max} 個までです。',
+  'operation.importTitleTooLong':
+    '「{board}」内の{item}「{title}」が上限の{max}文字を超えています（{length}文字）。ファイル全体を取り込んでいません。',
+  'operation.importDescriptionTooLong':
+    '「{board}」内のタスク「{title}」の説明が上限の{max}文字を超えています（{length}文字）。ファイル全体を取り込んでいません。',
+  'operation.importColumnLimit':
+    '「{board}」のカンバン数が上限の{max}個を超えています（{count}個）。ファイル全体を取り込んでいません。',
+  'operation.duplicateFailed': '複製できませんでした。もう一度お試しください。',
 
   // サイドバー・検索
   'menu.projects': '',
@@ -96,9 +110,11 @@ export const ja = {
   'menu.searchClear': '検索文字をクリア',
   'menu.searchEmpty': '一致するタスクはありません',
   'menu.archivedProjects': 'アーカイブ済みのプロジェクト',
+  'menu.archivedProjectsCount': 'アーカイブ済みのプロジェクト ({count})',
   'menu.noProjects': 'プロジェクトがありません。最初のプロジェクトを作りましょう。',
   'menu.guestBadge': 'ゲスト',
   'menu.open': 'メニューを開く',
+  'menu.toggle': 'メニューの開閉',
 
   // 同期
   'auth.needOnlineFirst': '初回のログイン（ゲスト開始を含む）にはインターネット接続が必要です。',
@@ -131,7 +147,7 @@ export const ja = {
   'settings.syncLocalOnly': 'Supabase が未設定のため、データはこの端末だけに保存されます。',
   'sync.synced': '同期済み',
   'sync.syncedAt': '最終同期 {time}',
-  'sync.syncing': '同期中…',
+  'sync.syncing': '同期中...',
   'sync.pending': '未送信 {count} 件',
   'sync.offline': 'オフライン',
   'sync.error': '同期に失敗しました',
@@ -233,6 +249,9 @@ export const ja = {
   'board.archiveDoneNone': 'アーカイブするタスクはありません',
   'board.openArchive': 'アーカイブを見る',
   'board.clearArchive': 'アーカイブのクリア',
+  'board.restoreAll': 'すべて元に戻す',
+  'board.restoreAllFailed':
+    'すべてを元に戻せませんでした。残っている項目を確認して再試行してください。',
   'board.openTrash': 'ごみ箱を見る',
   'board.clearTrash': 'ごみ箱のクリア',
   'board.clearArchiveMessage':
@@ -240,6 +259,8 @@ export const ja = {
   'board.clearTrashMessage': 'ごみ箱の中身 {count} 件を完全に削除します。元に戻せません。',
   'board.clearNothing': 'クリアするものはありません',
   'board.clearNeedsSync': 'クリアは同期を行ってから実行します。インターネットに接続してください。',
+  'board.clearSyncNotStarted':
+    '同期が実行されなかったため、クリアを中止しました。同期状態を確認してから再試行してください。',
   'board.clearDone': 'クリアしました（{count} 件）',
   'board.search': 'プロジェクト内を検索',
   'board.searchEmpty': '一致するタスクはありません',
@@ -382,6 +403,7 @@ export const ja = {
   'settings.shortcutsEscape': 'キャンセル',
   'settings.shortcutsEscapeHint': 'Esc は常にキャンセルに使われ、変更できません。',
   'about.version': 'バージョン',
+  'about.mitLicense': 'MIT License',
   'about.website': 'アプリのWeb版',
   'about.license': 'ライセンス',
   'about.licenseDescription': 'MIT ライセンスの本文を確認できます',
@@ -426,6 +448,7 @@ export const ja = {
   'board.favoriteZone': 'ピン留め',
   'task.moveFirst': '最初のカンバンへ戻す',
   'task.column': '場所（カンバン）',
+  'task.locationSeparator': '→',
   'task.dueOpen': 'カレンダーから選ぶ',
   'task.menu': 'タスクのメニュー',
   'calendar.title': '期限を選択',
@@ -530,6 +553,9 @@ export const ja = {
   'settings.exportConfirmMessage': 'すべてのプロジェクトを、Trello形式のファイルに書き出します。',
   'settings.exportConfirm': 'エクスポート',
   'shortcut.emptySlot': 'キーを追加',
+  'shortcut.keyEscape': 'Esc',
+  'shortcut.comboJoiner': ' + ',
+  'shortcut.comboPlus': '+',
   'shortcut.infoTitle': 'キーボードショートカットの設定',
   'shortcut.info1': 'Esc は常に「キャンセル」に使われ、変更できません。',
   'shortcut.info2':

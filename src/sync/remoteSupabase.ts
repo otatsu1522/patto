@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { TableName } from '@/domain/types';
+import { SYNC } from '@/config/limits';
 import type { RemoteApi, RemoteRow } from './types';
 
 const fail = (error: unknown): never => {
@@ -38,22 +39,23 @@ export function createSupabaseRemote(client: SupabaseClient): RemoteApi {
     },
 
     async deleteByIds(table: TableName, ids: string[]) {
-      for (let i = 0; i < ids.length; i += 100) {
+      for (let i = 0; i < ids.length; i += SYNC.maxIdsPerQuery) {
         const { error } = await client
           .from(table)
           .delete()
-          .in('id', ids.slice(i, i + 100));
+          .in('id', ids.slice(i, i + SYNC.maxIdsPerQuery));
         if (error) fail(error);
       }
     },
 
     async fetchHiddenIds(table: TableName) {
       const ids: string[] = [];
-      const page = 1000;
+      const page = SYNC.hiddenIdsPageSize;
       for (let from = 0; ; from += page) {
         const query = client
           .from(table)
           .select('id')
+          .order('id', { ascending: true })
           .range(from, from + page - 1);
         const filtered =
           table === 'kanban_columns'

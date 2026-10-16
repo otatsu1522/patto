@@ -2,24 +2,37 @@ import type { Task } from '@/domain/types';
 import type { IconKey } from '@/config/icons';
 import { formatDue } from '@/domain/due';
 import { formatDateTime } from '@/lib/dates';
+import { UI_METRICS } from '@/config/layout';
 import { t } from '@/i18n';
 import { AppText } from '../ui/AppText';
 import { Button } from '../ui/Button';
 import { Dialog } from '../ui/Dialog';
 import { Icon } from '../ui/Icon';
-import { BORDER_WIDTH, SPACING, useTheme } from '@/theme';
+import { BORDER_WIDTH, SPACING, useTheme, ICON_SIZE } from '@/theme';
 import { StyleSheet, View } from 'react-native';
 
 interface Props {
   record: Task | null;
+  visible: boolean;
   onClose: () => void;
+  onDismiss: () => void;
+  dismissImmediately?: boolean;
   onEdit: (task: Task) => void;
   projectName?: string;
   columnName?: string;
 }
 
 /** タスクの情報を閲覧するダイアログ。項目名と値を統一したスタイルで表示する。 */
-export function RecordDetailsDialog({ record, onClose, onEdit, projectName, columnName }: Props) {
+export function RecordDetailsDialog({
+  record,
+  visible,
+  onClose,
+  onDismiss,
+  dismissImmediately = false,
+  onEdit,
+  projectName,
+  columnName,
+}: Props) {
   const { colors, taskColor } = useTheme();
   if (!record) return null;
 
@@ -36,7 +49,7 @@ export function RecordDetailsDialog({ record, onClose, onEdit, projectName, colu
         {label}
       </AppText>
       <View style={styles.valueRow}>
-        {icon ? <Icon name={icon} size={16} color={colors.textMuted} /> : null}
+        {icon ? <Icon name={icon} size={ICON_SIZE.md} color={colors.textMuted} /> : null}
         <AppText
           selectable
           color={placeholder ? colors.textMuted : colors.text}
@@ -50,9 +63,11 @@ export function RecordDetailsDialog({ record, onClose, onEdit, projectName, colu
 
   return (
     <Dialog
-      visible={!!record}
+      visible={visible && !!record}
       title={t('task.detailsTitle')}
       onClose={onClose}
+      onDismiss={onDismiss}
+      dismissImmediately={dismissImmediately}
       footer={
         <View style={styles.footerButtons}>
           <Button
@@ -69,14 +84,13 @@ export function RecordDetailsDialog({ record, onClose, onEdit, projectName, colu
           />
         </View>
       }
-      wide
     >
       <View style={styles.locationRow}>
-        <AppText numberOfLines={1} style={styles.locationName}>
+        <AppText numberOfLines={UI_METRICS.text.singleLineMax} style={styles.locationName}>
           {projectName || t('common.none')}
         </AppText>
-        <AppText muted>→</AppText>
-        <AppText numberOfLines={1} style={styles.locationName}>
+        <AppText muted>{t('task.locationSeparator')}</AppText>
+        <AppText numberOfLines={UI_METRICS.text.singleLineMax} style={styles.locationName}>
           {columnName || t('common.none')}
         </AppText>
       </View>
@@ -111,7 +125,7 @@ export function RecordDetailsDialog({ record, onClose, onEdit, projectName, colu
       <View style={[styles.dateRow, { borderTopColor: colors.divider }]}>
         <View style={styles.dateCell}>
           <View style={styles.dateLabel}>
-            <Icon name="edit" size={16} color={colors.textMuted} />
+            <Icon name="edit" size={ICON_SIZE.md} color={colors.textMuted} />
             <AppText variant="caption" muted style={styles.fieldLabel}>
               {t('common.createdAt')}
             </AppText>
@@ -122,7 +136,7 @@ export function RecordDetailsDialog({ record, onClose, onEdit, projectName, colu
         </View>
         <View style={styles.dateCell}>
           <View style={styles.dateLabel}>
-            <Icon name="refresh" size={16} color={colors.textMuted} />
+            <Icon name="refresh" size={ICON_SIZE.md} color={colors.textMuted} />
             <AppText variant="caption" muted style={styles.fieldLabel}>
               {t('common.updatedAt')}
             </AppText>
@@ -144,7 +158,12 @@ const styles = StyleSheet.create({
   dateLabel: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs },
   valueRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, minWidth: 0 },
   value: { flexShrink: 1, minWidth: 0 },
-  colorDot: { width: 12, height: 12, borderRadius: 6, flexShrink: 0 },
+  colorDot: {
+    width: UI_METRICS.board.colorDotSize,
+    height: UI_METRICS.board.colorDotSize,
+    borderRadius: UI_METRICS.board.colorDotSize / 2,
+    flexShrink: 0,
+  },
   dateRow: {
     flexDirection: 'row',
     gap: SPACING.lg,

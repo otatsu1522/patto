@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, type ViewStyle } from 'react-native';
 import { BOARD } from '@/config/layout';
 import type { IconKey } from '@/config/icons';
-import { useTheme } from '@/theme';
+import { useTheme, HIT_SLOP, ICON_SIZE, OPACITY } from '@/theme';
 import { Icon } from './Icon';
 import { canHover } from '@/lib/hover';
 
@@ -24,7 +24,7 @@ export const IconButton = ({
   icon,
   label,
   onPress,
-  size = 22,
+  size = ICON_SIZE.xxl,
   color,
   disabled,
   style,
@@ -38,7 +38,7 @@ export const IconButton = ({
       accessibilityLabel={label}
       disabled={disabled}
       onPress={onPress}
-      hitSlop={4}
+      hitSlop={HIT_SLOP.iconButton}
       style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
         styles.base,
         {
@@ -46,7 +46,7 @@ export const IconButton = ({
           height: box,
           backgroundColor:
             pressed || (hovered && canHover) ? (hoverColor ?? colors.hover) : 'transparent',
-          opacity: disabled ? 0.4 : 1,
+          opacity: disabled ? OPACITY.disabled : OPACITY.fullyVisible,
         },
         style,
       ]}

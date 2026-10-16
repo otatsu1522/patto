@@ -1,4 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, type RefObject } from 'react';
+import { SPACING } from '@/theme';
+import { UI_METRICS } from '@/config/layout';
 import {
   Keyboard,
   Platform,
@@ -72,7 +74,7 @@ export function useInputFocusScroller(scrollRef: RefObject<ScrollView | null>, e
               const viewport = window.visualViewport;
               const visibleTop = viewport?.offsetTop ?? 0;
               const visibleBottom = viewport ? visibleTop + viewport.height : window.innerHeight;
-              const margin = 16;
+              const margin = SPACING.lg;
               let delta = 0;
               if (rect.bottom > visibleBottom - margin) {
                 delta = rect.bottom - (visibleBottom - margin);
@@ -81,7 +83,9 @@ export function useInputFocusScroller(scrollRef: RefObject<ScrollView | null>, e
               }
               const maxScrollTop = Math.max(0, scrollNode.scrollHeight - scrollNode.clientHeight);
               const nextTop = Math.max(0, Math.min(maxScrollTop, scrollNode.scrollTop + delta));
-              if (Math.abs(nextTop - scrollNode.scrollTop) > 1) {
+              if (
+                Math.abs(nextTop - scrollNode.scrollTop) > UI_METRICS.scroll.positionTolerancePx
+              ) {
                 scrollNode.scrollTop = nextTop;
                 scrollY.current = nextTop;
               }
@@ -105,17 +109,17 @@ export function useInputFocusScroller(scrollRef: RefObject<ScrollView | null>, e
               visibleBottom = Math.min(visibleBottom, keyboardTop.current);
             }
 
-            const margin = 16;
+            const margin = SPACING.lg;
             let delta = 0;
             if (y + inputHeight > visibleBottom - margin) {
               delta = y + inputHeight - (visibleBottom - margin);
             } else if (y < visibleTop + margin) {
               delta = y - (visibleTop + margin);
             }
-            if (Math.abs(delta) <= 1) return;
+            if (Math.abs(delta) <= UI_METRICS.scroll.positionTolerancePx) return;
 
             const nextY = Math.max(0, scrollY.current + delta);
-            if (Math.abs(nextY - scrollY.current) <= 1) return;
+            if (Math.abs(nextY - scrollY.current) <= UI_METRICS.scroll.positionTolerancePx) return;
             scrollY.current = nextY;
             scrollRef.current?.scrollTo({ y: nextY, animated: false });
           });

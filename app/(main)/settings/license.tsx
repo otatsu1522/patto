@@ -3,9 +3,9 @@ import { AppText } from '@/components/ui/AppText';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { LICENSE_BODY } from '@/config/license';
 import { APP_DISPLAY_COPYRIGHT } from '@/config/app';
-import { BOARD } from '@/config/layout';
+import { BOARD, UI_METRICS } from '@/config/layout';
 import { t } from '@/i18n';
-import { BORDER_WIDTH, RADIUS, SPACING, useTheme } from '@/theme';
+import { BORDER_WIDTH, RADIUS, SPACING, useTheme, OPACITY } from '@/theme';
 import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
 
 export default function LicenseScreen() {
@@ -19,7 +19,7 @@ export default function LicenseScreen() {
         <View
           style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
         >
-          <AppText variant="headline">MIT License</AppText>
+          <AppText variant="headline">{t('about.mitLicense')}</AppText>
           <AppText variant="caption" muted style={styles.copyright}>
             {APP_DISPLAY_COPYRIGHT}
           </AppText>
@@ -45,13 +45,13 @@ const styles = StyleSheet.create({
   content: { padding: SPACING.lg, alignItems: 'center', flexGrow: 1 },
   card: {
     width: '100%',
-    maxWidth: BOARD.dialogMaxWidth + 120,
+    maxWidth: BOARD.dialogMaxWidth + UI_METRICS.dialog.settingsPanelExtraWidth,
     borderWidth: BORDER_WIDTH,
     borderRadius: RADIUS.lg,
     padding: SPACING.lg,
     gap: SPACING.md,
   },
-  copyright: { opacity: 0.78 },
+  copyright: { opacity: OPACITY.copyright },
   divider: { height: BORDER_WIDTH, alignSelf: 'stretch', marginVertical: SPACING.xs },
-  body: { lineHeight: 19 },
+  body: { lineHeight: UI_METRICS.license.bodyLineHeight },
 });

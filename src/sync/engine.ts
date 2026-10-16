@@ -4,6 +4,7 @@ import { fromRemoteRow, TABLE_NAMES, toRemoteRow } from '@/domain/schema';
 import type { AnyRecord, Snapshot, TableName } from '@/domain/types';
 import { setClockOffset } from '@/lib/clock';
 import type { RemoteApi, SyncResult } from './types';
+import { DAY_MS } from '@/lib/dates';
 
 /** エンジンが必要とする端末側の入出力（ストアとDBへの橋渡し）。 */
 export interface LocalPort {
@@ -54,7 +55,7 @@ export async function runSync(
     if (dirty.length === 0) continue;
     const toPush: AnyRecord[] = [];
     const toStore: AnyRecord[] = [];
-    for (const part of chunk(dirty, 100)) {
+    for (const part of chunk(dirty, SYNC.dirtyBatchSize)) {
       const remoteRows = await remote.fetchByIds(
         table,
         part.map((r) => r.id),
@@ -74,7 +75,7 @@ export async function runSync(
         toStore.push({ ...merged, dirty: false });
       }
     }
-    for (const part of chunk(toPush, 200)) {
+    for (const part of chunk(toPush, SYNC.pushBatchSize)) {
       await remote.upsert(
         table,
         part.map((r) => toRemoteRow(table, r)),
@@ -121,7 +122,7 @@ export async function runSync(
 
   // ---- 後片付け: ごみ箱の自動削除 ----
   if (opts.trashRetentionDays !== null) {
-    const limit = opts.now() - opts.trashRetentionDays * 24 * 60 * 60 * 1000;
+    const limit = opts.now() - opts.trashRetentionDays * DAY_MS;
     for (const table of ['tasks', 'kanban_columns', 'projects'] as TableName[]) {
       const ids = rowsOf(local.snapshot(), table)
         .filter((r) => !r.dirty && r.deletedAt !== null && r.deletedAt < limit)

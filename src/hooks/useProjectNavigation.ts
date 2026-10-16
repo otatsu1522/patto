@@ -2,17 +2,10 @@ import { usePathname, useRouter } from 'expo-router';
 import { useCallback } from 'react';
 import { closeBoardMenu } from '@/hooks/boardMenu';
 import { useLayoutMode } from '@/hooks/useLayout';
+import { useUiStore } from '@/store/uiStore';
 import { useSettingsStore } from '@/store/settingsStore';
 
-/** メニューを閉じるアニメーションが終わるまでの待ち時間(ms)。終わってから中身を入れ替える */
-const MENU_CLOSE_MS = 280;
-
-/**
- * プロジェクトを開く。
- * - すでにプロジェクトの画面にいるときは、新しい画面を重ねず、同じ画面の中身（id）だけを入れ替える。
- *   画面の作り直しが起きないので、切り替えがなめらか。
- * - スマホでは、メニューが閉じ終わってから入れ替える（動きと描画が重なって、ごちゃつかないように）。
- */
+/** プロジェクトの内容を即時に切り替える。メニューから選んだ場合はメニューを開いたまま保つ。 */
 export function useProjectNavigation(): (id: string, options?: { keepMenuOpen?: boolean }) => void {
   const router = useRouter();
   const pathname = usePathname();
@@ -22,16 +15,14 @@ export function useProjectNavigation(): (id: string, options?: { keepMenuOpen?: 
     (id: string, options: { keepMenuOpen?: boolean } = {}) => {
       useSettingsStore.getState().update({ lastProjectId: id });
       const onProject = pathname.startsWith('/project/');
-      const go = () =>
-        onProject
-          ? router.setParams({ id })
-          : router.push({ pathname: '/project/[id]', params: { id } });
-      if (onProject && mode !== 'expanded' && !options.keepMenuOpen) {
+      if (mode !== 'expanded' && options.keepMenuOpen) {
+        useUiStore.setState({ menuVisible: true, menuIconOpen: true });
+      } else if (onProject && mode !== 'expanded' && useUiStore.getState().menuVisible) {
+        // タスク検索など、メニューを閉じてから目的の内容を表示する操作も待ち時間は入れない。
         closeBoardMenu();
-        setTimeout(go, MENU_CLOSE_MS);
-      } else {
-        go();
       }
+      if (onProject) router.setParams({ id });
+      else router.push({ pathname: '/project/[id]', params: { id } });
     },
     [router, pathname, mode],
   );

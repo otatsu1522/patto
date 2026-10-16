@@ -1,4 +1,5 @@
 import { usePathname, useRouter } from 'expo-router';
+import { TIMING } from '@/config/timing';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { BackHandler, Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -46,6 +47,14 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const permanent = mode === 'expanded';
   const lastBackPress = useRef(0);
+
+  // BoardView の再マウント時にメニュー状態を失わないよう、画面外へ移動した時だけ閉じる。
+  // /project/[id] の id 変更中は、メニューを開いたまま維持する。
+  useEffect(() => {
+    if (mode !== 'expanded' && !pathname.startsWith('/project/')) {
+      useUiStore.setState({ menuVisible: false, menuIconOpen: false });
+    }
+  }, [mode, pathname]);
 
   const width = sidebarWidthFor(windowWidth, permanent);
   const stepProject = (delta: number) => {
@@ -95,7 +104,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         return true;
       }
       const now = Date.now();
-      if (now - lastBackPress.current < 2000) {
+      if (now - lastBackPress.current < TIMING.androidBackExitWindowMs) {
         BackHandler.exitApp();
         return true;
       }

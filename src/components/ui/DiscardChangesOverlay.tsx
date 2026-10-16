@@ -1,7 +1,9 @@
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { t } from '@/i18n';
+import { UI_METRICS } from '@/config/layout';
 import { RADIUS, SPACING, useTheme } from '@/theme';
+import { BORDER_WIDTH } from '@/theme/tokens';
 import { AppText } from './AppText';
 import { Button } from './Button';
 import { SystemBars } from './SystemBars';
@@ -72,8 +74,8 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '100%',
-    maxWidth: 420,
-    borderWidth: 1,
+    maxWidth: UI_METRICS.dialog.contentMaxWidth,
+    borderWidth: BORDER_WIDTH,
     borderRadius: RADIUS.lg,
     padding: SPACING.lg,
     gap: SPACING.md,

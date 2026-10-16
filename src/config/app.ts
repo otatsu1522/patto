@@ -11,3 +11,4 @@ export const APP_DISPLAY_COPYRIGHT: string = `©Copyright ${info.copyrightYear} 
 export const APP_LINKS = info.links as { terms: string; privacy: string; contact: string };
 export const APP_TECH = info.tech as { name: string; url: string; descriptionKey: string }[];
 export const APP_VERSION: string = Constants.expoConfig?.version ?? info.version;
+export const APP_WEB_URL: string = info.websiteUrl;

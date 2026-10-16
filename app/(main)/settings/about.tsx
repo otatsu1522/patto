@@ -5,12 +5,17 @@ import { Logo } from '@/components/ui/Logo';
 import { LinkRow, Section } from '@/components/ui/Rows';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
-import { APP_DISPLAY_COPYRIGHT, APP_LINKS, APP_NAME, APP_TECH, APP_VERSION } from '@/config/app';
-import { BOARD } from '@/config/layout';
+import {
+  APP_DISPLAY_COPYRIGHT,
+  APP_LINKS,
+  APP_NAME,
+  APP_TECH,
+  APP_VERSION,
+  APP_WEB_URL,
+} from '@/config/app';
+import { BOARD, UI_METRICS } from '@/config/layout';
 import { t, type StringKey } from '@/i18n';
 import { BORDER_WIDTH, RADIUS, SPACING, useTheme } from '@/theme';
-
-const APP_WEB_URL = 'https://patto-board.pages.dev';
 
 export default function AboutScreen() {
   const scrollRef = useWebWheelScroll();
@@ -34,7 +39,7 @@ export default function AboutScreen() {
             ]}
           >
             <View style={styles.brand}>
-              <Logo size={80} />
+              <Logo size={UI_METRICS.brand.aboutLogoSize} />
               <AppText variant="headline">{APP_NAME}</AppText>
               <AppText muted>
                 {t('about.version')} {APP_VERSION}
@@ -69,7 +74,7 @@ export default function AboutScreen() {
               onPress={() => void Linking.openURL(APP_WEB_URL)}
             />
             <LinkRow
-              label="MIT License"
+              label={t('about.mitLicense')}
               description={t('about.licenseDescription')}
               onPress={() => router.navigate('/settings/license')}
             />
@@ -96,7 +101,11 @@ const styles = StyleSheet.create({
     overscrollBehaviorY: 'auto',
   } as never,
   content: { padding: SPACING.lg, alignItems: 'center', flexGrow: 1 },
-  inner: { width: '100%', maxWidth: BOARD.dialogMaxWidth + 120, gap: SPACING.xl },
+  inner: {
+    width: '100%',
+    maxWidth: BOARD.dialogMaxWidth + UI_METRICS.dialog.settingsPanelExtraWidth,
+    gap: SPACING.xl,
+  },
   copyright: { textAlign: 'center', paddingTop: SPACING.xl, paddingBottom: SPACING.sm },
   introCard: {
     borderWidth: BORDER_WIDTH,

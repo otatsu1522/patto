@@ -1,11 +1,11 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
-import { BOARD } from '@/config/layout';
+import { BOARD, UI_METRICS } from '@/config/layout';
 import { toggleBoardMenu } from '@/hooks/boardMenu';
 import { useLayoutMode } from '@/hooks/useLayout';
 import { t } from '@/i18n';
 import { useUiStore } from '@/store/uiStore';
-import { FONT, SPACING, useTheme } from '@/theme';
+import { FONT, SPACING, useTheme, ICON_SIZE } from '@/theme';
 import { AppText } from '../ui/AppText';
 import { IconButton } from '../ui/IconButton';
 import { Icon } from '../ui/Icon';
@@ -28,18 +28,15 @@ interface Props {
 export function BoardHeader({ title, right, search, menu = true, active = true }: Props) {
   const { colors, fs } = useTheme();
   const { mode } = useLayoutMode();
-  const collapsed = useUiStore((s) => s.sidebarCollapsed);
   const permanent = mode === 'expanded';
-  const menuVisible = useUiStore((s) => s.menuVisible);
-  const menuOpen = permanent ? !collapsed : menuVisible;
   const showMenu = menu;
   const input = useRef<TextInput>(null);
 
   const searching = !!search;
   useEffect(() => {
     if (!searching || !active) return;
-    const timer = setTimeout(() => input.current?.focus(), 50);
-    return () => clearTimeout(timer);
+    const frame = requestAnimationFrame(() => input.current?.focus());
+    return () => cancelAnimationFrame(frame);
   }, [searching, active]);
 
   return (
@@ -49,8 +46,8 @@ export function BoardHeader({ title, right, search, menu = true, active = true }
       <View style={styles.side}>
         {showMenu ? (
           <IconButton
-            icon={menuOpen ? 'menuOpen' : 'menu'}
-            label={menuOpen ? t('common.close') : t('menu.open')}
+            icon="menu"
+            label={t('menu.toggle')}
             onPress={() =>
               permanent ? useUiStore.getState().toggleSidebarCollapsed() : toggleBoardMenu()
             }
@@ -60,7 +57,7 @@ export function BoardHeader({ title, right, search, menu = true, active = true }
 
       {search ? (
         <View style={styles.searchRow}>
-          <Icon name="search" size={20} color={colors.textMuted} />
+          <Icon name="search" size={ICON_SIZE.xl} color={colors.textMuted} />
           <TextInput
             ref={input}
             value={search.value}
@@ -74,7 +71,11 @@ export function BoardHeader({ title, right, search, menu = true, active = true }
         </View>
       ) : (
         <View style={styles.center}>
-          <AppText variant="title" numberOfLines={1} style={styles.title}>
+          <AppText
+            variant="title"
+            numberOfLines={UI_METRICS.text.singleLineMax}
+            style={styles.title}
+          >
             {title}
           </AppText>
           <View style={styles.sync}>
@@ -113,11 +114,11 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   title: { flexShrink: 1, textAlign: 'center' },
-  sync: { paddingTop: 4 },
+  sync: { paddingTop: SPACING.xs },
   searchRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   searchInput: {
     flex: 1,
-    height: 48,
+    height: UI_METRICS.search.inputHeight,
     backgroundColor: 'transparent',
     outlineStyle: 'none',
   } as never,

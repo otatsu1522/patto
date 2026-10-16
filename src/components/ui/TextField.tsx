@@ -10,9 +10,9 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
-import { BOARD } from '@/config/layout';
+import { BOARD, UI_METRICS } from '@/config/layout';
 import { t } from '@/i18n';
-import { FONT, RADIUS, SPACING, useTheme } from '@/theme';
+import { FONT, RADIUS, SPACING, useTheme, ICON_SIZE, ICON_BUTTON_BOX } from '@/theme';
 import { AppText } from './AppText';
 import { IconButton } from './IconButton';
 import { BORDER_WIDTH } from '@/theme/tokens';
@@ -72,14 +72,23 @@ export const TextField = forwardRef<TextInput, Props>(function TextField(
     Platform.OS === 'web' ? ({ boxSizing: 'border-box' } as unknown as ViewStyle) : null;
   const webInputBoxSizing =
     Platform.OS === 'web' ? ({ boxSizing: 'border-box' } as unknown as TextStyle) : null;
-  const autoGrowLineHeight = fs(FONT.body) * 1.5;
-  const autoGrowMinHeight = Math.max(BOARD.touchTarget - 2, autoGrowLineHeight + SPACING.sm * 2);
+  const autoGrowLineHeight = fs(FONT.body) * UI_METRICS.textField.lineHeightMultiplier;
+  const autoGrowMinHeight = Math.max(
+    BOARD.touchTarget - UI_METRICS.textField.autoGrowMinHeightAdjustment,
+    autoGrowLineHeight + SPACING.sm * 2,
+  );
   // 1行時は、TextArea の top alignment によって下側だけ余って見えないよう、
   // 1行分の高さから上下の padding を対称に算出する。折り返し後も padding は固定する。
   const autoGrowVerticalPadding = Math.max(0, (autoGrowMinHeight - autoGrowLineHeight) / 2);
   const visibleHeight = Math.min(windowHeight, keyboardAvailableHeight ?? windowHeight);
   // 入力欄自体が画面／キーボードの高さを占有しないよう、表示領域の一部を上限にする。
-  const autoGrowMaxHeight = Math.max(autoGrowMinHeight, Math.min(320, visibleHeight * 0.36));
+  const autoGrowMaxHeight = Math.max(
+    autoGrowMinHeight,
+    Math.min(
+      UI_METRICS.textField.autoGrowMaxHeight,
+      visibleHeight * UI_METRICS.textField.autoGrowMaxViewportRatio,
+    ),
+  );
   const autoGrowHeight = Math.min(
     autoGrowMaxHeight,
     Math.max(autoGrowMinHeight, measuredContentHeight ?? autoGrowMinHeight),
@@ -117,7 +126,8 @@ export const TextField = forwardRef<TextInput, Props>(function TextField(
       const viewport = window.visualViewport;
       if (!viewport) return;
       const updateViewportHeight = () => {
-        const keyboardOpen = viewport.height < window.innerHeight - 80;
+        const keyboardOpen =
+          viewport.height < window.innerHeight - UI_METRICS.keyboard.textFieldViewportDeltaPx;
         setKeyboardAvailableHeight(keyboardOpen ? viewport.height : null);
       };
       viewport.addEventListener('resize', updateViewportHeight);
@@ -199,9 +209,9 @@ export const TextField = forwardRef<TextInput, Props>(function TextField(
               setMeasuredContentHeight(null);
             } else {
               const addedHeight = contentHeight - baseline;
-              const lineHeight = fs(FONT.body) * 1.5;
+              const lineHeight = fs(FONT.body) * UI_METRICS.textField.lineHeightMultiplier;
               setMeasuredContentHeight(
-                addedHeight >= lineHeight * 0.7
+                addedHeight >= lineHeight * UI_METRICS.textField.autoGrowStepFraction
                   ? Math.min(autoGrowMaxHeight, autoGrowMinHeight + addedHeight)
                   : null,
               );
@@ -235,11 +245,20 @@ export const TextField = forwardRef<TextInput, Props>(function TextField(
                   }
                 : multiline
                   ? {
-                      height: fs(FONT.body) * 1.5 * (lines ?? 1) + SPACING.sm * 2,
-                      minHeight: fs(FONT.body) * 1.5 * (lines ?? 1) + SPACING.sm * 2,
-                      maxHeight: fs(FONT.body) * 1.5 * (lines ?? 1) + SPACING.sm * 2,
+                      height:
+                        fs(FONT.body) * UI_METRICS.textField.lineHeightMultiplier * (lines ?? 1) +
+                        SPACING.sm * 2,
+                      minHeight:
+                        fs(FONT.body) * UI_METRICS.textField.lineHeightMultiplier * (lines ?? 1) +
+                        SPACING.sm * 2,
+                      maxHeight:
+                        fs(FONT.body) * UI_METRICS.textField.lineHeightMultiplier * (lines ?? 1) +
+                        SPACING.sm * 2,
                     }
-                  : { minHeight: BOARD.touchTarget - 2 }),
+                  : {
+                      minHeight:
+                        BOARD.touchTarget - UI_METRICS.textField.autoGrowMinHeightAdjustment,
+                    }),
             },
             autoGrow ? webInputBoxSizing : null,
             multiline &&
@@ -254,8 +273,8 @@ export const TextField = forwardRef<TextInput, Props>(function TextField(
             icon="close"
             label={t('task.dueClear')}
             onPress={onClear}
-            box={32}
-            size={18}
+            box={ICON_BUTTON_BOX.compact}
+            size={ICON_SIZE.lg}
             color={colors.textMuted}
           />
         ) : null}
@@ -264,8 +283,8 @@ export const TextField = forwardRef<TextInput, Props>(function TextField(
             icon={hidden ? 'eye' : 'eyeOff'}
             label={hidden ? t('auth.showPassword') : t('auth.hidePassword')}
             onPress={() => setHidden((v) => !v)}
-            box={36}
-            size={20}
+            box={ICON_BUTTON_BOX.medium}
+            size={ICON_SIZE.xl}
           />
         ) : null}
       </View>

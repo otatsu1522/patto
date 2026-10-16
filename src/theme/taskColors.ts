@@ -21,6 +21,14 @@ export const TASK_COLORS = {
   slate: '#37474F',
 } as const;
 
+export const TASK_COLOR_FALLBACK = '#888888';
+
+/** 期限状態の色（ライト／ダークテーマ）。 */
+export const TASK_DUE_STATUS_COLORS = {
+  light: { today: '#B54708', tomorrow: '#9A6700' },
+  dark: { today: '#FFB86B', tomorrow: '#FDD663' },
+} as const;
+
 export type TaskColorKey = keyof typeof TASK_COLORS;
 
 export const TASK_COLORS_DARK: Record<TaskColorKey, string> = {

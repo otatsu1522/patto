@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Switch, View } from 'react-native';
 import type { IconKey } from '@/config/icons';
-import { BOARD } from '@/config/layout';
-import { RADIUS, SPACING, useTheme } from '@/theme';
+import { BOARD, UI_METRICS } from '@/config/layout';
+import { RADIUS, SPACING, useTheme, ICON_SIZE, OPACITY } from '@/theme';
 import { AppText } from './AppText';
 import { Icon } from './Icon';
 import { BORDER_WIDTH } from '@/theme/tokens';
@@ -68,12 +68,16 @@ export function LinkRow({
         styles.row,
         {
           backgroundColor: pressed || (hovered && canHover) ? colors.hover : 'transparent',
-          opacity: disabled ? 0.5 : 1,
+          opacity: disabled ? OPACITY.buttonDisabled : OPACITY.fullyVisible,
         },
       ]}
     >
       {icon ? (
-        <Icon name={icon} size={20} color={destructive ? colors.danger : colors.textMuted} />
+        <Icon
+          name={icon}
+          size={ICON_SIZE.xl}
+          color={destructive ? colors.danger : colors.textMuted}
+        />
       ) : null}
       <View style={styles.flex}>
         <AppText color={destructive ? colors.danger : colors.text}>{label}</AppText>
@@ -84,7 +88,7 @@ export function LinkRow({
         ) : null}
       </View>
       {value ? <AppText muted>{value}</AppText> : null}
-      {chevron ? <Icon name="right" size={18} color={colors.textMuted} /> : null}
+      {chevron ? <Icon name="right" size={ICON_SIZE.lg} color={colors.textMuted} /> : null}
     </Pressable>
   );
 }
@@ -168,7 +172,7 @@ const styles = StyleSheet.create({
   sectionTitle: { paddingHorizontal: SPACING.sm },
   card: { borderRadius: RADIUS.lg, borderWidth: BORDER_WIDTH, overflow: 'hidden' },
   row: {
-    minHeight: BOARD.touchTarget + 4,
+    minHeight: BOARD.touchTarget + UI_METRICS.rows.itemTouchHeightAdjustment,
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.md,
@@ -181,7 +185,7 @@ const styles = StyleSheet.create({
   choice: {
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
-    borderRadius: 0,
+    borderRadius: RADIUS.sm,
     borderWidth: BORDER_WIDTH,
   },
 });

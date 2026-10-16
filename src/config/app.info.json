@@ -4,6 +4,7 @@
   "scheme": "patto",
   "description": "カンバン式TODOアプリ",
   "version": "1.0.0",
+  "websiteUrl": "https://patto-board.pages.dev",
   "license": "MIT",
   "copyrightYear": "2026",
   "copyrightHolder": "Patto",

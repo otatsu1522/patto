@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path } from 'react-native-svg';
 import { ICONS, type IconKey } from '@/config/icons';
 import { SVG_ICONS } from '@/config/svgIcons';
-import { useTheme } from '@/theme';
+import { FONT_SCALE, ICON_SIZE, useTheme } from '@/theme';
 
 interface Props {
   name: IconKey;
@@ -10,9 +10,9 @@ interface Props {
   color?: string;
 }
 
-export function Icon({ name, size = 22, color }: Props) {
+export function Icon({ name, size = ICON_SIZE.xxl, color }: Props) {
   const { colors, fontScale } = useTheme();
-  const px = Math.round(size * Math.min(fontScale, 1.15));
+  const px = Math.round(size * Math.min(fontScale, FONT_SCALE.iconMax));
   const tint = color ?? colors.text;
   const path = SVG_ICONS[name];
   if (path) {

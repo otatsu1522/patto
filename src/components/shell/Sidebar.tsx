@@ -4,9 +4,10 @@ import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { useAuthStore } from '@/auth/authStore';
 import { withAlpha } from '@/lib/color';
 import { APP_NAME } from '@/config/app';
-import { BOARD } from '@/config/layout';
+import { BOARD, GESTURE, UI_METRICS } from '@/config/layout';
 import { archivedProjects, visibleProjects } from '@/domain/selectors';
 import type { Project } from '@/domain/types';
+import { UserActionError } from '@/domain/operationError';
 import { pushUndo } from '@/features/undo';
 import { useProjectNavigation } from '@/hooks/useProjectNavigation';
 import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
@@ -14,7 +15,7 @@ import { t } from '@/i18n';
 import { useDataStore } from '@/store/dataStore';
 import { useUiStore } from '@/store/uiStore';
 import { syncNow } from '@/sync/controller';
-import { SPACING, useTheme } from '@/theme';
+import { SPACING, useTheme, ICON_SIZE, ICON_BUTTON_BOX, LAYER, OPACITY } from '@/theme';
 import { ProjectDialog } from '../board/NameDialogs';
 import { AppText } from '../ui/AppText';
 import { DropdownMenu } from '../ui/DropdownMenu';
@@ -40,7 +41,7 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
   const { colors, taskColor } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
-  const { confirm, toast } = useFeedback();
+  const { confirm, toast, alert } = useFeedback();
   const sync = useSyncLabel();
   const identity = useAuthStore((s) => s.identity);
 
@@ -88,7 +89,11 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
       const dx = endX - start.x;
       const dy = endY - start.y;
       start = null;
-      if (dx <= -40 && Math.abs(dx) > Math.abs(dy) * 1.15) onSwipeCloseRef.current?.();
+      if (
+        dx <= -GESTURE.drawerCloseDistancePx &&
+        Math.abs(dx) > Math.abs(dy) * GESTURE.drawerHorizontalIntentRatio
+      )
+        onSwipeCloseRef.current?.();
     };
 
     const onTouchCancel = () => {
@@ -128,6 +133,18 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
 
   const store = useDataStore.getState();
 
+  const duplicateProject = async (p: Project) => {
+    try {
+      const copied = await store.duplicateProject(p.id);
+      if (copied) toast(t('toast.duplicated'));
+    } catch (error) {
+      alert(
+        t('common.error'),
+        error instanceof UserActionError ? error.message : t('operation.duplicateFailed'),
+      );
+    }
+  };
+
   const removeProject = async (p: Project) => {
     const r = await confirm({
       title: t('project.deleteTitle'),
@@ -151,7 +168,11 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
         key={p.id}
         style={[styles.item, { backgroundColor: selected ? colors.primary : 'transparent' }]}
       >
-        <Pressable accessibilityRole="button" onPress={() => open(p.id)} style={styles.itemMain}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => open(p.id, { keepMenuOpen: true })}
+          style={styles.itemMain}
+        >
           <View
             style={[
               styles.dot,
@@ -162,7 +183,7 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
             ]}
           />
           <AppText
-            numberOfLines={1}
+            numberOfLines={UI_METRICS.text.singleLineMax}
             ellipsizeMode="tail"
             bold
             color={fg}
@@ -189,10 +210,7 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
               label: t('common.duplicate'),
               icon: 'copy',
               separator: true,
-              onPress: () => {
-                void store.duplicateProject(p.id);
-                toast(t('toast.duplicated'));
-              },
+              onPress: () => void duplicateProject(p),
             },
             {
               label: p.archivedAt ? t('project.unarchiveAction') : t('project.archiveAction'),
@@ -212,10 +230,10 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
               icon="more"
               label={p.title}
               color={fg}
-              hoverColor={selected ? withAlpha(colors.onPrimary, 0.25) : undefined}
+              hoverColor={selected ? withAlpha(colors.onPrimary, OPACITY.hoverOverlay) : undefined}
               onPress={openMenu}
-              box={40}
-              size={20}
+              box={ICON_BUTTON_BOX.large}
+              size={ICON_SIZE.xl}
             />
           )}
         />
@@ -237,10 +255,12 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
     >
       {/* 画面上部のバーと同じ位置にメニューアイコンを置く（押すと閉じる） */}
       <View style={styles.brand}>
-        {showMenuIcon ? <IconButton icon="menu" label={t('menu.open')} onPress={onToggle} /> : null}
+        {showMenuIcon ? (
+          <IconButton icon="menu" label={t('menu.toggle')} onPress={onToggle} />
+        ) : null}
         <AppText
           variant="title"
-          numberOfLines={1}
+          numberOfLines={UI_METRICS.text.singleLineMax}
           style={[styles.flex, !showMenuIcon && styles.brandName]}
         >
           {APP_NAME}
@@ -284,8 +304,8 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
               },
             ]}
           >
-            <Icon name="add" size={20} color={colors.textMuted} />
-            <AppText muted numberOfLines={1} style={styles.flex}>
+            <Icon name="add" size={ICON_SIZE.xl} color={colors.textMuted} />
+            <AppText muted numberOfLines={UI_METRICS.text.singleLineMax} style={styles.flex}>
               {t('menu.newProject')}
             </AppText>
           </Pressable>
@@ -297,9 +317,13 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
                 onPress={() => setShowArchived((v) => !v)}
                 style={styles.archiveToggle}
               >
-                <Icon name={showArchived ? 'down' : 'right'} size={14} color={colors.textMuted} />
+                <Icon
+                  name={showArchived ? 'down' : 'right'}
+                  size={ICON_SIZE.sm}
+                  color={colors.textMuted}
+                />
                 <AppText variant="caption" muted>
-                  {t('menu.archivedProjects')} ({archived.length})
+                  {t('menu.archivedProjectsCount', { count: archived.length })}
                 </AppText>
               </Pressable>
               {showArchived ? archived.map(row) : null}
@@ -315,7 +339,7 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
           onPress={() => useUiStore.getState().setGlobalSearchOpen(true)}
           style={styles.footerRow}
         >
-          <Icon name="search" size={20} color={colors.text} />
+          <Icon name="search" size={ICON_SIZE.xl} color={colors.text} />
           <AppText color={colors.text}>{t('menu.search')}</AppText>
         </Pressable>
         <Pressable
@@ -326,7 +350,7 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
           }}
           style={styles.footerRow}
         >
-          <Icon name="settings" size={20} color={colors.text} />
+          <Icon name="settings" size={ICON_SIZE.xl} color={colors.text} />
           <AppText color={colors.text}>{t('menu.settings')}</AppText>
         </Pressable>
         <Pressable
@@ -336,8 +360,12 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
           onPress={() => void syncNow()}
           style={styles.footerRow}
         >
-          <Icon name={sync.icon} size={20} color={sync.color} />
-          <AppText color={sync.color} numberOfLines={1} style={styles.flex}>
+          <Icon name={sync.icon} size={ICON_SIZE.xl} color={sync.color} />
+          <AppText
+            color={sync.color}
+            numberOfLines={UI_METRICS.text.singleLineMax}
+            style={styles.flex}
+          >
             {identity?.mode === 'guest' ? `${t('menu.guestBadge')} · ` : ''}
             {sync.label}
           </AppText>
@@ -373,8 +401,8 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     width: SEPARATOR_WIDTH,
-    zIndex: 40,
-    elevation: 40,
+    zIndex: LAYER.sidebarEdge,
+    elevation: LAYER.sidebarEdge,
   },
   flex: { flex: 1, minHeight: 0 },
   projectScroll: { flex: 1, minHeight: 0 },
@@ -384,14 +412,18 @@ const styles = StyleSheet.create({
   brand: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 56,
+    height: BOARD.headerHeight,
     paddingHorizontal: SPACING.sm,
     gap: SPACING.xs,
   },
   listContent: { paddingBottom: SPACING.xs },
   sectionTitle: { paddingHorizontal: SPACING.lg, paddingVertical: SPACING.xs },
   hint: { padding: SPACING.lg },
-  item: { flexDirection: 'row', alignItems: 'center', paddingRight: 2 },
+  item: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingRight: UI_METRICS.board.sidebarItemRightPadding,
+  },
   itemMain: {
     flex: 1,
     flexDirection: 'row',
@@ -401,7 +433,12 @@ const styles = StyleSheet.create({
     paddingLeft: SPACING.lg,
     paddingRight: SPACING.sm,
   },
-  dot: { width: 12, height: 12, borderRadius: 6, borderWidth: BORDER_WIDTH },
+  dot: {
+    width: UI_METRICS.board.colorDotSize,
+    height: UI_METRICS.board.colorDotSize,
+    borderRadius: UI_METRICS.board.colorDotSize / 2,
+    borderWidth: BORDER_WIDTH,
+  },
   divider: {
     height: SEPARATOR_WIDTH,
     minHeight: SEPARATOR_WIDTH,

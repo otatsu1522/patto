@@ -1,14 +1,15 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BOARD } from '@/config/layout';
+import { BOARD, UI_METRICS } from '@/config/layout';
 import { t } from '@/i18n';
-import { RADIUS, SHADOW, SPACING, useTheme } from '@/theme';
+import { RADIUS, SHADOW, SPACING, useTheme, LAYER, ICON_SIZE, OPACITY } from '@/theme';
 import { AppText } from './AppText';
 import type { MenuItem } from './DropdownMenu';
 import { Icon } from './Icon';
 import { BORDER_WIDTH, SEPARATOR_WIDTH } from '@/theme/tokens';
 import { canHover } from '@/lib/hover';
+import { DIAGNOSTIC_MESSAGES } from '@/config/diagnostics';
 
 interface Rect {
   x: number;
@@ -26,12 +27,11 @@ const Ctx = createContext<Host | null>(null);
 
 export const useMenuHost = (): Host => {
   const v = useContext(Ctx);
-  if (!v) throw new Error('MenuProvider が見つかりません');
+  if (!v) throw new Error(DIAGNOSTIC_MESSAGES.menuProviderMissing);
   return v;
 };
 
 const ITEM_HEIGHT = BOARD.touchTarget;
-const ICON_SLOT = 18;
 const MENU_SEPARATOR_HEIGHT = SEPARATOR_WIDTH;
 const MENU_SEPARATOR_INSET = SPACING.sm;
 
@@ -49,7 +49,10 @@ export function MenuProvider({ children }: { children: ReactNode }) {
   const show = useCallback((anchor: Rect, items: MenuItem[]) => setMenu({ anchor, items }), []);
   const host = useMemo(() => ({ show, hide }), [show, hide]);
 
-  const width = Math.min(BOARD.menuMinWidth + 40, Math.max(0, win.width - SPACING.md * 2));
+  const width = Math.min(
+    BOARD.menuMinWidth + UI_METRICS.menu.popupWidthExtra,
+    Math.max(0, win.width - SPACING.md * 2),
+  );
   let menuLayout: {
     left: number;
     top: number;
@@ -69,10 +72,10 @@ export function MenuProvider({ children }: { children: ReactNode }) {
     const safeBottom = win.height - Math.max(insets.bottom, 0) - SPACING.sm;
     const safeHeight = Math.max(ITEM_HEIGHT + BORDER_WIDTH * 2, safeBottom - safeTop);
     const height = Math.min(desiredHeight, safeHeight);
-    const below = menu.anchor.y + menu.anchor.h + 2;
-    const above = menu.anchor.y - height - 2;
+    const below = menu.anchor.y + menu.anchor.h + UI_METRICS.menu.anchorGap;
+    const above = menu.anchor.y - height - UI_METRICS.menu.anchorGap;
     const availableBelow = Math.max(0, safeBottom - below);
-    const availableAbove = Math.max(0, menu.anchor.y - safeTop - 2);
+    const availableAbove = Math.max(0, menu.anchor.y - safeTop - UI_METRICS.menu.anchorGap);
 
     // 基本はアンカーの下、入らなければ上。どちらも足りない場合は余白が広い側に置き、
     // SafeArea の内側へ収めてメニュー内部をスクロール可能にする。
@@ -80,7 +83,7 @@ export function MenuProvider({ children }: { children: ReactNode }) {
     if (desiredHeight <= availableBelow) {
       top = below;
     } else if (desiredHeight <= availableAbove) {
-      top = menu.anchor.y - desiredHeight - 2;
+      top = menu.anchor.y - desiredHeight - UI_METRICS.menu.anchorGap;
     } else if (availableBelow >= availableAbove) {
       top = below;
     } else {
@@ -138,7 +141,7 @@ export function MenuProvider({ children }: { children: ReactNode }) {
                         {
                           backgroundColor:
                             pressed || (hovered && canHover) ? colors.hover : 'transparent',
-                          opacity: item.disabled ? 0.4 : 1,
+                          opacity: item.disabled ? OPACITY.disabled : OPACITY.fullyVisible,
                         },
                       ]}
                     >
@@ -147,7 +150,7 @@ export function MenuProvider({ children }: { children: ReactNode }) {
                           {item.icon ? (
                             <Icon
                               name={item.icon}
-                              size={ICON_SLOT}
+                              size={ICON_SIZE.lg}
                               color={
                                 item.destructive
                                   ? colors.danger
@@ -167,7 +170,7 @@ export function MenuProvider({ children }: { children: ReactNode }) {
                               ? colors.textMuted
                               : colors.text
                         }
-                        numberOfLines={1}
+                        numberOfLines={UI_METRICS.text.singleLineMax}
                         style={styles.label}
                       >
                         {item.label}
@@ -186,7 +189,7 @@ export function MenuProvider({ children }: { children: ReactNode }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  overlay: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, zIndex: 1000 },
+  overlay: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, zIndex: LAYER.systemBars },
   menu: {
     position: 'absolute',
     borderRadius: RADIUS.md,
@@ -202,7 +205,7 @@ const styles = StyleSheet.create({
     gap: SPACING.md,
     paddingHorizontal: SPACING.lg,
   },
-  iconSlot: { width: ICON_SLOT, alignItems: 'center' },
+  iconSlot: { width: UI_METRICS.menu.iconSlotWidth, alignItems: 'center' },
   label: { flex: 1 },
   sep: {
     height: MENU_SEPARATOR_HEIGHT,

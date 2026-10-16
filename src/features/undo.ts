@@ -1,14 +1,15 @@
+import { LIMITS } from '@/config/limits';
+
 /** 直前の操作を元に戻すための簡易スタック（画面を開いている間だけ保持）。 */
 interface UndoEntry {
   undo: () => Promise<void>;
 }
 
 const stack: UndoEntry[] = [];
-const MAX = 20;
 
 export function pushUndo(undo: () => Promise<void>): () => Promise<void> {
   stack.push({ undo });
-  if (stack.length > MAX) stack.shift();
+  if (stack.length > LIMITS.undoStackMaxEntries) stack.shift();
   return undo;
 }
 

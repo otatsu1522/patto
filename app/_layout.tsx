@@ -6,6 +6,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/auth/authStore';
 import { isSupabaseConfigured } from '@/config/env';
+import { UI_METRICS } from '@/config/layout';
+import { TIMING } from '@/config/timing';
 import { FeedbackProvider } from '@/components/ui/FeedbackProvider';
 import { SystemBars } from '@/components/ui/SystemBars';
 import { MenuProvider } from '@/components/ui/MenuHost';
@@ -17,7 +19,7 @@ import { configureSync, startAutoSync } from '@/sync/controller';
 import { AppText } from '@/components/ui/AppText';
 import { Button } from '@/components/ui/Button';
 import { t } from '@/i18n';
-import { ThemeProvider, useTheme } from '@/theme';
+import { SPACING, ThemeProvider, useTheme } from '@/theme';
 
 /**
  * Web版の expo-sqlite は SharedArrayBuffer が必要で、ページが「クロスオリジン分離」されている必要がある。
@@ -70,7 +72,7 @@ function Boot() {
       if (cancelled || useAuthStore.getState().status !== 'loading') return;
       timedOut = true;
       useAuthStore.getState().setBootstrapError(t('app.startupTimeout'));
-    }, 25_000);
+    }, TIMING.startupTimeoutMs);
 
     void (async () => {
       try {
@@ -105,7 +107,7 @@ function Boot() {
     };
 
     refresh();
-    const interval = setInterval(refresh, 60_000);
+    const interval = setInterval(refresh, TIMING.identityRefreshIntervalMs);
     if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof document !== 'undefined') {
       window.addEventListener('focus', refresh);
       document.addEventListener('visibilitychange', refresh);
@@ -183,7 +185,7 @@ function Boot() {
     return (
       <View style={[styles.fill, { backgroundColor: colors.bg }]}>
         <SystemBars />
-        <View style={[styles.center, { gap: 16 }]}>
+        <View style={[styles.center, { gap: SPACING.lg }]}>
           <AppText variant="title">{t('app.startupErrorTitle')}</AppText>
           <AppText style={styles.notice}>{bootstrapError ?? t('app.startupErrorMessage')}</AppText>
           <Button label={t('common.retry')} onPress={() => void retryStartup()} />
@@ -226,6 +228,6 @@ export default function RootLayout() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  notice: { textAlign: 'center', maxWidth: 480 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl },
+  notice: { textAlign: 'center', maxWidth: UI_METRICS.startup.noticeMaxWidth },
 });

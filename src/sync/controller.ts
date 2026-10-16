@@ -3,6 +3,7 @@ import { AppState, Platform } from 'react-native';
 import { getSupabase } from '@/auth/supabase';
 import { isAuthRequiredError, isNetworkError } from '@/auth/errors';
 import { SYNC } from '@/config/limits';
+import { ERROR_CODES } from '@/config/errorCodes';
 import type { Project, KanbanColumn, Task } from '@/domain/types';
 import { nowMs } from '@/lib/clock';
 import { getDb, onLocalChange, useDataStore } from '@/store/dataStore';
@@ -74,7 +75,7 @@ export async function syncNow(
   const status = useSyncStore.getState().set;
   if (!(await isOnline())) {
     status({ status: 'offline' });
-    if (opts.throwOnError) throw new Error('offline');
+    if (opts.throwOnError) throw new Error(ERROR_CODES.offline);
     return false;
   }
 
@@ -82,7 +83,7 @@ export async function syncNow(
   status({ status: 'syncing', error: null });
   try {
     const { data } = await client.auth.getSession();
-    if (!data.session) throw new Error('auth-required');
+    if (!data.session) throw new Error(ERROR_CODES.authRequired);
     const settings = useSettingsStore.getState().settings;
     await runSync(createSupabaseRemote(client), localPort(), {
       trashRetentionDays: settings.trashAutoDelete ? settings.trashRetentionDays : null,

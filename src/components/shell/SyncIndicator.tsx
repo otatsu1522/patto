@@ -7,7 +7,7 @@ import { useDataStore } from '@/store/dataStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { syncNow } from '@/sync/controller';
 import { useSyncStore } from '@/sync/status';
-import { useTheme } from '@/theme';
+import { useTheme, ICON_SIZE, ICON_BUTTON_BOX } from '@/theme';
 import { IconButton } from '../ui/IconButton';
 
 /** 同期の状態を表す文言とアイコン。 */
@@ -63,8 +63,8 @@ export function SyncIndicator() {
       icon={icon}
       label={enabled ? `${t('sync.now')} (${label})` : label}
       color={color}
-      size={20}
-      box={36}
+      size={ICON_SIZE.xl}
+      box={ICON_BUTTON_BOX.medium}
       onPress={enabled ? () => void syncNow() : undefined}
     />
   );

@@ -1,4 +1,5 @@
 import { t } from '@/i18n';
+import { ERROR_CODES } from '@/config/errorCodes';
 
 /** Supabase などのエラーを、画面に出す文言へ変換する（生のエラー文は出さない）。 */
 export function mapAuthError(error: unknown): string {
@@ -35,6 +36,6 @@ export const isAuthRequiredError = (error: unknown): boolean => {
     msg.includes('jwt expired') ||
     msg.includes('invalid refresh token') ||
     msg.includes('auth session missing') ||
-    msg === 'auth-required'
+    msg === ERROR_CODES.authRequired
   );
 };

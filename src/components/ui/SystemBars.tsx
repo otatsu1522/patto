@@ -2,7 +2,7 @@ import { Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NavigationBar } from 'expo-navigation-bar';
 import { StatusBar } from 'expo-status-bar';
-import { useTheme } from '@/theme';
+import { useTheme, LAYER } from '@/theme';
 
 /** アプリ本体と各 Modal で、システムバーの前景色・背景を同じ方法で管理する。 */
 export function SystemBars() {
@@ -33,6 +33,20 @@ export function SystemBars() {
 }
 
 const styles = StyleSheet.create({
-  top: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1000, elevation: 1000 },
-  bottom: { position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 1000, elevation: 1000 },
+  top: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: LAYER.systemBars,
+    elevation: LAYER.systemBars,
+  },
+  bottom: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: LAYER.systemBars,
+    elevation: LAYER.systemBars,
+  },
 });

@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { TextInput } from 'react-native';
 import { LIMITS } from '@/config/limits';
 import type { KanbanColumn, Project } from '@/domain/types';
 import { validateTitle } from '@/domain/validation';
-import { useFocusOnOpen } from '@/hooks/useFocusOnOpen';
 import { t } from '@/i18n';
 import type { TaskColorKey } from '@/theme/taskColors';
 import { Button } from '../ui/Button';
@@ -27,7 +27,10 @@ export function ColumnDialog({ visible, column, onClose, onSubmit }: ColumnDialo
   const [color, setColor] = useState<TaskColorKey | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [discardPrompt, setDiscardPrompt] = useState(false);
-  const titleInput = useFocusOnOpen(visible);
+  const titleInputRef = useRef<TextInput>(null);
+  const focusTitleInput = useCallback(() => {
+    titleInputRef.current?.focus();
+  }, []);
 
   /* eslint-disable react-hooks/set-state-in-effect -- ダイアログを開くたびに、入力欄を元の値に戻す */
   useEffect(() => {
@@ -64,6 +67,7 @@ export function ColumnDialog({ visible, column, onClose, onSubmit }: ColumnDialo
       visible={visible}
       title={shownColumn ? t('column.rename') : t('column.create')}
       onClose={requestClose}
+      onShow={focusTitleInput}
       overlay={
         <DiscardChangesOverlay
           visible={discardPrompt}
@@ -81,7 +85,7 @@ export function ColumnDialog({ visible, column, onClose, onSubmit }: ColumnDialo
         value={title}
         onChangeText={setTitle}
         error={error}
-        ref={titleInput}
+        ref={titleInputRef}
         onSubmitEditing={submit}
         returnKeyType="done"
       />
@@ -106,7 +110,10 @@ export function ProjectDialog({ visible, project, onClose, onSubmit }: ProjectDi
   const [color, setColor] = useState<TaskColorKey | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [discardPrompt, setDiscardPrompt] = useState(false);
-  const titleInput = useFocusOnOpen(visible);
+  const titleInputRef = useRef<TextInput>(null);
+  const focusTitleInput = useCallback(() => {
+    titleInputRef.current?.focus();
+  }, []);
 
   /* eslint-disable react-hooks/set-state-in-effect -- ダイアログを開くたびに、入力欄を元の値に戻す */
   useEffect(() => {
@@ -143,6 +150,7 @@ export function ProjectDialog({ visible, project, onClose, onSubmit }: ProjectDi
       visible={visible}
       title={shownProject ? t('project.edit') : t('project.create')}
       onClose={requestClose}
+      onShow={focusTitleInput}
       overlay={
         <DiscardChangesOverlay
           visible={discardPrompt}
@@ -160,7 +168,7 @@ export function ProjectDialog({ visible, project, onClose, onSubmit }: ProjectDi
         value={title}
         onChangeText={setTitle}
         error={titleError}
-        ref={titleInput}
+        ref={titleInputRef}
         onSubmitEditing={submit}
         returnKeyType="done"
       />

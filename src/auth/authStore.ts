@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { isSupabaseConfigured } from '@/config/env';
+import { TIMING } from '@/config/timing';
 import { destroyLocalDb } from '@/db/sqliteDb';
 import { normalizeEmail } from '@/domain/validation';
 import { visibleProjects } from '@/domain/selectors';
@@ -14,7 +15,6 @@ import { getSupabase } from './supabase';
 const IDENTITY_KEY = 'patto:identity';
 const NEEDS_REAUTH_KEY = 'patto:needs-reauth';
 const LOGIN_SYNC_PENDING_KEY = 'patto:login-sync-pending';
-const BOOTSTRAP_TIMEOUT_MS = 20_000;
 let bootstrapInFlight: Promise<void> | null = null;
 let bootstrapGeneration = 0;
 let authListenerAttached = false;
@@ -268,7 +268,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
       const timeout = new Promise<never>((_, reject) => {
         timeoutId = setTimeout(
           () => reject(new Error(t('app.startupTimeout'))),
-          BOOTSTRAP_TIMEOUT_MS,
+          TIMING.authBootstrapTimeoutMs,
         );
       });
       let operation: Promise<void>;

@@ -1,7 +1,7 @@
 import { ActivityIndicator, Pressable, StyleSheet, type ViewStyle } from 'react-native';
 import { BOARD } from '@/config/layout';
 import type { IconKey } from '@/config/icons';
-import { RADIUS, SPACING, useTheme } from '@/theme';
+import { RADIUS, SPACING, useTheme, ICON_SIZE, OPACITY } from '@/theme';
 import { AppText } from './AppText';
 import { Icon } from './Icon';
 import { BORDER_WIDTH } from '@/theme/tokens';
@@ -57,7 +57,13 @@ export function Button({
         {
           backgroundColor: palette.bg,
           borderColor: palette.border,
-          opacity: inactive ? 0.5 : pressed ? 0.8 : hovered && canHover ? 0.92 : 1,
+          opacity: inactive
+            ? OPACITY.buttonDisabled
+            : pressed
+              ? OPACITY.pressed
+              : hovered && canHover
+                ? OPACITY.hovered
+                : OPACITY.fullyVisible,
         },
         fullWidth && styles.full,
         style,
@@ -66,7 +72,7 @@ export function Button({
       {loading ? (
         <ActivityIndicator color={foreground} />
       ) : icon ? (
-        <Icon name={icon} size={18} color={foreground} />
+        <Icon name={icon} size={ICON_SIZE.lg} color={foreground} />
       ) : null}
       <AppText bold color={foreground}>
         {label}

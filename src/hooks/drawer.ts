@@ -1,4 +1,5 @@
 import { Animated } from 'react-native';
+import { TIMING } from '@/config/timing';
 
 /**
  * スマホのメニュー（ドロワー）の開き具合（0=閉じている、1=開いている）。
@@ -39,7 +40,7 @@ export function applyDrawer(open: boolean, animated = true): void {
   if (!animated) return drawerProgress.setValue(open ? 1 : 0);
   Animated.timing(drawerProgress, {
     toValue: open ? 1 : 0,
-    duration: 200,
+    duration: TIMING.drawerAnimationMs,
     useNativeDriver: false,
   }).start();
 }

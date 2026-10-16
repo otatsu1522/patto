@@ -8,6 +8,8 @@ import { useDataStore } from '@/store/dataStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useSyncStore } from '@/sync/status';
 import type { TableName } from '@/domain/types';
+import { SYNC } from '@/config/limits';
+import { DAY_MS } from '@/lib/dates';
 
 export type ClearKind = 'trash' | 'archive';
 
@@ -34,18 +36,21 @@ export async function clearBucket(kind: ClearKind, projectId?: string): Promise<
     const client = getSupabase();
     if (!client) return { ok: false, message: t('auth.notConfigured') };
     try {
-      await syncNow({ throwOnError: true });
+      // 同期中に呼ばれた場合、syncNow は false を返して次回同期をキューに積む。
+      // サーバー削除の前提となる同期が実行されていない場合は、削除を続行しない。
+      const synced = await syncNow({ throwOnError: true });
+      if (!synced) return { ok: false, message: t('board.clearSyncNotStarted') };
       const order: [TableName, string[]][] = [
         ['tasks', targets.tasks],
         ['kanban_columns', targets.columns],
         ['projects', targets.projects],
       ];
       for (const [table, ids] of order) {
-        for (let i = 0; i < ids.length; i += 100) {
+        for (let i = 0; i < ids.length; i += SYNC.maxIdsPerQuery) {
           const { error } = await client
             .from(table)
             .delete()
-            .in('id', ids.slice(i, i + 100));
+            .in('id', ids.slice(i, i + SYNC.maxIdsPerQuery));
           if (error) throw error;
         }
       }
@@ -60,7 +65,7 @@ export async function clearBucket(kind: ClearKind, projectId?: string): Promise<
 /** ゲスト利用時: 保持日数を過ぎたごみ箱の中身を端末から自動削除する（アカウント時は同期処理で行う）。 */
 export async function autoPurgeLocal(retentionDays: number, now: number): Promise<void> {
   const store = useDataStore.getState();
-  const limit = now - retentionDays * 24 * 60 * 60 * 1000;
+  const limit = now - retentionDays * DAY_MS;
   const snap = store.snapshot();
   const expired = (r: { deletedAt: number | null }) => r.deletedAt !== null && r.deletedAt < limit;
   const ids = {

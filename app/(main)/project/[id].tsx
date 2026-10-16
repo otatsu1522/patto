@@ -18,6 +18,7 @@ import { BOARD } from '@/config/layout';
 import { LIMITS } from '@/config/limits';
 import { columnsOf, isActive, searchTasks, tasksOf } from '@/domain/selectors';
 import type { ColumnSortMode, KanbanColumn, Task } from '@/domain/types';
+import { UserActionError } from '@/domain/operationError';
 import { useBoardActions } from '@/features/useBoardActions';
 import { popUndo } from '@/features/undo';
 import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
@@ -43,7 +44,7 @@ export default function ProjectScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors } = useTheme();
   const boardRef = useRef<BoardViewHandle>(null);
-  const { toast } = useFeedback();
+  const { toast, alert } = useFeedback();
 
   const ready = useDataStore((s) => s.ready);
   const projects = useDataStore((s) => s.projects);
@@ -73,12 +74,36 @@ export default function ProjectScreen() {
   const [taskDialog, setTaskDialog] = useState<TaskDialogState>(null);
   const [columnDialog, setColumnDialog] = useState<{ column: KanbanColumn | null } | null>(null);
   const [taskDetails, setTaskDetails] = useState<Task | null>(null);
+  const [taskDetailsVisible, setTaskDetailsVisible] = useState(false);
+  const [taskDetailsDismissImmediately, setTaskDetailsDismissImmediately] = useState(false);
   const [archiveKind, setArchiveKind] = useState<'archive' | 'trash' | null>(null);
   const [cursor, setCursor] = useState<Cursor | null>(null);
   const [query, setQuery] = useState('');
   const searchResultsScrollRef = useWebWheelScroll({ touchScroll: true, touchAction: 'pan-y' });
   const [searching, setSearching] = useState(false);
   const follow = useRef<string | null>(null);
+
+  const duplicateFailed = (error: unknown) =>
+    alert(
+      t('common.error'),
+      error instanceof UserActionError ? error.message : t('operation.duplicateFailed'),
+    );
+
+  const duplicateTaskById = async (taskId: string) => {
+    try {
+      if (await useDataStore.getState().duplicateTask(taskId)) toast(t('toast.duplicated'));
+    } catch (error) {
+      duplicateFailed(error);
+    }
+  };
+
+  const duplicateColumnById = async (columnId: string) => {
+    try {
+      if (await useDataStore.getState().duplicateColumn(columnId)) toast(t('toast.duplicated'));
+    } catch (error) {
+      duplicateFailed(error);
+    }
+  };
 
   useEffect(() => {
     if (project && isActive(project) && id)
@@ -94,6 +119,8 @@ export default function ProjectScreen() {
     setTaskDialog(null);
     setColumnDialog(null);
     setTaskDetails(null);
+    setTaskDetailsVisible(false);
+    setTaskDetailsDismissImmediately(false);
     setArchiveKind(null);
   }, [id]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -109,6 +136,7 @@ export default function ProjectScreen() {
       setQuery('');
       setSearching(false);
       setTaskDetails(selected);
+      setTaskDetailsVisible(true);
     }
   }, [ready, id, pendingTaskDetail, tasks]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -225,8 +253,8 @@ export default function ProjectScreen() {
     archiveDone: () => void actions.archiveDone(),
     duplicate: () => {
       const task = cursorTask();
-      if (task) void store.duplicateTask(task.id);
-      else if (cursorColumn()) void store.duplicateColumn(cursorColumn()!.id);
+      if (task) void duplicateTaskById(task.id);
+      else if (cursorColumn()) void duplicateColumnById(cursorColumn()!.id);
     },
     moveColumnLeft: () => moveColumnBy(-1),
     moveColumnRight: () => moveColumnBy(1),
@@ -324,10 +352,7 @@ export default function ProjectScreen() {
     {
       label: t('common.duplicate'),
       icon: 'copy',
-      onPress: () => {
-        void store.duplicateColumn(column.id);
-        toast(t('toast.duplicated'));
-      },
+      onPress: () => void duplicateColumnById(column.id),
     },
     {
       label: t('common.delete'),
@@ -359,7 +384,14 @@ export default function ProjectScreen() {
       columnCount > 0 ? cols[(currentIndex - 1 + columnCount) % columnCount] : undefined;
     const rightColumn = columnCount > 0 ? cols[(currentIndex + 1) % columnCount] : undefined;
     return [
-      { label: t('task.detailsMenu'), icon: 'eye', onPress: () => setTaskDetails(task) },
+      {
+        label: t('task.detailsMenu'),
+        icon: 'eye',
+        onPress: () => {
+          setTaskDetails(task);
+          setTaskDetailsVisible(true);
+        },
+      },
       {
         label: t('task.edit'),
         icon: 'edit',
@@ -427,10 +459,7 @@ export default function ProjectScreen() {
         label: t('common.duplicate'),
         icon: 'copy',
         separator: true,
-        onPress: () => {
-          void store.duplicateTask(task.id);
-          toast(t('toast.duplicated'));
-        },
+        onPress: () => void duplicateTaskById(task.id),
       },
       {
         label: t('common.archive'),
@@ -498,7 +527,6 @@ export default function ProjectScreen() {
     <View style={styles.fill}>
       <View style={styles.fill}>
         <BoardView
-          key={id}
           header={header}
           resetKey={id}
           ref={boardRef}
@@ -563,6 +591,7 @@ export default function ProjectScreen() {
                 onPress={(task) => {
                   closeSearch();
                   setTaskDetails(task);
+                  setTaskDetailsVisible(true);
                 }}
               />
             </ScrollView>
@@ -570,14 +599,6 @@ export default function ProjectScreen() {
         ) : null}
       </View>
 
-      <TaskDialog
-        visible={taskDialog !== null}
-        task={editingTask}
-        columns={cols.map((c) => ({ id: c.id, title: c.title }))}
-        defaultColumnId={taskDialog?.mode === 'create' ? taskDialog.columnId : (cols[0]?.id ?? '')}
-        onClose={() => setTaskDialog(null)}
-        onSubmit={submitTask}
-      />
       <ColumnDialog
         visible={columnDialog !== null}
         column={columnDialog?.column ?? null}
@@ -592,16 +613,32 @@ export default function ProjectScreen() {
       />
       <RecordDetailsDialog
         record={taskDetails}
-        onClose={() => setTaskDetails(null)}
-        onEdit={(task) => {
+        visible={taskDetailsVisible}
+        dismissImmediately={taskDetailsDismissImmediately}
+        onClose={() => setTaskDetailsVisible(false)}
+        onDismiss={() => {
           setTaskDetails(null);
-          // Native Modal の閉じる処理を先に開始し、詳細ダイアログが消えてから編集を開く。
-          setTimeout(() => setTaskDialog({ mode: 'edit', taskId: task.id }), 220);
+          setTaskDetailsDismissImmediately(false);
+        }}
+        onEdit={(task) => {
+          // 詳細ダイアログの閉じるアニメーションを待たず、編集を即時表示する。
+          // 詳細側はアニメーションなしで閉じ、不要な二重アニメーションを避ける。
+          setTaskDetailsDismissImmediately(true);
+          setTaskDetailsVisible(false);
+          setTaskDialog({ mode: 'edit', taskId: task.id });
         }}
         projectName={project.title}
         columnName={
           taskDetails ? cols.find((column) => column.id === taskDetails.columnId)?.title : undefined
         }
+      />
+      <TaskDialog
+        visible={taskDialog !== null}
+        task={editingTask}
+        columns={cols.map((c) => ({ id: c.id, title: c.title }))}
+        defaultColumnId={taskDialog?.mode === 'create' ? taskDialog.columnId : (cols[0]?.id ?? '')}
+        onClose={() => setTaskDialog(null)}
+        onSubmit={submitTask}
       />
       <ArchiveDialog
         kind={archiveKind}

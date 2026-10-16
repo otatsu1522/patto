@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { BOARD, UI_METRICS } from '@/config/layout';
 import { searchTasks, visibleProjects } from '@/domain/selectors';
 import type { Task } from '@/domain/types';
 import { t } from '@/i18n';
 import { useDataStore } from '@/store/dataStore';
-import { RADIUS, SPACING, useTheme } from '@/theme';
-import { BORDER_WIDTH } from '@/theme/tokens';
+import { RADIUS, SPACING, useTheme, ICON_SIZE, ICON_BUTTON_BOX, LAYER } from '@/theme';
+import { BORDER_WIDTH, FONT } from '@/theme/tokens';
 import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
 import { Dialog } from '../ui/Dialog';
 import { AppText } from '../ui/AppText';
@@ -29,7 +30,6 @@ export function GlobalSearchDialog({ visible, initialProjectId = null, onClose, 
   const [query, setQuery] = useState('');
   const [projectId, setProjectId] = useState<string | null>(null);
   const inputRef = useRef<TextInput>(null);
-  const focusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const projectList = useMemo(() => visibleProjects(projects), [projects]);
   const projectListRef = useRef(projectList);
 
@@ -44,22 +44,11 @@ export function GlobalSearchDialog({ visible, initialProjectId = null, onClose, 
   );
 
   const focusSearchInput = useCallback(() => {
-    if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
-    // Modal の表示直後に focus すると、モバイル OS がキーボード表示要求を捨てることがある。
-    // 入力欄がマウントされ、Modal の遷移が終わった後にフォーカスする。
-    focusTimerRef.current = setTimeout(() => {
-      inputRef.current?.focus();
-      focusTimerRef.current = null;
-    }, 80);
+    inputRef.current?.focus();
   }, []);
 
   useEffect(() => {
-    if (!visible) {
-      if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
-      focusTimerRef.current = null;
-      return;
-    }
-    const focusFrame = requestAnimationFrame(focusSearchInput);
+    if (!visible) return;
     const frame = requestAnimationFrame(() => {
       setProjectId(
         initialProjectId &&
@@ -69,13 +58,8 @@ export function GlobalSearchDialog({ visible, initialProjectId = null, onClose, 
       );
       setQuery('');
     });
-    return () => {
-      cancelAnimationFrame(frame);
-      cancelAnimationFrame(focusFrame);
-      if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
-      focusTimerRef.current = null;
-    };
-  }, [visible, initialProjectId, focusSearchInput]);
+    return () => cancelAnimationFrame(frame);
+  }, [visible, initialProjectId]);
 
   const close = () => {
     setQuery('');
@@ -95,13 +79,12 @@ export function GlobalSearchDialog({ visible, initialProjectId = null, onClose, 
       title={t('menu.search')}
       onClose={close}
       onShow={focusSearchInput}
-      wide
       fixedBody
     >
       <View
         style={[styles.searchField, { backgroundColor: colors.bg, borderColor: colors.border }]}
       >
-        <Icon name="search" size={20} color={colors.textMuted} />
+        <Icon name="search" size={ICON_SIZE.xl} color={colors.textMuted} />
         <TextInput
           key={visible ? 'global-search-open' : 'global-search-closed'}
           ref={inputRef}
@@ -112,14 +95,14 @@ export function GlobalSearchDialog({ visible, initialProjectId = null, onClose, 
           placeholderTextColor={colors.textMuted}
           accessibilityLabel={t('board.searchPlaceholder')}
           returnKeyType="search"
-          style={[styles.input, { color: colors.text, fontSize: fs(16) }]}
+          style={[styles.input, { color: colors.text, fontSize: fs(FONT.bodyLarge) }]}
         />
         <IconButton
           icon="close"
           label={t('menu.searchClear')}
           onPress={() => setQuery('')}
-          box={32}
-          size={18}
+          box={ICON_BUTTON_BOX.compact}
+          size={ICON_SIZE.lg}
           color={colors.textMuted}
         />
       </View>
@@ -171,7 +154,7 @@ export function GlobalSearchDialog({ visible, initialProjectId = null, onClose, 
                   <AppText
                     variant="caption"
                     bold
-                    numberOfLines={1}
+                    numberOfLines={UI_METRICS.text.singleLineMax}
                     color={selected ? colors.onPrimary : colors.text}
                   >
                     {project.title}
@@ -205,7 +188,7 @@ export function GlobalSearchDialog({ visible, initialProjectId = null, onClose, 
 
 const styles = StyleSheet.create({
   searchField: {
-    minHeight: 44,
+    minHeight: BOARD.touchTarget,
     borderWidth: BORDER_WIDTH,
     borderRadius: RADIUS.md,
     flexDirection: 'row',
@@ -236,16 +219,16 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    zIndex: 10,
-    elevation: 10,
+    zIndex: LAYER.searchResults,
+    elevation: LAYER.searchResults,
   },
   resultsContent: { flexGrow: 1 },
   filter: {
-    minHeight: 32,
-    maxWidth: 240,
+    minHeight: UI_METRICS.search.filterChipMinHeight,
+    maxWidth: UI_METRICS.search.filterChipMaxWidth,
     justifyContent: 'center',
     borderWidth: BORDER_WIDTH,
-    borderRadius: 0,
+    borderRadius: RADIUS.sm,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.xs,
   },

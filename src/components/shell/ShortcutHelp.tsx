@@ -1,10 +1,11 @@
 import { Fragment } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { UI_METRICS } from '@/config/layout';
 import { t } from '@/i18n';
 import { SHORTCUT_ACTIONS, displayKeyParts, resolveBindings } from '@/shortcuts/actions';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useUiStore } from '@/store/uiStore';
-import { RADIUS, SPACING, useTheme } from '@/theme';
+import { RADIUS, SPACING, useTheme, OPACITY } from '@/theme';
 import { AppText } from '../ui/AppText';
 import { Dialog } from '../ui/Dialog';
 import { BORDER_WIDTH } from '@/theme/tokens';
@@ -25,7 +26,7 @@ export function ShortcutHelp() {
         <Fragment key={`${part}-${index}`}>
           {index > 0 ? (
             <AppText variant="caption" muted style={styles.plus}>
-              +
+              {t('shortcut.comboPlus')}
             </AppText>
           ) : null}
           <View style={styles.keyCap}>
@@ -39,7 +40,7 @@ export function ShortcutHelp() {
   );
 
   return (
-    <Dialog visible={open} title={t('settings.shortcuts')} onClose={() => setOpen(false)} wide>
+    <Dialog visible={open} title={t('settings.shortcuts')} onClose={() => setOpen(false)}>
       <View style={styles.row}>
         <View style={styles.labelBlock}>
           <AppText style={styles.label}>{t('settings.shortcutsEscape')}</AppText>
@@ -54,7 +55,7 @@ export function ShortcutHelp() {
           <View style={[styles.combo, { borderColor: colors.divider, backgroundColor: colors.bg }]}>
             <View style={styles.keyCap}>
               <AppText variant="caption" bold>
-                Esc
+                {t('shortcut.keyEscape')}
               </AppText>
             </View>
           </View>
@@ -94,23 +95,23 @@ const styles = StyleSheet.create({
     padding: SPACING.xs,
     flexDirection: 'row',
   },
-  fixedField: { opacity: 0.65 },
+  fixedField: { opacity: OPACITY.muted },
   combo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
+    gap: UI_METRICS.shortcuts.comboGap,
     borderWidth: BORDER_WIDTH,
     borderRadius: RADIUS.sm,
-    paddingHorizontal: 4,
-    paddingVertical: 3,
-    minHeight: 30,
+    paddingHorizontal: UI_METRICS.shortcuts.comboPaddingHorizontal,
+    paddingVertical: UI_METRICS.shortcuts.comboPaddingVertical,
+    minHeight: UI_METRICS.shortcuts.comboMinHeight,
   },
   keyCap: {
-    minWidth: 22,
-    minHeight: 22,
-    paddingHorizontal: 4,
+    minWidth: UI_METRICS.shortcuts.helpKeyCapMinWidth,
+    minHeight: UI_METRICS.shortcuts.keyCapMinHeight,
+    paddingHorizontal: UI_METRICS.shortcuts.comboPaddingHorizontal,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  plus: { paddingHorizontal: 1 },
+  plus: { paddingHorizontal: UI_METRICS.shortcuts.comboPlusPaddingHorizontal },
 });

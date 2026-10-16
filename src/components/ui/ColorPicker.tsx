@@ -1,7 +1,9 @@
 import { Pressable, StyleSheet, View } from 'react-native';
+import { BOARD, UI_METRICS } from '@/config/layout';
 import { t } from '@/i18n';
-import { RADIUS, SPACING, useTheme } from '@/theme';
+import { BORDER_WIDTH_EMPHASIS, RADIUS, SPACING, useTheme, ICON_SIZE, LAYER } from '@/theme';
 import { TASK_COLOR_KEYS, type TaskColorKey } from '@/theme/taskColors';
+import { BRAND } from '@/theme/palette';
 import { AppText } from './AppText';
 import { Icon } from './Icon';
 
@@ -35,7 +37,7 @@ export function ColorPicker({ label, value, onChange }: Props) {
           <View style={[styles.slash, { backgroundColor: colors.border }]} />
           {value === null ? (
             <View style={styles.checkBadge}>
-              <Icon name="check" size={12} color={colors.text} />
+              <Icon name="check" size={ICON_SIZE.xs} color={colors.text} />
             </View>
           ) : null}
         </Pressable>
@@ -57,8 +59,8 @@ export function ColorPicker({ label, value, onChange }: Props) {
               <View style={styles.checkBadge}>
                 <Icon
                   name="check"
-                  size={16}
-                  color={isDark || key === 'yellow' ? '#000000' : '#FFFFFF'}
+                  size={ICON_SIZE.md}
+                  color={isDark || key === 'yellow' ? BRAND.foreground : BRAND.background}
                 />
               </View>
             ) : null}
@@ -74,9 +76,9 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
   slash: {
     position: 'absolute',
-    width: 44,
-    height: 2,
-    borderRadius: 1,
+    width: BOARD.touchTarget,
+    height: BORDER_WIDTH_EMPHASIS,
+    borderRadius: BORDER_WIDTH_EMPHASIS / 2,
     transform: [{ rotate: '-45deg' }],
   },
   checkBadge: {
@@ -84,13 +86,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: RADIUS.pill,
     backgroundColor: 'transparent',
-    zIndex: 1,
+    zIndex: LAYER.colorBadge,
   },
   swatch: {
-    width: 34,
-    height: 34,
+    width: UI_METRICS.colorPicker.swatchSize,
+    height: UI_METRICS.colorPicker.swatchSize,
     borderRadius: RADIUS.pill,
-    borderWidth: 2,
+    borderWidth: BORDER_WIDTH_EMPHASIS,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',

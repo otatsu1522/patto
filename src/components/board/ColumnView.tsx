@@ -1,17 +1,27 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { GestureDetector } from 'react-native-gesture-handler';
-import { BOARD, GESTURE } from '@/config/layout';
+import { BOARD, GESTURE, UI_METRICS } from '@/config/layout';
+import { TIMING } from '@/config/timing';
 import type { KanbanColumn, Task } from '@/domain/types';
 import { t } from '@/i18n';
-import { RADIUS, SPACING, useTheme } from '@/theme';
+import {
+  BORDER_WIDTH_EMPHASIS,
+  RADIUS,
+  SPACING,
+  useTheme,
+  ICON_SIZE,
+  ICON_BUTTON_BOX,
+  LAYER,
+  OPACITY,
+} from '@/theme';
 import { AppText } from '../ui/AppText';
 import { DropdownMenu, type MenuItem } from '../ui/DropdownMenu';
 import { Icon } from '../ui/Icon';
 import { IconButton } from '../ui/IconButton';
 import { useDragGesture, type DragHandlers } from './dragGesture';
 import { TaskCard } from './TaskCard';
-import { SEPARATOR_WIDTH } from '@/theme/tokens';
+import { BORDER_WIDTH_NONE, SEPARATOR_WIDTH } from '@/theme/tokens';
 import { canHover } from '@/lib/hover';
 import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
 
@@ -81,6 +91,10 @@ export function ColumnView(p: ColumnViewProps) {
 
   const favorites = p.tasks.filter((x) => x.isFavorite);
   const others = p.tasks.filter((x) => !x.isFavorite);
+  const taskIndexById = useMemo(
+    () => new Map(p.tasks.map((task, index) => [task.id, index] as const)),
+    [p.tasks],
+  );
   const showDivider = favorites.length > 0 && others.length > 0;
 
   // キーボード操作で選択されたタスクが画面外へ出たら、一覧を必要な分だけスクロールする。
@@ -94,8 +108,8 @@ export function ColumnView(p: ColumnViewProps) {
     const frame = requestAnimationFrame(() => {
       node.measureInWindow((_x, taskY, _w, taskHeight) => {
         listViewport.measureInWindow((_lx, listY, _lw, listHeight) => {
-          const top = listY + 4;
-          const bottom = listY + listHeight - 4;
+          const top = listY + UI_METRICS.board.cursorScrollMargin;
+          const bottom = listY + listHeight - UI_METRICS.board.cursorScrollMargin;
           if (taskY < top) {
             list.scrollTo({ y: Math.max(0, listOffset.current - (top - taskY)), animated: true });
           } else if (taskY + taskHeight > bottom) {
@@ -108,7 +122,7 @@ export function ColumnView(p: ColumnViewProps) {
   }, [p.cursorTaskIndex, p.tasks, p.height, listRef]);
 
   const card = (task: Task) => {
-    const i = p.tasks.indexOf(task);
+    const i = taskIndexById.get(task.id) ?? -1;
     return (
       <TaskCard
         key={task.id}
@@ -146,8 +160,8 @@ export function ColumnView(p: ColumnViewProps) {
           width: p.width,
           height: p.height,
           backgroundColor: colors.column,
-          opacity: p.draggingColumn ? 0.5 : 1,
-          borderRightWidth: 0,
+          opacity: p.draggingColumn ? OPACITY.draggingColumn : OPACITY.fullyVisible,
+          borderRightWidth: BORDER_WIDTH_NONE,
         },
         Platform.OS === 'web' && p.webSnapAlign
           ? ({
@@ -161,7 +175,7 @@ export function ColumnView(p: ColumnViewProps) {
       <View
         style={[
           styles.header,
-          headerFocused && { borderColor: colors.focus, borderWidth: 2 },
+          headerFocused && { borderColor: colors.focus, borderWidth: BORDER_WIDTH_EMPHASIS },
           p.grabbed && headerFocused && { backgroundColor: colors.border },
         ]}
       >
@@ -174,22 +188,34 @@ export function ColumnView(p: ColumnViewProps) {
             {p.column.color ? (
               <View style={[styles.dot, { backgroundColor: taskColor(p.column.color) }]} />
             ) : null}
-            <AppText bold numberOfLines={1} style={styles.title}>
+            <AppText bold numberOfLines={UI_METRICS.text.singleLineMax} style={styles.title}>
               {p.column.title}
             </AppText>
             <AppText variant="caption" muted bold>
               {t('column.taskCount', { count: p.tasks.length })}
             </AppText>
             {p.column.isDoneColumn ? (
-              <Icon name="doneMode" size={22} color={colors.textMuted} />
+              <Icon name="doneMode" size={ICON_SIZE.xxl} color={colors.textMuted} />
             ) : null}
           </View>
         </GestureDetector>
-        <IconButton icon="add" label={t('task.add')} onPress={p.onAddTask} box={40} size={22} />
+        <IconButton
+          icon="add"
+          label={t('task.add')}
+          onPress={p.onAddTask}
+          box={ICON_BUTTON_BOX.large}
+          size={ICON_SIZE.xxl}
+        />
         <DropdownMenu
           items={p.menuItems}
           trigger={(open) => (
-            <IconButton icon="more" label={p.column.title} onPress={open} box={40} size={22} />
+            <IconButton
+              icon="more"
+              label={p.column.title}
+              onPress={open}
+              box={ICON_BUTTON_BOX.large}
+              size={ICON_SIZE.xxl}
+            />
           )}
         />
         <View
@@ -211,7 +237,7 @@ export function ColumnView(p: ColumnViewProps) {
           onScroll={(event) => {
             listOffset.current = event.nativeEvent.contentOffset.y;
           }}
-          scrollEventThrottle={16}
+          scrollEventThrottle={TIMING.scrollEventThrottleMs}
           contentContainerStyle={styles.listContent}
           keyboardShouldPersistTaps="handled"
           persistentScrollbar
@@ -246,7 +272,7 @@ export function ColumnView(p: ColumnViewProps) {
               { backgroundColor: pressed || (hovered && canHover) ? colors.hover : 'transparent' },
             ]}
           >
-            <Icon name="add" size={20} color={colors.textMuted} />
+            <Icon name="add" size={ICON_SIZE.xl} color={colors.textMuted} />
             <AppText muted>{t('task.add')}</AppText>
           </Pressable>
         </ScrollView>
@@ -278,9 +304,9 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     left: 0,
-    borderWidth: 2,
+    borderWidth: BORDER_WIDTH_EMPHASIS,
     borderRadius: RADIUS.sm,
-    zIndex: 5,
+    zIndex: LAYER.dragColumn,
   },
   columnDivider: { position: 'absolute', top: 0, bottom: 0, width: SEPARATOR_WIDTH },
   header: {
@@ -309,7 +335,11 @@ const styles = StyleSheet.create({
     minHeight: BOARD.touchTarget,
     cursor: 'grab',
   } as never,
-  dot: { width: 12, height: 12, borderRadius: 6 },
+  dot: {
+    width: UI_METRICS.board.colorDotSize,
+    height: UI_METRICS.board.colorDotSize,
+    borderRadius: UI_METRICS.board.colorDotSize / 2,
+  },
   title: { flexShrink: 1 },
   listViewport: { flex: 1, minHeight: 0 },
   list: { flex: 1 },

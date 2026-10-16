@@ -9,7 +9,7 @@ import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { t } from '@/i18n';
 import { SPACING } from '@/theme';
 import { useDataStore } from '@/store/dataStore';
-import { BOARD } from '@/config/layout';
+import { BOARD, UI_METRICS } from '@/config/layout';
 import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
 
 /** 設定のトップ: プロフィール編集 / システム設定 / ショートカット / アプリについて / ライセンス。 */
@@ -106,7 +106,11 @@ const styles = StyleSheet.create({
     overscrollBehaviorY: 'auto',
   } as never,
   content: { padding: SPACING.lg, alignItems: 'center', flexGrow: 1 },
-  inner: { width: '100%', maxWidth: BOARD.dialogMaxWidth + 120, gap: SPACING.lg },
+  inner: {
+    width: '100%',
+    maxWidth: BOARD.dialogMaxWidth + UI_METRICS.dialog.settingsPanelExtraWidth,
+    gap: SPACING.lg,
+  },
   account: { padding: SPACING.lg, gap: SPACING.sm, alignItems: 'center' },
   accountText: { textAlign: 'center' },
   logoutButton: { marginTop: SPACING.md },

@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, View } from 'react-native';
+import { UI_METRICS } from '@/config/layout';
 import type { KanbanColumn, Project, Task } from '@/domain/types';
 import { t } from '@/i18n';
 import { SPACING, useTheme } from '@/theme';
@@ -43,12 +44,14 @@ export function SearchResults({ results, projects, columns, onPress }: Props) {
               },
             ]}
           >
-            <AppText variant="caption" muted numberOfLines={1}>
-              {project?.title ?? ''} › {column?.title ?? ''}
+            <AppText variant="caption" muted numberOfLines={UI_METRICS.text.singleLineMax}>
+              {project?.title ?? ''}
+              {t('common.breadcrumbSeparator')}
+              {column?.title ?? ''}
             </AppText>
             <AppText bold>{task.title}</AppText>
             {task.description ? (
-              <AppText variant="caption" muted numberOfLines={2}>
+              <AppText variant="caption" muted numberOfLines={UI_METRICS.text.previewLines}>
                 {task.description}
               </AppText>
             ) : null}
@@ -64,7 +67,7 @@ const styles = StyleSheet.create({
   item: {
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
-    gap: 2,
+    gap: UI_METRICS.search.resultGap,
     borderBottomWidth: BORDER_WIDTH,
   },
 });

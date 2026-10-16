@@ -8,7 +8,8 @@ import { Section } from '@/components/ui/Rows';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { TextField } from '@/components/ui/TextField';
 import { isSupabaseConfigured } from '@/config/env';
-import { BOARD } from '@/config/layout';
+import { BOARD, UI_METRICS } from '@/config/layout';
+import { TIMING } from '@/config/timing';
 import { LIMITS } from '@/config/limits';
 import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
 import {
@@ -76,7 +77,8 @@ export default function ProfileScreen() {
     const syncViewport = () => {
       const node = getScrollNode();
       if (!node) return;
-      const keyboardVisible = window.innerHeight - viewport.height > 100;
+      const keyboardVisible =
+        window.innerHeight - viewport.height > UI_METRICS.keyboard.profileViewportDeltaPx;
       if (!keyboardVisible) {
         restore();
         return;
@@ -129,7 +131,7 @@ export default function ProfileScreen() {
             contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled"
             onScroll={onScroll}
-            scrollEventThrottle={16}
+            scrollEventThrottle={TIMING.scrollEventThrottleMs}
           >
             <View style={styles.inner}>
               {identity?.mode === 'guest' ? (
@@ -457,6 +459,10 @@ const styles = StyleSheet.create({
     overscrollBehaviorY: 'auto',
   } as never,
   content: { padding: SPACING.lg, alignItems: 'center', flexGrow: 1 },
-  inner: { width: '100%', maxWidth: BOARD.dialogMaxWidth + 120, gap: SPACING.lg },
+  inner: {
+    width: '100%',
+    maxWidth: BOARD.dialogMaxWidth + UI_METRICS.dialog.settingsPanelExtraWidth,
+    gap: SPACING.lg,
+  },
   form: { padding: SPACING.lg, gap: SPACING.md },
 });

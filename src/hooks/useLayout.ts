@@ -1,5 +1,5 @@
 import { useWindowDimensions } from 'react-native';
-import { BOARD, BREAKPOINTS } from '@/config/layout';
+import { BOARD, BREAKPOINTS, UI_METRICS } from '@/config/layout';
 
 export type LayoutMode = 'compact' | 'medium' | 'expanded';
 
@@ -29,10 +29,6 @@ export interface BoardGeometry {
 }
 
 /** スマホ縦で、現在のカンバンが画面幅に占める割合。残りで前後のカンバンが見える */
-const COMPACT_RATIO = 0.92;
-/** PCで、左右に隣のカンバンを見せる幅 */
-const PEEK_PX = 40;
-
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(v, max));
 
 /**
@@ -45,7 +41,13 @@ export function boardGeometry(
   mode: LayoutMode,
   count: number,
 ): BoardGeometry {
-  const { columnGap: gap, minColumnWidth, visibleColumns } = BOARD;
+  const {
+    columnGap: gap,
+    minColumnWidth,
+    visibleColumns,
+    compactColumnWidthRatio,
+    peekWidth,
+  } = BOARD;
   // 外側の余白を、カンバン間の区切り線までの余白（gap / 2）と揃える。
   // boardPadding は縦方向の余白にのみ使用し、横方向には流用しない。
   const p = gap / 2;
@@ -53,7 +55,7 @@ export function boardGeometry(
 
   if (mode === 'compact') {
     const columnWidth =
-      n === 1 ? containerWidth - p * 2 : Math.round(containerWidth * COMPACT_RATIO);
+      n === 1 ? containerWidth - p * 2 : Math.round(containerWidth * compactColumnWidthRatio);
     // 左右端の余白も、カンバン間の区切り線までの余白と同じにする。
     const compactPadding = p;
     const step = columnWidth + gap;
@@ -86,13 +88,21 @@ export function boardGeometry(
       compact: false,
     };
   }
-  const columnWidth = (containerWidth - p * 2 - gap * (limit - 1) - PEEK_PX * 2) / limit;
+  const columnWidth = (containerWidth - p * 2 - gap * (limit - 1) - peekWidth * 2) / limit;
   const step = columnWidth + gap;
   const max = Math.max(0, p * 2 + n * columnWidth + (n - 1) * gap - containerWidth);
   const offsets = Array.from({ length: n - limit + 1 }, (_, k) =>
-    clamp(k * step - PEEK_PX, 0, max),
+    clamp(k * step - peekWidth, 0, max),
   );
-  return { visible: limit, columnWidth, step, padding: p, offsets, peek: PEEK_PX, compact: false };
+  return {
+    visible: limit,
+    columnWidth,
+    step,
+    padding: p,
+    offsets,
+    peek: peekWidth,
+    compact: false,
+  };
 }
 
 /** スクロール量 x にいちばん近い「止まる位置」の番号 */
@@ -107,7 +117,9 @@ export function nearestOffsetIndex(offsets: number[], x: number): number {
 /** 現在位置から見て、前（-1）/ 次（+1）の「止まる位置」。なければ null */
 export function adjacentOffset(offsets: number[], x: number, dir: -1 | 1): number | null {
   const found =
-    dir === 1 ? offsets.find((o) => o > x + 1) : [...offsets].reverse().find((o) => o < x - 1);
+    dir === 1
+      ? offsets.find((o) => o > x + UI_METRICS.scroll.positionTolerancePx)
+      : [...offsets].reverse().find((o) => o < x - UI_METRICS.scroll.positionTolerancePx);
   return found ?? null;
 }
 
@@ -120,5 +132,15 @@ export function columnIndexAt(x: number, scrollX: number, g: BoardGeometry, coun
 /** メニューの幅: PCは画面の約1/4、スマホは画面の約8割。 */
 export const sidebarWidthFor = (windowWidth: number, permanent: boolean): number =>
   permanent
-    ? Math.round(Math.min(400, Math.max(220, windowWidth * 0.25)))
-    : Math.round(Math.min(340, Math.max(260, windowWidth * 0.82)));
+    ? Math.round(
+        Math.min(
+          BOARD.desktopSidebarMaxWidth,
+          Math.max(BOARD.desktopSidebarMinWidth, windowWidth * BOARD.desktopSidebarWidthRatio),
+        ),
+      )
+    : Math.round(
+        Math.min(
+          BOARD.compactSidebarMaxWidth,
+          Math.max(BOARD.compactSidebarMinWidth, windowWidth * BOARD.compactSidebarWidthRatio),
+        ),
+      );

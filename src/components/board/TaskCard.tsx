@@ -2,17 +2,20 @@ import { useRef } from 'react';
 import { Keyboard, Platform, Pressable, StyleSheet, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { GestureDetector } from 'react-native-gesture-handler';
+import { UI_METRICS } from '@/config/layout';
+import { TIMING } from '@/config/timing';
 import { dueState, formatDue } from '@/domain/due';
 import type { Task } from '@/domain/types';
 import { t } from '@/i18n';
 import { nowMs } from '@/lib/clock';
 import { formatDateTime } from '@/lib/dates';
-import { SHADOW, SPACING, useTheme } from '@/theme';
+import { SHADOW, SPACING, useTheme, ICON_SIZE, OPACITY } from '@/theme';
+import { TASK_DUE_STATUS_COLORS } from '@/theme/taskColors';
 import { AppText } from '../ui/AppText';
 import { DropdownMenu, type MenuItem } from '../ui/DropdownMenu';
 import { Icon } from '../ui/Icon';
 import { useDragGesture, type DragHandlers } from './dragGesture';
-import { BORDER_WIDTH } from '@/theme/tokens';
+import { BORDER_WIDTH, BORDER_WIDTH_EMPHASIS } from '@/theme/tokens';
 import { canHover, isTouchWeb } from '@/lib/hover';
 
 interface Props {
@@ -79,12 +82,12 @@ export function TaskCard({
       ? colors.danger
       : state === 'today'
         ? isDark
-          ? '#FFB86B'
-          : '#B54708'
+          ? TASK_DUE_STATUS_COLORS.dark.today
+          : TASK_DUE_STATUS_COLORS.light.today
         : state === 'tomorrow'
           ? isDark
-            ? '#FDD663'
-            : '#9A6700'
+            ? TASK_DUE_STATUS_COLORS.dark.tomorrow
+            : TASK_DUE_STATUS_COLORS.light.tomorrow
           : colors.textMuted;
   const dueStatus =
     state === 'overdue'
@@ -112,8 +115,8 @@ export function TaskCard({
         {
           backgroundColor: colors.surface,
           borderColor: focused ? colors.focus : colors.border,
-          borderWidth: focused ? 2 : BORDER_WIDTH,
-          opacity: dragging ? 0.35 : 1,
+          borderWidth: focused ? BORDER_WIDTH_EMPHASIS : BORDER_WIDTH,
+          opacity: dragging ? OPACITY.draggingTask : OPACITY.fullyVisible,
         },
         grabbed && { backgroundColor: colors.hover, borderStyle: 'dashed' },
       ]}
@@ -153,14 +156,14 @@ export function TaskCard({
               accessibilityRole="button"
               accessibilityLabel={task.title}
               onPress={() => {
-                if (Date.now() - lastDragEnd.current > 300) open();
+                if (Date.now() - lastDragEnd.current > TIMING.taskClickAfterDragGuardMs) open();
               }}
               style={[styles.body, compact && styles.compactBody]}
             >
               <View style={styles.titleRow}>
                 <AppText
                   bold
-                  numberOfLines={compact ? 2 : undefined}
+                  numberOfLines={compact ? UI_METRICS.text.previewLines : undefined}
                   ellipsizeMode="tail"
                   style={[styles.title, strike]}
                 >
@@ -171,7 +174,7 @@ export function TaskCard({
                 <AppText
                   variant="caption"
                   muted
-                  numberOfLines={detailed ? undefined : 2}
+                  numberOfLines={detailed ? undefined : UI_METRICS.text.previewLines}
                   ellipsizeMode="tail"
                   style={strike}
                 >
@@ -182,10 +185,10 @@ export function TaskCard({
                 <View style={styles.metadataList}>
                   {showDueDate && due ? (
                     <View style={styles.metadataItem}>
-                      <Icon name="calendar" size={16} color={dueColor} />
+                      <Icon name="calendar" size={ICON_SIZE.md} color={dueColor} />
                       <AppText
                         variant="caption"
-                        numberOfLines={1}
+                        numberOfLines={UI_METRICS.text.singleLineMax}
                         ellipsizeMode="tail"
                         color={dueColor}
                         style={[styles.metadataText, strike]}
@@ -196,11 +199,11 @@ export function TaskCard({
                   ) : null}
                   {showUpdatedAt ? (
                     <View style={styles.metadataItem}>
-                      <Icon name="refresh" size={16} color={colors.textMuted} />
+                      <Icon name="refresh" size={ICON_SIZE.md} color={colors.textMuted} />
                       <AppText
                         variant="caption"
                         muted
-                        numberOfLines={1}
+                        numberOfLines={UI_METRICS.text.singleLineMax}
                         ellipsizeMode="tail"
                         style={[styles.metadataText, strike]}
                       >
@@ -227,7 +230,7 @@ export function TaskCard({
             { backgroundColor: pressed || (hovered && canHover) ? colors.hover : 'transparent' },
           ]}
         >
-          <Icon name={isLast ? 'uturn' : 'forward'} size={20} color={colors.textMuted} />
+          <Icon name={isLast ? 'uturn' : 'forward'} size={ICON_SIZE.xl} color={colors.textMuted} />
         </Pressable>
       ) : null}
     </View>
@@ -237,21 +240,29 @@ export function TaskCard({
 const styles = StyleSheet.create({
   // 高さは本文の内容に合わせる。固定の minHeight は1行タイトルの下に空白を作るため指定しない。
   card: { flexDirection: 'row', alignItems: 'stretch' },
-  colorButton: { width: 36, alignItems: 'center', justifyContent: 'center' },
+  colorButton: {
+    width: UI_METRICS.board.taskActionWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   anchor: { flex: 1, minWidth: 0 },
   body: {
     flex: 1,
     minWidth: 0,
-    paddingVertical: SPACING.md + 2,
+    paddingVertical: SPACING.md + UI_METRICS.board.taskContentPaddingAdjustment,
     paddingHorizontal: 0,
-    gap: SPACING.xs + 2,
+    gap: SPACING.xs + UI_METRICS.board.taskContentGapAdjustment,
     cursor: 'grab',
   } as never,
   compactBody: { paddingVertical: SPACING.sm },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   title: { flexShrink: 1 },
-  dot: { width: 12, height: 12, borderRadius: 6 },
-  emptyDot: { backgroundColor: 'transparent', borderWidth: 2 },
+  dot: {
+    width: UI_METRICS.board.colorDotSize,
+    height: UI_METRICS.board.colorDotSize,
+    borderRadius: UI_METRICS.board.colorDotSize / 2,
+  },
+  emptyDot: { backgroundColor: 'transparent', borderWidth: BORDER_WIDTH_EMPHASIS },
   metadataList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -269,6 +280,10 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   metadataText: { flexShrink: 1, minWidth: 0 },
-  advance: { width: 36, alignItems: 'center', justifyContent: 'center' },
-  done: { textDecorationLine: 'line-through', opacity: 0.6 },
+  advance: {
+    width: UI_METRICS.board.taskActionWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  done: { textDecorationLine: 'line-through', opacity: OPACITY.completed },
 });
