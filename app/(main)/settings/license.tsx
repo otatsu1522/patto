@@ -2,7 +2,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/ui/AppText';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { LICENSE_BODY } from '@/config/license';
-import { APP_COPYRIGHT } from '@/config/app';
+import { APP_DISPLAY_COPYRIGHT } from '@/config/app';
 import { BOARD } from '@/config/layout';
 import { t } from '@/i18n';
 import { BORDER_WIDTH, RADIUS, SPACING, useTheme } from '@/theme';
@@ -21,7 +21,7 @@ export default function LicenseScreen() {
         >
           <AppText variant="headline">MIT License</AppText>
           <AppText variant="caption" muted style={styles.copyright}>
-            {APP_COPYRIGHT}
+            {APP_DISPLAY_COPYRIGHT}
           </AppText>
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
           <AppText variant="caption" style={styles.body}>

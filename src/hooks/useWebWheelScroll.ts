@@ -19,6 +19,8 @@ export interface WebWheelScrollOptions {
   touchScroll?: boolean;
   /** スクロール要素に設定する touch-action。 */
   touchAction?: string;
+  /** これ以上長押しされたタッチは、カードのドラッグ操作に任せる。 */
+  touchLongPressMs?: number;
 }
 
 /**
@@ -29,6 +31,7 @@ export interface WebWheelScrollOptions {
 export function useWebWheelScroll({
   touchScroll = true,
   touchAction = 'pan-y',
+  touchLongPressMs,
 }: WebWheelScrollOptions = {}) {
   const scrollRef = useRef<ScrollView>(null);
 
@@ -44,6 +47,7 @@ export function useWebWheelScroll({
     let startX = 0;
     let startY = 0;
     let lastY = 0;
+    let touchStartedAt = 0;
     let touchAxis: 'pending' | 'vertical' | 'horizontal' = 'pending';
     let trackingTouch = false;
 
@@ -101,12 +105,23 @@ export function useWebWheelScroll({
       startX = touch.clientX;
       startY = touch.clientY;
       lastY = touch.clientY;
+      touchStartedAt = Date.now();
       touchAxis = 'pending';
       trackingTouch = true;
     };
 
     const onTouchMove = (event: TouchEvent) => {
       if (!element || !trackingTouch || event.touches.length !== 1) return;
+      if (
+        touchAxis === 'pending' &&
+        touchLongPressMs !== undefined &&
+        Date.now() - touchStartedAt >= touchLongPressMs
+      ) {
+        // スクロール方向が決まる前の長押しだけ、カードのドラッグ操作に譲る。
+        // 縦スクロールを開始した後は、400ms を超えてもスクロールを継続する。
+        resetTouch();
+        return;
+      }
       const touch = event.touches[0];
       const dx = touch.clientX - startX;
       const dy = touch.clientY - startY;
@@ -189,7 +204,7 @@ export function useWebWheelScroll({
       observer?.disconnect();
       detach();
     };
-  }, [touchAction, touchScroll]);
+  }, [touchAction, touchScroll, touchLongPressMs]);
 
   return scrollRef;
 }

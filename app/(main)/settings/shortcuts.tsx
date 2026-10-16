@@ -1,5 +1,12 @@
-import { useEffect, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Fragment, useEffect, useState } from 'react';
+import {
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { AppText } from '@/components/ui/AppText';
 import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
@@ -12,6 +19,7 @@ import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
 import {
   SHORTCUT_ACTIONS,
   displayKey,
+  displayKeyParts,
   findConflict,
   isModifierOnly,
   keyToString,
@@ -30,11 +38,20 @@ const INFO_KEYS: StringKey[] = [
   'shortcut.info5',
   'shortcut.info6',
   'shortcut.info7',
+  'shortcut.info8',
 ];
+
+/** 表示するキーの幅から、キー欄を必要最小限の幅で表示するための概算。 */
+const estimatedComboWidth = (shortcut: string) => {
+  const parts = displayKeyParts(shortcut);
+  const keysWidth = parts.reduce((width, part) => width + Math.max(18, part.length * 7) + 4, 0);
+  return keysWidth + Math.max(0, parts.length - 1) * 4 + 2;
+};
 
 /** キーボードショートカットの確認・変更（Web版）。 */
 export default function ShortcutSettings() {
   const scrollRef = useWebWheelScroll();
+  const { width: windowWidth } = useWindowDimensions();
   const { colors } = useTheme();
   const settings = useSettingsStore((s) => s.settings);
   const update = useSettingsStore((s) => s.update);
@@ -43,13 +60,13 @@ export default function ShortcutSettings() {
   const [message, setMessage] = useState<{ id: ActionId; text: string } | null>(null);
   const [info, setInfo] = useState(false);
 
-  // この画面を開いている間は、ほかのショートカット（タスク作成など）が反応しないようにする
+  // この画面を開いている間は、ほかのショートカット（タスク作成など）が反応しないようにする。
   useEffect(() => {
     useUiStore.getState().pushDialog();
     return () => useUiStore.getState().popDialog();
   }, []);
 
-  // キー入力の待ち受け
+  // キー入力の待ち受け。
   useEffect(() => {
     if (!capturing || Platform.OS !== 'web') return;
     const onKey = (e: KeyboardEvent) => {
@@ -95,6 +112,38 @@ export default function ShortcutSettings() {
     setCapturing(id);
   };
 
+  const maxKeyFieldWidth = Math.max(120, Math.min(440, windowWidth * 0.52));
+  const keyFieldWidth = (id: ActionId) => {
+    const keys = bindings[id];
+    const chipsWidth = keys.reduce(
+      (total, key) => total + estimatedComboWidth(key) + SPACING.xs,
+      0,
+    );
+    const desiredWidth =
+      SPACING.sm * 2 +
+      BORDER_WIDTH * 2 +
+      chipsWidth +
+      (capturing === id ? 92 : 52) +
+      (keys.length ? SPACING.xs : 0);
+    return Math.min(maxKeyFieldWidth, Math.max(120, desiredWidth));
+  };
+
+  const renderComboParts = (shortcut: string) =>
+    displayKeyParts(shortcut).map((part, index) => (
+      <Fragment key={`${part}-${index}`}>
+        {index > 0 ? (
+          <AppText variant="caption" muted style={styles.comboPlus}>
+            +
+          </AppText>
+        ) : null}
+        <View style={[styles.keyCap, { backgroundColor: 'transparent' }]}>
+          <AppText variant="caption" bold>
+            {part}
+          </AppText>
+        </View>
+      </Fragment>
+    ));
+
   return (
     <View style={styles.fill}>
       <ScreenHeader title={t('settings.shortcuts')} />
@@ -111,7 +160,7 @@ export default function ShortcutSettings() {
 
           <View style={styles.infoRow}>
             <AppText variant="caption" muted style={styles.flex}>
-              {t('settings.shortcutsFixed')}
+              {t('settings.shortcutsGuide')}
             </AppText>
             <IconButton
               icon="info"
@@ -124,65 +173,107 @@ export default function ShortcutSettings() {
           </View>
 
           <Section>
+            <View style={styles.row}>
+              <View style={styles.labelBlock}>
+                <AppText style={styles.label}>{t('settings.shortcutsEscape')}</AppText>
+                <AppText variant="caption" muted>
+                  {t('settings.shortcutsEscapeHint')}
+                </AppText>
+              </View>
+              <View
+                pointerEvents="none"
+                style={[
+                  styles.keyField,
+                  styles.fixedKeyField,
+                  { borderColor: colors.border, backgroundColor: colors.bg },
+                ]}
+              >
+                <View style={[styles.combo, styles.fixedCombo, { borderColor: colors.divider }]}>
+                  <View style={styles.keyCap}>
+                    <AppText variant="caption" bold>
+                      Esc
+                    </AppText>
+                  </View>
+                </View>
+              </View>
+            </View>
+            <Divider />
             {SHORTCUT_ACTIONS.map((a, i) => (
               <View key={a.id}>
                 {i > 0 ? <Divider /> : null}
                 <View style={styles.row}>
                   <AppText style={styles.label}>{t(a.labelKey)}</AppText>
-                  <View style={styles.keys}>
+                  <View
+                    accessibilityLabel={t('settings.shortcutsAdd')}
+                    accessibilityHint={t('settings.shortcutsGuide')}
+                    onStartShouldSetResponder={() => true}
+                    onResponderRelease={() => {
+                      if (capturing !== a.id) startCapture(a.id);
+                    }}
+                    style={[
+                      styles.keyField,
+                      bindings[a.id].length === 0 ? styles.emptyKeyField : undefined,
+                      { width: keyFieldWidth(a.id) },
+                      {
+                        borderColor: capturing === a.id ? colors.accent : colors.border,
+                        backgroundColor: colors.surface,
+                      },
+                      Platform.OS === 'web' ? ({ cursor: 'pointer' } as never) : undefined,
+                    ]}
+                  >
                     {bindings[a.id].map((k) => (
                       <Pressable
                         key={k}
                         accessibilityRole="button"
                         accessibilityLabel={`${t('settings.shortcutsRemove')}: ${displayKey(k)}`}
-                        onPress={() =>
+                        onPress={(event) => {
+                          event.stopPropagation();
                           setKeys(
                             a.id,
                             bindings[a.id].filter((x) => x !== k),
-                          )
-                        }
-                        style={[
-                          styles.key,
-                          { borderColor: colors.border, backgroundColor: colors.hover },
+                          );
+                        }}
+                        style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
+                          styles.combo,
+                          {
+                            borderColor: colors.border,
+                            backgroundColor: pressed || hovered ? colors.hover : colors.bg,
+                          },
                         ]}
                       >
-                        <AppText variant="caption" bold>
-                          {displayKey(k)}
-                        </AppText>
+                        {renderComboParts(k)}
                       </Pressable>
                     ))}
-                    {bindings[a.id].length === 0 || capturing === a.id ? (
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={t('shortcut.emptySlot')}
-                        onPress={() => startCapture(a.id)}
+                    {capturing === a.id ? (
+                      <View
+                        pointerEvents="none"
+                        style={[styles.captureSlot, { borderColor: colors.accent }]}
+                      >
+                        <AppText variant="caption" color={colors.accent}>
+                          {t('settings.shortcutsPressShort')}
+                        </AppText>
+                      </View>
+                    ) : (
+                      <View
+                        pointerEvents="none"
                         style={[
-                          styles.slot,
-                          { borderColor: capturing === a.id ? colors.accent : colors.divider },
+                          styles.addSlot,
+                          { borderColor: colors.border, backgroundColor: colors.bg },
                         ]}
                       >
-                        {capturing === a.id ? (
-                          <AppText variant="caption" color={colors.accent}>
-                            {t('settings.shortcutsPress')}
-                          </AppText>
-                        ) : null}
-                      </Pressable>
-                    ) : null}
-                    <IconButton
-                      icon="add"
-                      label={t('settings.shortcutsAdd')}
-                      onPress={() => startCapture(a.id)}
-                      box={34}
-                      size={18}
-                    />
-                    <IconButton
-                      icon="restore"
-                      label={t('settings.shortcutsReset')}
-                      onPress={() => reset(a.id)}
-                      box={34}
-                      size={18}
-                    />
+                        <AppText variant="caption" muted style={styles.addHint}>
+                          {t('settings.shortcutsAddShort')}
+                        </AppText>
+                      </View>
+                    )}
                   </View>
+                  <IconButton
+                    icon="restore"
+                    label={t('settings.shortcutsReset')}
+                    onPress={() => reset(a.id)}
+                    box={34}
+                    size={18}
+                  />
                 </View>
                 {message?.id === a.id ? (
                   <AppText variant="caption" color={colors.danger} style={styles.rowMessage}>
@@ -225,35 +316,66 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.md,
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.xs,
-    minHeight: 52,
+    gap: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    minHeight: 56,
   },
-  label: { flex: 1 },
-  keys: {
+  labelBlock: { flex: 1, minWidth: 0, gap: SPACING.xs },
+  label: { flex: 1, minWidth: 0 },
+  keyField: {
+    flexGrow: 0,
+    flexShrink: 1,
+    minWidth: 0,
+    minHeight: 42,
+    borderWidth: BORDER_WIDTH,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.xs,
     flexWrap: 'wrap',
-    justifyContent: 'flex-end',
-    maxWidth: '60%',
+    gap: SPACING.xs,
   },
-  key: {
-    minWidth: 30,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 4,
-    borderRadius: RADIUS.sm,
-    borderWidth: BORDER_WIDTH,
+  emptyKeyField: { justifyContent: 'center' },
+  fixedKeyField: { opacity: 0.65 },
+  combo: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 3,
+    borderWidth: BORDER_WIDTH,
+    borderRadius: RADIUS.sm,
+    paddingHorizontal: 4,
+    paddingVertical: 3,
+    minHeight: 30,
   },
-  /** キーがない（または追加待ち）の点線の四角 */
-  slot: {
-    minWidth: 44,
-    minHeight: 28,
-    paddingHorizontal: SPACING.sm,
+  fixedCombo: { backgroundColor: 'transparent' },
+  keyCap: {
+    minWidth: 18,
+    minHeight: 22,
+    paddingHorizontal: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  comboPlus: { paddingHorizontal: 1 },
+  addSlot: {
+    minWidth: 52,
+    minHeight: 30,
+    paddingHorizontal: SPACING.xs,
     borderWidth: BORDER_WIDTH,
     borderStyle: 'dashed',
+    borderRadius: RADIUS.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addHint: { textAlign: 'center' },
+  captureSlot: {
+    minHeight: 30,
+    minWidth: 92,
+    paddingHorizontal: SPACING.xs,
+    borderWidth: BORDER_WIDTH,
+    borderStyle: 'dashed',
+    borderRadius: RADIUS.sm,
     alignItems: 'center',
     justifyContent: 'center',
   },

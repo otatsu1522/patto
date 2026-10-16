@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Keyboard, Pressable, StyleSheet, View } from 'react-native';
+import { Keyboard, Platform, Pressable, StyleSheet, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { GestureDetector } from 'react-native-gesture-handler';
 import { dueState, formatDue } from '@/domain/due';
@@ -13,7 +13,7 @@ import { DropdownMenu, type MenuItem } from '../ui/DropdownMenu';
 import { Icon } from '../ui/Icon';
 import { useDragGesture, type DragHandlers } from './dragGesture';
 import { BORDER_WIDTH } from '@/theme/tokens';
-import { canHover } from '@/lib/hover';
+import { canHover, isTouchWeb } from '@/lib/hover';
 
 interface Props {
   task: Task;
@@ -142,7 +142,11 @@ export function TaskCard({
         items={menuItems}
         anchorStyle={styles.anchor}
         trigger={(open) => (
-          <GestureDetector gesture={gesture} touchAction="manipulation" enableContextMenu={false}>
+          <GestureDetector
+            gesture={gesture}
+            touchAction={Platform.OS === 'web' && isTouchWeb ? 'auto' : 'manipulation'}
+            enableContextMenu={false}
+          >
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={task.title}

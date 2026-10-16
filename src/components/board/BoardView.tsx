@@ -75,7 +75,7 @@ interface Props {
    * 画面上部のバー。スマホではメニューと一緒に横へ動かす（メニューを開くと、画面全体が右へずれてメニューが現れる）。
    * PCでは、ボードの上にそのまま表示する。
    */
-  header?: ReactNode;
+  header?: (active: boolean) => ReactNode;
   /** この値が変わったら（プロジェクトの切り替えなど）、スクロールを最初の位置に戻す */
   resetKey?: string;
 }
@@ -132,8 +132,11 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
   // メニューの幅ぶん、カンバンが右へずれるので、カンバンの止まる位置もその分ずらす。
   const pane = mode !== 'expanded';
   const menuWidth = sidebarWidthFor(windowWidth, false);
-  /** メニューの幅と列間のすき間を加え、閉じた位置で先頭カンバンの外側余白を維持する。 */
-  const menuShift = pane ? menuWidth + BOARD.columnGap - geo.padding : 0;
+  // ネイティブは従来どおり gap 分を含めて位置を合わせる。
+  // Web はメニュー領域の右余白を相殺するため、現在の Web 配置を維持する。
+  const menuShift = pane
+    ? menuWidth + (Platform.OS === 'web' ? BOARD.columnGap / 2 : BOARD.columnGap) - geo.padding
+    : 0;
   /** カンバンごとの「止まる位置」（メニューを含む） */
   const offsets = useMemo(() => geo.offsets.map((o) => o + menuShift), [geo.offsets, menuShift]);
   /** 横スクロールが吸着する位置。メニューを開いた位置（0）も含める */
@@ -142,6 +145,9 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
   const maxOffset = offsets[offsets.length - 1] ?? 0;
   /** スマホでは、メニューを画面の上端まで広げるため、カンバンの上にヘッダーの高さの空きを作る */
   const headerOffset = pane ? BOARD.headerHeight : 0;
+  // スマホ Web ではヘッダー／フッターを ScrollView 内の sticky レイヤーに置く。
+  // メニュー開閉時は実スクロールに同期して移動し、カンバン横移動中は左端に固定する。
+  const webInlineChrome = Platform.OS === 'web' && mode === 'compact' && pane && !!header;
   const menuVisible = pane && scrollX < closedX - 2;
   const pagerOpacity = useMemo(
     () =>
@@ -155,16 +161,17 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
   const closedXRef = useRef(closedX);
   closedXRef.current = closedX;
   const scrollUiSnapshotRef = useRef<ScrollUiSnapshot | null>(null);
-  // メニュー右端の X 座標。スクロールと同時に動かし、ヘッダー／フッターの線を縦線へ接続する。
+  // メニューとカンバンの境界線をつなぐ幅。Web では sticky レイヤー内の線に使う。
   const menuEdgeWidth = Math.max(0, closedX - menuWidth);
-  const menuEdgeLeft = useMemo(
+  // メニューを開いているときだけ、ヘッダー下線をメニュー右端からつなぐ。
+  const menuBridgeOpacity = useMemo(
     () =>
-      scrollAnim.interpolate({
-        inputRange: [0, Math.max(1, closedX)],
-        outputRange: [menuWidth, menuWidth - closedX],
+      pagerOpacity.interpolate({
+        inputRange: [0, 1],
+        outputRange: [1, 0],
         extrapolate: 'clamp',
       }),
-    [scrollAnim, menuWidth, closedX],
+    [pagerOpacity],
   );
 
   const scrollToX = useCallback((x: number, animated = true) => {
@@ -329,7 +336,8 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
     }
     menuTargetRef.current = null;
   };
-  // メニューを開くほど（スクロール位置が左端に近いほど）、ヘッダーを右へずらす
+  // メニューの開閉に合わせてヘッダー／フッターを移動する。
+  // closedX より先のカンバン横スクロールでは補間値が 0 で固定される。
   const headerShift = useMemo(
     () =>
       scrollAnim.interpolate({
@@ -461,14 +469,13 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
 
   const page = nearestOffsetIndex(offsets, scrollX);
   const showButtons = geo.peek > 0;
-  // スマホ縦では、ページインジケーター用のフッターを確保し、
-  // カンバン本体はその上端まで伸ばす。PC では下部に余白を残さない。
+  // インジケーターのフッターを確保し、タスク一覧がその下に入り込まない高さにする。
   const pagerHeight = geo.compact && columns.length > 1 ? 32 : 0;
   const columnHeight = Math.max(0, size.height - headerOffset - pagerHeight);
 
   return (
     <View style={styles.fill}>
-      {!pane ? header : null}
+      {!pane ? (header?.(true) ?? null) : null}
       <View ref={containerRef} style={styles.fill} onLayout={onLayout} collapsable={false}>
         {columns.length === 0 && !pane ? (
           <EmptyState title={t('column.empty')} hint={t('column.emptyHint')} />
@@ -504,7 +511,7 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                   : undefined,
               ]}
               contentContainerStyle={{
-                paddingTop: headerOffset,
+                paddingTop: webInlineChrome ? 0 : headerOffset,
                 paddingBottom: 0,
                 paddingHorizontal: geo.padding,
                 gap: BOARD.columnGap,
@@ -518,7 +525,8 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                       width: menuWidth,
                       height: size.height,
                       marginLeft: -geo.padding,
-                      marginTop: -headerOffset,
+                      marginRight: Platform.OS === 'web' ? -BOARD.columnGap / 2 : undefined,
+                      marginTop: webInlineChrome ? 0 : -headerOffset,
                     },
                     Platform.OS === 'web' && geo.compact
                       ? ({ scrollSnapAlign: 'start', scrollSnapStop: 'always' } as never)
@@ -534,60 +542,303 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                   />
                 </View>
               ) : null}
-              {columns.length === 0 ? (
+              {Platform.OS === 'web' && webInlineChrome && header ? (
                 <View
-                  style={{ width: geo.columnWidth, height: columnHeight, justifyContent: 'center' }}
+                  pointerEvents="box-none"
+                  style={[
+                    styles.webChromeSticky,
+                    {
+                      width: size.width,
+                      height: size.height,
+                      // ScrollView の中で、最初のカンバンが始まる座標に置く。
+                      // position: sticky により、メニューの開閉は横スクロールと同時に動き、
+                      // カンバンを次へ横スクロールしても左端に固定される。
+                      marginLeft: closedX - menuWidth - BOARD.columnGap / 2,
+                      marginRight: menuWidth - closedX - size.width - BOARD.columnGap / 2,
+                    } as never,
+                  ]}
                 >
-                  <EmptyState title={t('column.empty')} hint={t('column.emptyHint')} />
+                  <View
+                    style={[
+                      styles.headerOverlay,
+                      {
+                        left: 0,
+                        width: size.width,
+                        height: BOARD.headerHeight,
+                      },
+                    ]}
+                  >
+                    {header?.(true) ?? null}
+                  </View>
+                  <View
+                    pointerEvents="none"
+                    style={[
+                      styles.headerLineBridge,
+                      {
+                        left: menuWidth - closedX,
+                        width: menuEdgeWidth,
+                        top: BOARD.headerHeight - BORDER_WIDTH,
+                        height: BORDER_WIDTH,
+                        backgroundColor: colors.border,
+                        opacity: menuBridgeOpacity,
+                      },
+                    ]}
+                  />
+                  {pagerHeight > 0 ? (
+                    <>
+                      <Animated.View
+                        pointerEvents={menuVisible ? 'none' : 'auto'}
+                        style={[
+                          styles.pagerFooter,
+                          {
+                            left: 0,
+                            right: 0,
+                            height: pagerHeight,
+                            opacity: pagerOpacity,
+                            backgroundColor: colors.bg,
+                            borderTopWidth: 0,
+                          },
+                        ]}
+                      >
+                        <View style={styles.dots}>
+                          {columns.map((c, i) => (
+                            <Pressable
+                              key={c.id}
+                              accessibilityRole="button"
+                              accessibilityLabel={c.title}
+                              onPress={() => scrollToX(offsets[i] ?? 0)}
+                              hitSlop={8}
+                            >
+                              <View
+                                style={[
+                                  styles.dot,
+                                  { backgroundColor: i === page ? colors.text : colors.border },
+                                ]}
+                              />
+                            </Pressable>
+                          ))}
+                          <AppText variant="caption" muted style={styles.pageText}>
+                            {t('board.pageIndicator', { index: page + 1, total: columns.length })}
+                          </AppText>
+                        </View>
+                      </Animated.View>
+                      {/* フッター本体はメニュー表示中に隠すが、境界線は独立させて残す。 */}
+                      <View
+                        pointerEvents="none"
+                        style={[
+                          styles.footerLineOverlay,
+                          {
+                            left: 0,
+                            right: 0,
+                            bottom: pagerHeight - BORDER_WIDTH,
+                            height: BORDER_WIDTH,
+                            backgroundColor: colors.divider,
+                          },
+                        ]}
+                      />
+                      <View
+                        pointerEvents="none"
+                        style={[
+                          styles.footerLineBridge,
+                          {
+                            left: menuWidth - closedX,
+                            width: menuEdgeWidth,
+                            bottom: pagerHeight - BORDER_WIDTH,
+                            height: BORDER_WIDTH,
+                            backgroundColor: colors.divider,
+                            opacity: menuBridgeOpacity,
+                          },
+                        ]}
+                      />
+                    </>
+                  ) : null}
                 </View>
               ) : null}
-              {columns.map((column, index) => (
-                <ColumnView
-                  key={column.id}
-                  column={column}
-                  tasks={tasksOf(column.id)}
-                  index={index}
-                  count={columns.length}
-                  width={geo.columnWidth}
-                  height={columnHeight}
-                  webSnapAlign={
-                    Platform.OS === 'web' && geo.compact
-                      ? index === 0
-                        ? 'start'
-                        : 'center'
-                      : undefined
-                  }
-                  webSnapPadding={geo.padding}
-                  compactCards={props.compactCards}
-                  detailedCards={props.detailedCards}
-                  showTaskDescription={props.showTaskDescription}
-                  showTaskDueDate={props.showTaskDueDate}
-                  showTaskUpdatedAt={props.showTaskUpdatedAt}
-                  cursorTaskIndex={cursor && cursor.columnIndex === index ? cursor.taskIndex : null}
-                  grabbed={!!cursor?.grabbed}
-                  dropTarget={
-                    dragInfo !== null &&
-                    hoverIndex === index &&
-                    !(dragInfo.kind === 'column' && dragInfo.column.id === column.id)
-                  }
-                  draggingTaskId={dragInfo?.kind === 'task' ? dragInfo.task.id : null}
-                  draggingColumn={dragInfo?.kind === 'column' && dragInfo.column.id === column.id}
-                  menuItems={props.menuItemsFor(column, index)}
-                  taskMenu={props.taskMenuFor}
-                  onAdvance={props.onAdvance}
-                  onAddTask={() => props.onAddTask(column)}
-                  onCopyTitle={props.onCopyTitle}
-                  connectHeaderLineToMenu={pane && index === 0}
-                  onTaskMeasure={(taskId, node) => {
-                    if (node) taskNodeRefs.current.set(taskId, node);
-                    else taskNodeRefs.current.delete(taskId);
-                  }}
-                  taskDrag={taskDragHandlers}
-                  columnDrag={columnDragHandlers(column)}
-                  blurSignal={blurSignal}
-                  onRefresh={props.onRefresh}
-                />
-              ))}
+              {columns.length === 0 ? (
+                webInlineChrome ? (
+                  <View
+                    key="web-empty-page"
+                    style={[styles.webColumnPage, { width: geo.columnWidth, height: size.height }]}
+                  >
+                    <View
+                      pointerEvents="none"
+                      style={[
+                        styles.webPageHeader,
+                        { width: geo.columnWidth, height: headerOffset },
+                      ]}
+                    />
+                    <View
+                      style={{
+                        width: geo.columnWidth,
+                        height: columnHeight,
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <EmptyState title={t('column.empty')} hint={t('column.emptyHint')} />
+                    </View>
+                    {pagerHeight > 0 ? <View style={{ height: pagerHeight }} /> : null}
+                  </View>
+                ) : (
+                  <View
+                    style={{
+                      width: geo.columnWidth,
+                      height: columnHeight,
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <EmptyState title={t('column.empty')} hint={t('column.emptyHint')} />
+                  </View>
+                )
+              ) : null}
+              {columns.map((column, index) => {
+                const snapAlign =
+                  Platform.OS === 'web' && geo.compact
+                    ? index === 0
+                      ? 'start'
+                      : 'center'
+                    : undefined;
+                const columnView = (
+                  <ColumnView
+                    key={column.id}
+                    column={column}
+                    tasks={tasksOf(column.id)}
+                    index={index}
+                    count={columns.length}
+                    width={geo.columnWidth}
+                    height={columnHeight}
+                    webSnapAlign={webInlineChrome ? undefined : snapAlign}
+                    webSnapPadding={geo.padding}
+                    compactCards={props.compactCards}
+                    detailedCards={props.detailedCards}
+                    showTaskDescription={props.showTaskDescription}
+                    showTaskDueDate={props.showTaskDueDate}
+                    showTaskUpdatedAt={props.showTaskUpdatedAt}
+                    cursorTaskIndex={
+                      cursor && cursor.columnIndex === index ? cursor.taskIndex : null
+                    }
+                    grabbed={!!cursor?.grabbed}
+                    dropTarget={
+                      dragInfo !== null &&
+                      hoverIndex === index &&
+                      !(dragInfo.kind === 'column' && dragInfo.column.id === column.id)
+                    }
+                    draggingTaskId={dragInfo?.kind === 'task' ? dragInfo.task.id : null}
+                    draggingColumn={dragInfo?.kind === 'column' && dragInfo.column.id === column.id}
+                    menuItems={props.menuItemsFor(column, index)}
+                    taskMenu={props.taskMenuFor}
+                    onAdvance={props.onAdvance}
+                    onAddTask={() => props.onAddTask(column)}
+                    onCopyTitle={props.onCopyTitle}
+                    connectHeaderLineToMenu={pane && index === 0}
+                    onTaskMeasure={(taskId, node) => {
+                      if (node) taskNodeRefs.current.set(taskId, node);
+                      else taskNodeRefs.current.delete(taskId);
+                    }}
+                    taskDrag={taskDragHandlers}
+                    columnDrag={columnDragHandlers(column)}
+                    blurSignal={blurSignal}
+                    onRefresh={props.onRefresh}
+                  />
+                );
+
+                if (!webInlineChrome) return columnView;
+
+                return (
+                  <View
+                    key={`web-page-${column.id}`}
+                    style={[
+                      styles.webColumnPage,
+                      { width: geo.columnWidth, height: size.height },
+                      snapAlign
+                        ? ({
+                            scrollSnapAlign: snapAlign,
+                            scrollSnapStop: 'always',
+                            scrollMarginLeft: snapAlign === 'start' ? geo.padding : 0,
+                          } as never)
+                        : undefined,
+                    ]}
+                  >
+                    <View
+                      pointerEvents="none"
+                      style={[
+                        styles.webPageHeader,
+                        {
+                          width: geo.columnWidth,
+                          height: headerOffset,
+                        },
+                      ]}
+                    />
+                    {columnView}
+                    {pagerHeight > 0 ? (
+                      <View pointerEvents="none" style={{ height: pagerHeight }} />
+                    ) : null}
+                  </View>
+                );
+              })}
+              {Platform.OS === 'web' && pane && header && !webInlineChrome ? (
+                <>
+                  <View
+                    style={[
+                      styles.headerOverlay,
+                      { left: closedX, width: size.width, height: BOARD.headerHeight },
+                    ]}
+                  >
+                    {header?.(true) ?? null}
+                  </View>
+                  <View
+                    pointerEvents="none"
+                    style={[
+                      styles.headerLineBridge,
+                      {
+                        left: menuWidth,
+                        width: Math.max(0, closedX - menuWidth),
+                        top: BOARD.headerHeight - BORDER_WIDTH,
+                        height: BORDER_WIDTH,
+                        backgroundColor: colors.border,
+                      },
+                    ]}
+                  />
+                </>
+              ) : null}
+              {Platform.OS === 'web' && pagerHeight > 0 && !webInlineChrome ? (
+                <Animated.View
+                  pointerEvents={menuVisible ? 'none' : 'auto'}
+                  style={[
+                    styles.pagerFooter,
+                    {
+                      opacity: pagerOpacity,
+                      height: pagerHeight,
+                      left: menuWidth,
+                      width: Math.max(0, size.width + closedX - menuWidth),
+                      backgroundColor: colors.bg,
+                      borderTopColor: colors.divider,
+                      borderTopWidth: BORDER_WIDTH,
+                    },
+                  ]}
+                >
+                  <View style={styles.dots}>
+                    {columns.map((c, i) => (
+                      <Pressable
+                        key={c.id}
+                        accessibilityRole="button"
+                        accessibilityLabel={c.title}
+                        onPress={() => scrollToX(offsets[i] ?? 0)}
+                        hitSlop={8}
+                      >
+                        <View
+                          style={[
+                            styles.dot,
+                            { backgroundColor: i === page ? colors.text : colors.border },
+                          ]}
+                        />
+                      </Pressable>
+                    ))}
+                    <AppText variant="caption" muted style={styles.pageText}>
+                      {t('board.pageIndicator', { index: page + 1, total: columns.length })}
+                    </AppText>
+                  </View>
+                </Animated.View>
+              ) : null}
             </Animated.ScrollView>
 
             {showButtons ? (
@@ -635,7 +886,7 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
               </>
             ) : null}
 
-            {pagerHeight > 0 ? (
+            {Platform.OS !== 'web' && pagerHeight > 0 ? (
               <Animated.View
                 pointerEvents={menuVisible ? 'none' : 'auto'}
                 style={[
@@ -643,10 +894,10 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                   {
                     opacity: pagerOpacity,
                     height: pagerHeight,
-                    left: pane ? menuEdgeLeft : 0,
+                    left: 0,
+                    right: 0,
                     backgroundColor: colors.bg,
-                    borderTopColor: colors.divider,
-                    borderTopWidth: BORDER_WIDTH,
+                    transform: [{ translateX: pane ? headerShift : 0 }],
                   },
                 ]}
               >
@@ -701,28 +952,65 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
           </Animated.View>
         ) : null}
 
-        {/* スマホ: ヘッダーは、メニューを開くと画面全体といっしょに右へずれる */}
-        {pane && header ? (
+        {Platform.OS !== 'web' && pane && header ? (
           <>
             <Animated.View
               style={[
                 styles.headerOverlay,
-                { height: BOARD.headerHeight, transform: [{ translateX: headerShift }] },
+                {
+                  left: 0,
+                  right: 0,
+                  height: BOARD.headerHeight,
+                  transform: [{ translateX: headerShift }],
+                },
               ]}
             >
-              {header}
+              {header?.(true) ?? null}
             </Animated.View>
-            {/* ドロワー右端からヘッダー下線までの隙間を、スクロールに追従して埋める。 */}
             <Animated.View
               pointerEvents="none"
               style={[
                 styles.headerLineBridge,
                 {
-                  left: menuEdgeLeft,
+                  left: menuWidth - closedX,
                   width: menuEdgeWidth,
                   top: BOARD.headerHeight - BORDER_WIDTH,
                   height: BORDER_WIDTH,
                   backgroundColor: colors.border,
+                  transform: [{ translateX: headerShift }],
+                },
+              ]}
+            />
+          </>
+        ) : null}
+
+        {Platform.OS !== 'web' && pane && pagerHeight > 0 ? (
+          <>
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.footerLineOverlay,
+                {
+                  left: 0,
+                  right: 0,
+                  bottom: pagerHeight - BORDER_WIDTH,
+                  height: BORDER_WIDTH,
+                  backgroundColor: colors.divider,
+                  transform: [{ translateX: headerShift }],
+                },
+              ]}
+            />
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.footerLineBridge,
+                {
+                  left: menuWidth - closedX,
+                  width: menuEdgeWidth,
+                  bottom: pagerHeight - BORDER_WIDTH,
+                  height: BORDER_WIDTH,
+                  backgroundColor: colors.divider,
+                  transform: [{ translateX: headerShift }],
                 },
               ]}
             />
@@ -736,8 +1024,25 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   menuPane: { flexDirection: 'row' },
-  headerOverlay: { position: 'absolute', left: 0, right: 0, top: 0 },
+  webChromeSticky: {
+    position: 'sticky',
+    left: 0,
+    top: 0,
+    zIndex: 30,
+    flexShrink: 0,
+    overflow: 'visible',
+  } as never,
+  webColumnPage: {
+    position: 'relative',
+    flexDirection: 'column',
+    flexShrink: 0,
+    overflow: 'visible',
+  },
+  webPageHeader: { flexShrink: 0, alignSelf: 'flex-start', zIndex: 30 },
+  headerOverlay: { position: 'absolute', top: 0, zIndex: 30 },
   headerLineBridge: { position: 'absolute', zIndex: 30 },
+  footerLineOverlay: { position: 'absolute', zIndex: 30 },
+  footerLineBridge: { position: 'absolute', zIndex: 30 },
   navBtn: {
     position: 'absolute',
     top: 0,
@@ -749,9 +1054,7 @@ const styles = StyleSheet.create({
   navRight: { right: 2 },
   pagerFooter: {
     position: 'absolute',
-    right: 0,
     bottom: 0,
-    left: 0,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 20,

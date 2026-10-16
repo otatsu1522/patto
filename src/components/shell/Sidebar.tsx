@@ -242,7 +242,14 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate, onSwipeClos
   return (
     <View
       nativeID="patto-mobile-sidebar"
-      style={[styles.root, { width, backgroundColor: colors.surface }]}
+      style={[
+        styles.root,
+        { width, backgroundColor: colors.surface },
+        // ネイティブは初期 ZIP の右境界線を使用する。独立線は Web のみ。
+        Platform.OS !== 'web'
+          ? { borderRightColor: colors.border, borderRightWidth: BORDER_WIDTH }
+          : undefined,
+      ]}
     >
       {/* 画面上部のバーと同じ位置にメニューアイコンを置く（押すと閉じる） */}
       <View style={styles.brand}>
@@ -394,7 +401,9 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate, onSwipeClos
           }
         }}
       />
-      <View pointerEvents="none" style={[styles.rightEdge, { backgroundColor: colors.border }]} />
+      {Platform.OS === 'web' ? (
+        <View pointerEvents="none" style={[styles.rightEdge, { backgroundColor: colors.border }]} />
+      ) : null}
     </View>
   );
 }

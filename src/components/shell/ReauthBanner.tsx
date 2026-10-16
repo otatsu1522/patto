@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { TextField } from '../ui/TextField';
 import { useAuthStore } from '@/auth/authStore';
 import { t } from '@/i18n';
@@ -9,19 +9,17 @@ import { Dialog } from '../ui/Dialog';
 
 /** セッションの再認証が必要なとき、通常のテーマに沿ったダイアログでパスワードを再入力する。 */
 export function ReauthBanner() {
-  const { colors } = useTheme();
   const needs = useAuthStore((s) => s.needsReauth && s.identity?.mode === 'account');
+  if (!needs) return null;
+  return <ReauthPrompt />;
+}
+
+/** 表示中だけマウントし、再認証要求が解除されたら入力状態も破棄する。 */
+function ReauthPrompt() {
+  const { colors } = useTheme();
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    if (!needs) {
-      setPassword('');
-      setMessage(null);
-      setBusy(false);
-    }
-  }, [needs]);
 
   const submit = async () => {
     if (busy || !password) return;
@@ -43,7 +41,7 @@ export function ReauthBanner() {
 
   return (
     <Dialog
-      visible={needs}
+      visible
       title={t('auth.reauthSubmit')}
       onClose={() => {}}
       dismissible={false}

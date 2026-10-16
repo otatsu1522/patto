@@ -152,11 +152,12 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
         <TextField
           label={t('task.title')}
           value={title}
-          onChangeText={setTitle}
+          onChangeText={(value) => setTitle(value.replace(/[\r\n]+/g, ' '))}
           error={titleError}
           ref={titleInput}
+          key={`${visible ? 'open' : 'closed'}-${shownTask?.id ?? 'new'}`}
+          autoGrow
           onSubmitEditing={submit}
-          returnKeyType="done"
         />
         <ColorPicker label={t('task.color')} value={color} onChange={setColor} />
 

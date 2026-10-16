@@ -1,8 +1,8 @@
 import type { StringKey } from '@/i18n';
 
 /**
- * ショートカットで実行できる操作の一覧と既定のキー（すべて単キー）。
- * 既定のキーを変えるときはこのファイルを編集する。利用者は設定画面からも変更できる。
+ * ショートカットで実行できる操作の一覧と既定のキー。
+ * 単キーと修飾キーの組み合わせに対応し、利用者は設定画面から変更できる。
  */
 export const SHORTCUT_ACTIONS = [
   { id: 'cursorLeft', labelKey: 'shortcut.cursorLeft', keys: ['h'] },
@@ -36,14 +36,36 @@ export type ActionId = (typeof SHORTCUT_ACTIONS)[number]['id'];
 export type Bindings = Record<ActionId, string[]>;
 
 export const defaultBindings = (): Bindings =>
-  Object.fromEntries(SHORTCUT_ACTIONS.map((a) => [a.id, [...a.keys]])) as Bindings;
+  Object.fromEntries(
+    SHORTCUT_ACTIONS.map((a) => [a.id, a.keys.map(normalizeShortcutKey)]),
+  ) as Bindings;
+
+/**
+ * キー割り当てを正規形にする。以前保存された "N" や "ctrl+Z" も、
+ * それぞれ "shift+n" / "ctrl+shift+z" に変換して互換性を保つ。
+ */
+export function normalizeShortcutKey(shortcut: string): string {
+  const parts = shortcut.split('+');
+  let key = parts.pop() ?? '';
+  const modifiers = new Set(parts.map((part) => part.toLowerCase()));
+
+  // 以前の表現では、大文字の英字が Shift を意味していた。
+  if (/^[A-Z]$/.test(key)) {
+    modifiers.add('shift');
+    key = key.toLowerCase();
+  }
+
+  const order = ['ctrl', 'alt', 'shift', 'meta'];
+  const normalizedModifiers = order.filter((modifier) => modifiers.has(modifier));
+  return [...normalizedModifiers, key].join('+');
+}
 
 /** 既定値に、利用者の変更（overrides）を重ねたキー割り当て */
 export function resolveBindings(overrides: Record<string, string[]>): Bindings {
   const base = defaultBindings();
   for (const a of SHORTCUT_ACTIONS) {
     const o = overrides[a.id];
-    if (o) base[a.id] = o;
+    if (o) base[a.id] = o.map(normalizeShortcutKey);
   }
   return base;
 }
@@ -53,15 +75,22 @@ interface KeyLike {
   ctrlKey?: boolean;
   metaKey?: boolean;
   altKey?: boolean;
+  shiftKey?: boolean;
 }
 
-/** キー入力を "h" / "H" / "Enter" / "ctrl+z" のような文字列にする（Shiftは大文字・記号で表す）。 */
+/** キー入力を正規形にする。英字の Shift は明示し、記号は入力された記号自体で表す。 */
 export function keyToString(e: KeyLike): string {
-  const key = e.key === ' ' ? 'Space' : e.key;
-  const mods = [e.ctrlKey ? 'ctrl' : '', e.metaKey ? 'meta' : '', e.altKey ? 'alt' : ''].filter(
-    Boolean,
-  );
-  return [...mods, key].join('+');
+  const rawKey = e.key === ' ' ? 'Space' : e.key;
+  const isLetter = /^[a-z]$/i.test(rawKey);
+  const key = isLetter ? rawKey.toLowerCase() : rawKey;
+  const modifiers = [
+    e.ctrlKey ? 'ctrl' : '',
+    e.altKey ? 'alt' : '',
+    // 英字は大文字・小文字を区別し、Enter や矢印などは Shift も組み合わせとして扱う。
+    e.shiftKey && (isLetter || rawKey.length > 1) ? 'shift' : '',
+    e.metaKey ? 'meta' : '',
+  ].filter(Boolean);
+  return normalizeShortcutKey([...modifiers, key].join('+'));
 }
 
 export const isModifierOnly = (key: string): boolean =>
@@ -82,6 +111,27 @@ export function findConflict(bindings: Bindings, actionId: ActionId, key: string
   return null;
 }
 
-/** 表示用（Enter → ↵ など） */
-export const displayKey = (key: string): string =>
-  key === 'Space' ? 'Space' : key === 'Enter' ? 'Enter' : key;
+/** 表示用のキー単位。修飾キーと通常キーを個別のキーキャップとして表示する。 */
+export function displayKeyParts(shortcut: string): string[] {
+  const parts = normalizeShortcutKey(shortcut).split('+');
+  const key = parts.pop() ?? '';
+  const modifiers = parts.map((modifier) => {
+    switch (modifier) {
+      case 'ctrl':
+        return 'Ctrl';
+      case 'meta':
+        return 'Meta';
+      case 'alt':
+        return 'Alt';
+      case 'shift':
+        return 'Shift';
+      default:
+        return modifier;
+    }
+  });
+  const visibleKey = /^[a-z]$/.test(key) ? key.toUpperCase() : key;
+  return [...modifiers, visibleKey === 'Space' ? 'Space' : visibleKey];
+}
+
+/** 説明文・エラーメッセージ用（例: Ctrl + Shift + Z）。 */
+export const displayKey = (key: string): string => displayKeyParts(key).join(' + ');

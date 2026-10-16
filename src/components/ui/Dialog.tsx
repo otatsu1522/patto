@@ -21,6 +21,7 @@ import { SystemBars } from './SystemBars';
 import { getSystemBarInsets } from '@/lib/systemBarInsets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isTouchWeb } from '@/lib/hover';
+import { AuthInputFocusProvider, useInputFocusScroller } from '../auth/AuthInputFocusContext';
 
 interface Props {
   visible: boolean;
@@ -53,6 +54,7 @@ export function Dialog({
   const push = useUiStore((s) => s.pushDialog);
   const pop = useUiStore((s) => s.popDialog);
   const bodyScrollRef = useRef<ScrollView>(null);
+  const { revealFocusedInput, onScroll } = useInputFocusScroller(bodyScrollRef, visible);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   useEffect(() => {
@@ -153,24 +155,28 @@ export function Dialog({
                 },
               ]}
             >
-              <View style={styles.header}>
-                <AppText variant="title" style={styles.title} numberOfLines={1}>
-                  {title}
-                </AppText>
-                {dismissible ? (
-                  <IconButton icon="close" label={t('common.close')} onPress={onClose} />
-                ) : null}
-              </View>
-              <ScrollView
-                ref={bodyScrollRef}
-                style={styles.bodyScroll}
-                keyboardShouldPersistTaps="handled"
-                contentContainerStyle={styles.body}
-                automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
-              >
-                {children}
-              </ScrollView>
-              {footer ? <View style={styles.footer}>{footer}</View> : null}
+              <AuthInputFocusProvider value={revealFocusedInput}>
+                <View style={styles.header}>
+                  <AppText variant="title" style={styles.title} numberOfLines={1}>
+                    {title}
+                  </AppText>
+                  {dismissible ? (
+                    <IconButton icon="close" label={t('common.close')} onPress={onClose} />
+                  ) : null}
+                </View>
+                <ScrollView
+                  ref={bodyScrollRef}
+                  style={styles.bodyScroll}
+                  keyboardShouldPersistTaps="handled"
+                  contentContainerStyle={styles.body}
+                  onScroll={onScroll}
+                  scrollEventThrottle={16}
+                  automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+                >
+                  {children}
+                </ScrollView>
+                {footer ? <View style={styles.footer}>{footer}</View> : null}
+              </AuthInputFocusProvider>
             </Pressable>
           </Pressable>
           {overlay}

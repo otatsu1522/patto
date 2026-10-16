@@ -4,7 +4,7 @@ import { BackHandler, Platform, StyleSheet, View, useWindowDimensions } from 're
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { visibleProjects } from '@/domain/selectors';
 import { popUndo } from '@/features/undo';
-import { toggleBoardMenu, openBoardMenu } from '@/hooks/boardMenu';
+import { closeBoardMenu, toggleBoardMenu, openBoardMenu } from '@/hooks/boardMenu';
 import { sidebarWidthFor, useLayoutMode } from '@/hooks/useLayout';
 import { useProjectNavigation } from '@/hooks/useProjectNavigation';
 import { useShortcuts } from '@/shortcuts/useShortcuts';
@@ -77,6 +77,12 @@ export function AppShell({ children }: { children: ReactNode }) {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       // Dialog コンポーネントの Modal は onRequestClose で自身を閉じる。
       if (useUiStore.getState().dialogCount > 0) return false;
+      // スマホのメニューが開いている場合は、画面遷移や終了確認より先に閉じる。
+      if (mode !== 'expanded' && useUiStore.getState().menuVisible) {
+        closeBoardMenu();
+        lastBackPress.current = 0;
+        return true;
+      }
       // 設定などのサブ画面では通常のナビゲーションを優先する。
       const mainScreen = pathname === '/home' || pathname.startsWith('/project/');
       if (!mainScreen && router.canGoBack()) {
@@ -93,7 +99,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       return true;
     });
     return () => subscription.remove();
-  }, [pathname, router, toast]);
+  }, [mode, pathname, router, toast]);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.surface, paddingTop: insets.top }]}>

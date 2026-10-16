@@ -20,7 +20,6 @@ import { columnsOf, isActive, searchTasks, tasksOf } from '@/domain/selectors';
 import type { ColumnSortMode, KanbanColumn, Task } from '@/domain/types';
 import { useBoardActions } from '@/features/useBoardActions';
 import { popUndo } from '@/features/undo';
-import { useLayoutMode } from '@/hooks/useLayout';
 import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
 import { t } from '@/i18n';
 import {
@@ -45,8 +44,6 @@ export default function ProjectScreen() {
   const { colors } = useTheme();
   const boardRef = useRef<BoardViewHandle>(null);
   const { toast } = useFeedback();
-  const { mode } = useLayoutMode();
-  const pane = mode !== 'expanded';
 
   const ready = useDataStore((s) => s.ready);
   const projects = useDataStore((s) => s.projects);
@@ -102,6 +99,7 @@ export default function ProjectScreen() {
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // サイドバーの全体検索から別プロジェクトへ移動した場合、移動先で対象タスクの詳細を開く。
+  /* eslint-disable react-hooks/set-state-in-effect -- 外部ストアの遷移要求を消費し、移動先データが準備できた時点でローカルダイアログを開く。 */
   useEffect(() => {
     if (!ready || !id || pendingTaskDetail?.projectId !== id) return;
     const taskId = useUiStore.getState().consumePendingTaskDetail(id);
@@ -113,6 +111,7 @@ export default function ProjectScreen() {
       setTaskDetails(selected);
     }
   }, [ready, id, pendingTaskDetail, tasks]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // 検索ショートカット（/）で検索を開く
   useEffect(() => {
@@ -287,7 +286,9 @@ export default function ProjectScreen() {
           ? t('column.sort.created')
           : m === 'due'
             ? t('column.sort.due')
-            : t('column.sort.manual');
+            : m === 'color'
+              ? t('column.sort.color')
+              : t('column.sort.manual');
     return `${t('column.sortMode')}: ${label}`;
   };
   const columnMenu = (column: KanbanColumn, index: number): MenuItem[] => [
@@ -304,7 +305,7 @@ export default function ProjectScreen() {
       disabled: index === cols.length - 1,
       onPress: () => void store.moveColumn(column.id, index + 1),
     },
-    ...(['updated', 'created', 'due'] as ColumnSortMode[]).map((m, i) => ({
+    ...(['updated', 'created', 'due', 'color'] as ColumnSortMode[]).map((m, i) => ({
       label: sortLabel(m),
       icon: (column.sortMode === m ? 'check' : undefined) as MenuItem['icon'],
       separator: i === 0,
@@ -475,8 +476,9 @@ export default function ProjectScreen() {
     }
   };
 
-  const header = (
+  const header = (active: boolean) => (
     <BoardHeader
+      active={active}
       title={project.title}
       search={searching ? { value: query, onChange: setQuery, onClose: closeSearch } : null}
       right={

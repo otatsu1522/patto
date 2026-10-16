@@ -12,11 +12,13 @@ import { isNetworkError, mapAuthError } from './errors';
 import { getSupabase } from './supabase';
 
 const IDENTITY_KEY = 'patto:identity';
+const NEEDS_REAUTH_KEY = 'patto:needs-reauth';
 const BOOTSTRAP_TIMEOUT_MS = 20_000;
 let bootstrapInFlight: Promise<void> | null = null;
 let bootstrapGeneration = 0;
 let authListenerAttached = false;
 let identityRefreshInFlight: Promise<void> | null = null;
+let needsReauthPersistence: Promise<void> = Promise.resolve();
 /** Supabase 未設定のときのゲストが使う、端末内だけのユーザーID */
 const LOCAL_USER_ID = 'local';
 
@@ -77,6 +79,18 @@ export const useAuthStore = create<AuthState>((set, get) => {
     else await kv.remove(IDENTITY_KEY);
   }
 
+  /** 再認証要求は、リロードで消えてしまわないよう端末にも保存する。 */
+  function setNeedsReauthPersisted(required: boolean) {
+    set({ needsReauth: required });
+    // 非同期ストレージへの書き込み順を保ち、直前の値で上書きされないようにする。
+    needsReauthPersistence = needsReauthPersistence
+      .then(async () => {
+        if (required) await kv.set(NEEDS_REAUTH_KEY, '1');
+        else await kv.remove(NEEDS_REAUTH_KEY);
+      })
+      .catch(() => {});
+  }
+
   /** この端末でこのユーザーとして使い始める（端末内DBを開き、状態を保存する）。 */
   async function enter(
     identity: Identity,
@@ -113,6 +127,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
     await useDataStore.getState().close();
     if (identity) await destroyLocalDb(identity.userId);
     await persist(null);
+    setNeedsReauthPersisted(false);
     useSettingsStore.getState().update({ lastProjectId: null });
     set({ identity: null, status: 'signedOut', needsReauth: false });
   }
@@ -139,7 +154,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
       let timeoutId: ReturnType<typeof setTimeout> | undefined;
       const work = (async () => {
-        const raw = await kv.get(IDENTITY_KEY);
+        const [raw, savedNeedsReauth] = await Promise.all([
+          kv.get(IDENTITY_KEY),
+          kv.get(NEEDS_REAUTH_KEY),
+        ]);
         let identity: Identity | null = null;
         try {
           const parsed = raw ? (JSON.parse(raw) as Partial<Identity>) : null;
@@ -159,8 +177,19 @@ export const useAuthStore = create<AuthState>((set, get) => {
         // 通信せず、端末に保存した情報だけで判断する（オフラインでも起動できる）。
         if (identity) {
           await enter(identity, { isCurrent: () => generation === bootstrapGeneration });
+          if (
+            savedNeedsReauth === '1' &&
+            identity.mode === 'account' &&
+            !identity.local &&
+            useSettingsStore.getState().settings.syncMode !== 'off'
+          ) {
+            set({ needsReauth: true });
+          } else if (savedNeedsReauth === '1') {
+            setNeedsReauthPersisted(false);
+          }
         } else {
           set({ status: 'signedOut', bootstrapError: null });
+          if (savedNeedsReauth === '1') setNeedsReauthPersisted(false);
         }
 
         if (generation !== bootstrapGeneration) return;
@@ -170,11 +199,22 @@ export const useAuthStore = create<AuthState>((set, get) => {
           client.auth.onAuthStateChange((event, session) => {
             const current = get();
             if (
+              event === 'INITIAL_SESSION' &&
+              current.identity?.mode === 'account' &&
+              !current.identity.local &&
+              useSettingsStore.getState().settings.syncMode !== 'off'
+            ) {
+              // セッションがない／別ユーザーなら再認証を要求し、その状態をリロード後も維持する。
+              // セッションが存在するだけでは、直前に発生した認証エラーが解消したとは判断しない。
+              if (!session || session.user.id !== current.identity.userId) {
+                get().setNeedsReauth(true);
+              }
+            } else if (
               event === 'SIGNED_OUT' &&
               current.status === 'account' &&
               !current.identity?.local
             ) {
-              set({ needsReauth: true });
+              get().setNeedsReauth(true);
             } else if (
               event === 'USER_UPDATED' &&
               current.identity &&
@@ -270,6 +310,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
           email: data.user.email ?? '',
           displayName: displayNameOf(data.user),
         });
+        get().setNeedsReauth(false);
 
         // 初めてこのアカウントを使う端末ではローカルDBが空の場合がある。
         // 同期が有効なら初回ログイン時に一度取り込み、先頭プロジェクトをすぐ選べるようにする。
@@ -304,6 +345,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
           },
           { seedTutorial: true },
         );
+        get().setNeedsReauth(false);
         return { ok: true };
       } catch (e) {
         return fail(e);
@@ -318,6 +360,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
           { mode: 'guest', userId: LOCAL_USER_ID, email: '', displayName: '', local: true },
           { seedTutorial: true },
         );
+        get().setNeedsReauth(false);
         return { ok: true };
       }
       try {
@@ -328,6 +371,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
           { mode: 'guest', userId: data.user.id, email: '', displayName: '' },
           { seedTutorial: true },
         );
+        get().setNeedsReauth(false);
         return { ok: true };
       } catch (e) {
         return fail(e);
@@ -353,6 +397,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
         // 2) パスワードを設定する
         const step2 = await client.auth.updateUser({ password });
         if (step2.error) return { ok: false, message: mapAuthError(step2.error) };
+        get().setNeedsReauth(false);
         const next: Identity = {
           mode: 'account',
           userId: identity.userId,
@@ -390,7 +435,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
       const identity = get().identity;
       if (!identity?.email) return notConfigured();
       const res = await get().signIn(identity.email, password);
-      if (res.ok) set({ needsReauth: false });
+      if (res.ok) get().setNeedsReauth(false);
       return res;
     },
 
@@ -408,10 +453,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
         if (error) {
           const code = (error.code ?? '').toLowerCase();
           const message = error.message.toLowerCase();
-          if (
-            code === 'current_password_mismatch' ||
-            message.includes('current password')
-          ) {
+          if (code === 'current_password_mismatch' || message.includes('current password')) {
             return { ok: false, message: t('settings.currentPasswordIncorrect') };
           }
           if (
@@ -512,7 +554,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
       }
     },
 
-    setNeedsReauth: (v) => set({ needsReauth: v }),
+    setNeedsReauth: (v) => setNeedsReauthPersisted(v),
   };
 });
 

@@ -165,6 +165,7 @@ export const ja = {
   'column.sort.updated': '更新日順',
   'column.sort.created': '作成日順',
   'column.sort.due': '期限順',
+  'column.sort.color': '色順',
   'column.sort.manual': '手動',
   'column.deleteTitle': 'カンバンを削除',
   'column.deleteMessage': '「{name}」を削除します。中のタスク（{count} 件）はどうしますか？',
@@ -279,7 +280,8 @@ export const ja = {
   'settings.changePassword': 'パスワードを変更',
   'settings.passwordChanged': 'パスワードを変更しました。',
   'settings.currentPasswordIncorrect': '現在のパスワードが正しくありません。',
-  'settings.passwordMustDiffer': '新しいパスワードは現在のパスワードと異なるものを指定してください。',
+  'settings.passwordMustDiffer':
+    '新しいパスワードは現在のパスワードと異なるものを指定してください。',
   'settings.newPassword': '新しいパスワード',
   'settings.saveProfile': '表示名を保存',
   'settings.profileSaved': '保存しました。',
@@ -364,12 +366,19 @@ export const ja = {
   'settings.shortcutsReset': '初期設定に戻す',
   'settings.shortcutsResetAll': 'すべて初期設定に戻す',
   'settings.shortcutsAdd': 'キーを追加',
+  'settings.shortcutsAddShort': '追加',
+  'settings.shortcutsPressShort': '入力待ち...',
   'settings.shortcutsRemove': 'キーを削除',
   'settings.shortcutsConflict': '「{key}」は「{action}」で使われています。',
   'settings.shortcutsFixed': 'Esc は常に「キャンセル」に使われます。',
+  'settings.shortcutsGuide':
+    'Ctrl・Shift・Alt・Meta は、ショートカット内で別々のキーとして表示されます。',
+  'settings.shortcutsEscape': 'キャンセル',
+  'settings.shortcutsEscapeHint': 'Esc は常にキャンセルに使われ、変更できません。',
   'about.version': 'バージョン',
   'about.website': 'アプリのWeb版',
   'about.license': 'ライセンス',
+  'about.licenseDescription': 'ライセンスについて',
   'about.terms': '利用規約',
   'about.privacy': 'プライバシーポリシー',
   'about.contact': 'お問い合わせ',
@@ -496,15 +505,17 @@ export const ja = {
   'shortcut.infoTitle': 'キーボードショートカットの設定',
   'shortcut.info1': 'Esc は常に「キャンセル」に使われ、変更できません。',
   'shortcut.info2':
-    '各操作の行には、割り当てられたキーが四角で並びます。四角をタップ（クリック）すると、そのキーが削除されます。',
-  'shortcut.info3':
-    'キーがなくなっても、点線の四角が残ります。点線の四角か「＋」アイコンをタップして、続けてキーを押すと追加できます。',
-  'shortcut.info4': '1つの操作に、複数のキーを割り当てられます（例: 編集に e と Enter）。',
+    '各操作の欄に、割り当てられたショートカットがグループで表示されます。グループ内の四角は、同時に押すキーを表します。',
+  'shortcut.info3': 'ショートカットのグループをクリックすると、その割り当てを削除できます。',
+  'shortcut.info4':
+    'ショートカットの入力欄をクリックしてキーを押すと追加できます。1つの操作に複数のショートカットを割り当てられます。',
   'shortcut.info5':
-    'すでに別の操作で使われているキーは追加できません。その行に理由が表示されます。',
+    '別の操作で使われている組み合わせは追加できません。エラーの理由が該当行に表示されます。',
   'shortcut.info6':
-    '「元に戻す」アイコンで、その操作だけ初期のキーに戻します。画面下の「すべて初期設定に戻す」で全部を戻せます。',
+    '欄の外側にある「元に戻す」アイコンで、その操作だけ初期設定に戻せます。画面下のボタンでは全操作を戻せます。',
   'shortcut.info7': 'この設定画面を開いている間は、キーボードショートカットは動きません。',
+  'shortcut.info8':
+    'Ctrl・Shift・Alt・Meta は別々のキーとして表示されます。大文字の英字は Shift + 英字を表します。記号の入力キーはキーボード配列によって異なる場合があります。',
   'about.body1':
     'Patto は、オフラインでも使えるシンプルなカンバン式のTODOアプリです。プロジェクトの中にカンバン（列）を並べ、タスクのカードを動かして、いまやることを整理できます。',
   'about.body2':

@@ -5,14 +5,7 @@ import { Logo } from '@/components/ui/Logo';
 import { LinkRow, Section } from '@/components/ui/Rows';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
-import {
-  APP_DISPLAY_COPYRIGHT,
-  APP_LICENSE,
-  APP_LINKS,
-  APP_NAME,
-  APP_TECH,
-  APP_VERSION,
-} from '@/config/app';
+import { APP_DISPLAY_COPYRIGHT, APP_LINKS, APP_NAME, APP_TECH, APP_VERSION } from '@/config/app';
 import { BOARD } from '@/config/layout';
 import { t, type StringKey } from '@/i18n';
 import { BORDER_WIDTH, RADIUS, SPACING, useTheme } from '@/theme';
@@ -46,9 +39,6 @@ export default function AboutScreen() {
               <AppText muted>
                 {t('about.version')} {APP_VERSION}
               </AppText>
-              <AppText variant="caption" muted>
-                {APP_DISPLAY_COPYRIGHT}
-              </AppText>
             </View>
             <View style={styles.body}>
               {(
@@ -64,26 +54,23 @@ export default function AboutScreen() {
               ))}
             </View>
           </View>
-          <Section title={t('about.tech')}>
+          <Section>
             {APP_TECH.map((tech) => (
               <LinkRow
                 key={tech.name}
                 label={tech.name}
-                value=""
                 description={t(tech.descriptionKey as StringKey)}
                 onPress={() => void Linking.openURL(tech.url)}
               />
             ))}
-          </Section>
-          <Section>
             <LinkRow
-              label={t('about.website')}
+              label={APP_NAME}
               description={APP_WEB_URL}
               onPress={() => void Linking.openURL(APP_WEB_URL)}
             />
             <LinkRow
-              label={t('about.license')}
-              value={APP_LICENSE}
+              label="MIT"
+              description={t('about.licenseDescription')}
               onPress={() => router.navigate('/settings/license')}
             />
             {links.map((l) => (
@@ -91,6 +78,9 @@ export default function AboutScreen() {
             ))}
           </Section>
         </View>
+        <AppText variant="caption" muted style={styles.copyright}>
+          {APP_DISPLAY_COPYRIGHT}
+        </AppText>
       </ScrollView>
     </View>
   );
@@ -107,6 +97,7 @@ const styles = StyleSheet.create({
   } as never,
   content: { padding: SPACING.lg, alignItems: 'center', flexGrow: 1 },
   inner: { width: '100%', maxWidth: BOARD.dialogMaxWidth + 120, gap: SPACING.xl },
+  copyright: { textAlign: 'center', paddingTop: SPACING.xl, paddingBottom: SPACING.sm },
   introCard: {
     borderWidth: BORDER_WIDTH,
     borderRadius: RADIUS.lg,

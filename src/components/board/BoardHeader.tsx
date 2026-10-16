@@ -20,10 +20,12 @@ interface Props {
   search?: { value: string; onChange: (v: string) => void; onClose: () => void } | null;
   /** メニューアイコンを出すか（メニューが画面そのものになる画面では false） */
   menu?: boolean;
+  /** 横スクロールで複製表示する場合、検索フォーカスを受け取るページだけ true。 */
+  active?: boolean;
 }
 
 /** 画面上部のバー: 左にメニューアイコン、中央にタイトルと同期状態、右に横3点メニュー。 */
-export function BoardHeader({ title, right, search, menu = true }: Props) {
+export function BoardHeader({ title, right, search, menu = true, active = true }: Props) {
   const { colors, fs } = useTheme();
   const { mode } = useLayoutMode();
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
@@ -35,8 +37,10 @@ export function BoardHeader({ title, right, search, menu = true }: Props) {
 
   const searching = !!search;
   useEffect(() => {
-    if (searching) setTimeout(() => input.current?.focus(), 50);
-  }, [searching]);
+    if (!searching || !active) return;
+    const timer = setTimeout(() => input.current?.focus(), 50);
+    return () => clearTimeout(timer);
+  }, [searching, active]);
 
   return (
     <View
@@ -59,7 +63,6 @@ export function BoardHeader({ title, right, search, menu = true }: Props) {
           <Icon name="search" size={20} color={colors.textMuted} />
           <TextInput
             ref={input}
-            autoFocus
             value={search.value}
             onChangeText={search.onChange}
             placeholder={t('board.searchPlaceholder')}

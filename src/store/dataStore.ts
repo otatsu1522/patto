@@ -189,6 +189,74 @@ export const useDataStore = create<DataState>((set, get) => {
     });
   }
 
+  /** 既存データでも、チュートリアル生成時の未設定色だけを一度ずつ補完する。 */
+  async function migrateTutorialTaskColors(notify = false): Promise<void> {
+    const state = get();
+    const d = getDb();
+    let tutorialProjectId = await d.getMeta('tutorialProjectId');
+    const hasStoredTutorialId = !!tutorialProjectId;
+    // メタデータは端末ローカルなので、別端末で同期された TUTORIAL も識別できるようにする。
+    if (!tutorialProjectId) {
+      tutorialProjectId =
+        state.projects.find(
+          (p) =>
+            p.title === t(TUTORIAL_PROJECT_TITLE) &&
+            p.color === TUTORIAL_PROJECT_COLOR &&
+            isActive(p) &&
+            p.archivedAt === null,
+        )?.id ?? null;
+    }
+    if (!tutorialProjectId) return;
+
+    const project = state.projects.find((p) => p.id === tutorialProjectId);
+    if (!project) return;
+    const columns = state.columns
+      .filter((column) => column.projectId === tutorialProjectId)
+      .sort(compareBySortKey);
+    // 別端末では project メタデータがないため、サンプル由来の古いタスクが届くまで確定しない。
+    if (
+      !hasStoredTutorialId &&
+      (columns.length < DEFAULT_COLUMNS.length ||
+        !state.tasks.some(
+          (task) => task.projectId === tutorialProjectId && task.createdAt <= project.createdAt,
+        ))
+    ) {
+      return;
+    }
+    // ユーザーが既定カンバンの順番を変更している場合、別タスクの色を割り当てない。
+    if (columns.some((column) => (column.fieldUpdatedAt.sortKey ?? 0) > project.createdAt)) return;
+
+    const updatedAt = now();
+    const updatedTasks: Task[] = [];
+
+    columns.forEach((column, columnIndex) => {
+      const templates = TUTORIAL_TASKS[columnIndex] ?? [];
+      if (templates.length === 0) return;
+      for (const task of state.tasks) {
+        if (
+          task.projectId !== tutorialProjectId ||
+          task.columnId !== column.id ||
+          task.color != null ||
+          task.createdAt > project.createdAt ||
+          (task.fieldUpdatedAt.columnId ?? 0) > project.createdAt
+        ) {
+          continue;
+        }
+        // サンプル作成時は列内の順番ごとに createdAt を 1 秒ずつずらしている。
+        // タスク名がユーザーに編集されていても、作成済みのチュートリアルタスクを特定できる。
+        const templateIndex = Math.round((project.createdAt - task.createdAt) / 1000);
+        const template = templates[templateIndex];
+        if (template) updatedTasks.push(patchRecord(task, { color: template.color }, updatedAt));
+      }
+    });
+
+    // 起動途中に旧ユーザーの同期リスナーへ通知しない。dirty レコードは、認証確定後の同期で送信される。
+    if (updatedTasks.length > 0) await commit({ tasks: updatedTasks }, notify);
+    if (!(await d.getMeta('tutorialProjectId'))) {
+      await d.setMeta('tutorialProjectId', tutorialProjectId);
+    }
+  }
+
   return {
     ...emptySnapshot(),
     scope: null,
@@ -212,6 +280,12 @@ export const useDataStore = create<DataState>((set, get) => {
           const snap = await loadDbWithTimeout(opened);
           db = opened;
           set({ ...snap, scope, ownerId, ready: true });
+          // 見本タスクの色補完は起動を妨げる必須処理ではないため、失敗しても起動は継続する。
+          try {
+            await migrateTutorialTaskColors();
+          } catch {
+            // 次回の起動で再試行する。
+          }
         } catch (error) {
           // close() も同じ DB キューに並ぶので、ここでは完了を待たずに起動処理を解放する。
           void opened.close().catch(() => undefined);
@@ -267,6 +341,12 @@ export const useDataStore = create<DataState>((set, get) => {
       await d.upsert('projects', changes.projects ?? []);
       await d.upsert('kanban_columns', changes.columns ?? []);
       await d.upsert('tasks', changes.tasks ?? []);
+      // 別端末から取得した TUTORIAL にも未設定色を適用する。更新行は次の同期で送信する。
+      try {
+        await migrateTutorialTaskColors(true);
+      } catch {
+        // 色補完に失敗しても同期自体は成功扱いとし、次回の起動／同期で再試行する。
+      }
     },
 
     // ---- プロジェクト ----
@@ -660,6 +740,7 @@ export const useDataStore = create<DataState>((set, get) => {
                 columnId: column.id,
                 title: t(item.title),
                 description: t(item.description),
+                color: item.color,
               },
               key,
               column.isDoneColumn,

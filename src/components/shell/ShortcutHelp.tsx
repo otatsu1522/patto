@@ -1,6 +1,7 @@
+import { Fragment } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { t } from '@/i18n';
-import { SHORTCUT_ACTIONS, displayKey, resolveBindings } from '@/shortcuts/actions';
+import { SHORTCUT_ACTIONS, displayKeyParts, resolveBindings } from '@/shortcuts/actions';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useUiStore } from '@/store/uiStore';
 import { RADIUS, SPACING, useTheme } from '@/theme';
@@ -15,23 +16,54 @@ export function ShortcutHelp() {
   const setOpen = useUiStore((s) => s.setHelpOpen);
   const overrides = useSettingsStore((s) => s.settings.shortcutOverrides);
   const bindings = resolveBindings(overrides);
+  const renderCombo = (shortcut: string) => (
+    <View
+      key={shortcut}
+      style={[styles.combo, { borderColor: colors.border, backgroundColor: colors.hover }]}
+    >
+      {displayKeyParts(shortcut).map((part, index) => (
+        <Fragment key={`${part}-${index}`}>
+          {index > 0 ? (
+            <AppText variant="caption" muted style={styles.plus}>
+              +
+            </AppText>
+          ) : null}
+          <View style={styles.keyCap}>
+            <AppText variant="caption" bold>
+              {part}
+            </AppText>
+          </View>
+        </Fragment>
+      ))}
+    </View>
+  );
+
   return (
     <Dialog visible={open} title={t('settings.shortcuts')} onClose={() => setOpen(false)} wide>
+      <View style={styles.row}>
+        <View style={styles.labelBlock}>
+          <AppText style={styles.label}>{t('settings.shortcutsEscape')}</AppText>
+          <AppText variant="caption" muted>
+            {t('settings.shortcutsEscapeHint')}
+          </AppText>
+        </View>
+        <View
+          style={[styles.keyField, styles.fixedField, { borderColor: colors.border }]}
+          pointerEvents="none"
+        >
+          <View style={[styles.combo, { borderColor: colors.divider, backgroundColor: colors.bg }]}>
+            <View style={styles.keyCap}>
+              <AppText variant="caption" bold>
+                Esc
+              </AppText>
+            </View>
+          </View>
+        </View>
+      </View>
       {SHORTCUT_ACTIONS.map((a) => (
         <View key={a.id} style={styles.row}>
           <AppText style={styles.label}>{t(a.labelKey)}</AppText>
-          <View style={styles.keys}>
-            {bindings[a.id].map((k) => (
-              <View
-                key={k}
-                style={[styles.key, { borderColor: colors.border, backgroundColor: colors.hover }]}
-              >
-                <AppText variant="caption" bold>
-                  {displayKey(k)}
-                </AppText>
-              </View>
-            ))}
-          </View>
+          <View style={styles.keys}>{bindings[a.id].map(renderCombo)}</View>
         </View>
       ))}
     </Dialog>
@@ -39,15 +71,46 @@ export function ShortcutHelp() {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
-  label: { flex: 1 },
-  keys: { flexDirection: 'row', gap: SPACING.xs },
-  key: {
-    minWidth: 28,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 3,
-    borderRadius: RADIUS.sm,
-    borderWidth: BORDER_WIDTH,
+  row: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: SPACING.md,
+    paddingVertical: SPACING.xs,
   },
+  labelBlock: { flex: 1, minWidth: 0, gap: SPACING.xs },
+  label: { flex: 1, minWidth: 0 },
+  keys: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: SPACING.xs,
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+  },
+  keyField: {
+    flex: 1,
+    minWidth: 0,
+    borderWidth: BORDER_WIDTH,
+    borderRadius: RADIUS.md,
+    padding: SPACING.xs,
+    flexDirection: 'row',
+  },
+  fixedField: { opacity: 0.65 },
+  combo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    borderWidth: BORDER_WIDTH,
+    borderRadius: RADIUS.sm,
+    paddingHorizontal: 4,
+    paddingVertical: 3,
+    minHeight: 30,
+  },
+  keyCap: {
+    minWidth: 22,
+    minHeight: 22,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  plus: { paddingHorizontal: 1 },
 });

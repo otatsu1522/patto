@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useAuthStore } from '@/auth/authStore';
 import { AppText } from '@/components/ui/AppText';
 import { Button } from '@/components/ui/Button';
@@ -11,6 +11,10 @@ import { isSupabaseConfigured } from '@/config/env';
 import { BOARD } from '@/config/layout';
 import { LIMITS } from '@/config/limits';
 import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
+import {
+  AuthInputFocusProvider,
+  useInputFocusScroller,
+} from '@/components/auth/AuthInputFocusContext';
 import {
   firstError,
   validateEmail,
@@ -30,24 +34,30 @@ const pendingCount = () => {
 /** ゲスト: アカウント作成 / ログイン画面へ戻る。アカウント: 表示名・メールアドレス・パスワード変更・削除。 */
 export default function ProfileScreen() {
   const scrollRef = useWebWheelScroll();
+  const { revealFocusedInput, onScroll } = useInputFocusScroller(scrollRef);
   const identity = useAuthStore((s) => s.identity);
   return (
     <View style={styles.fill}>
       <ScreenHeader title={t('settings.profile')} />
-      <ScrollView
-        ref={scrollRef}
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.inner}>
-          {identity?.mode === 'guest' ? (
-            <GuestSection local={!!identity.local} />
-          ) : (
-            <AccountSections />
-          )}
-        </View>
-      </ScrollView>
+      <AuthInputFocusProvider value={revealFocusedInput}>
+        <ScrollView
+          ref={scrollRef}
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+        >
+          <View style={styles.inner}>
+            {identity?.mode === 'guest' ? (
+              <GuestSection local={!!identity.local} />
+            ) : (
+              <AccountSections />
+            )}
+          </View>
+        </ScrollView>
+      </AuthInputFocusProvider>
     </View>
   );
 }

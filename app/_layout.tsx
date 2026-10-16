@@ -40,7 +40,7 @@ if (
 }
 
 function Boot() {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const loaded = useSettingsStore((s) => s.loaded);
   const status = useAuthStore((s) => s.status);
   const bootstrapError = useAuthStore((s) => s.bootstrapError);

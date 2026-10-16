@@ -1,7 +1,8 @@
 import { generateKeyBetween } from 'fractional-indexing';
+import { TASK_COLOR_KEYS } from '@/theme/taskColors';
 import type { ColumnSortMode, Task } from './types';
 
-/** タスクの表示順: お気に入りが上 → 更新日順 / 作成日順 / 期限順 / 手動 */
+/** タスクの表示順: お気に入りが上 → 更新日順 / 作成日順 / 期限順 / 色順 / 手動 */
 export function compareTasks(mode: ColumnSortMode) {
   return (a: Task, b: Task): number => {
     if (a.isFavorite !== b.isFavorite) return a.isFavorite ? -1 : 1;
@@ -16,6 +17,15 @@ export function compareTasks(mode: ColumnSortMode) {
       const ad = a.dueAt ?? Number.POSITIVE_INFINITY;
       const bd = b.dueAt ?? Number.POSITIVE_INFINITY;
       diff = ad === bd ? 0 : ad < bd ? -1 : 1;
+      if (diff === 0) diff = b.updatedAt - a.updatedAt;
+    } else if (mode === 'color') {
+      // 色設定画面の並びと同じ順序。「色なし」は先頭。同じ色は最終更新順。
+      const colorOrder = (color: Task['color']) => {
+        if (color === null) return 0;
+        const index = TASK_COLOR_KEYS.indexOf(color);
+        return index < 0 ? TASK_COLOR_KEYS.length + 1 : index + 1;
+      };
+      diff = colorOrder(a.color) - colorOrder(b.color);
       if (diff === 0) diff = b.updatedAt - a.updatedAt;
     } else {
       diff = b.updatedAt - a.updatedAt;

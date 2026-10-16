@@ -1,7 +1,7 @@
 import type { TaskColorKey } from '@/theme/taskColors';
 
 export type TableName = 'projects' | 'kanban_columns' | 'tasks';
-export type ColumnSortMode = 'updated' | 'created' | 'due' | 'manual';
+export type ColumnSortMode = 'updated' | 'created' | 'due' | 'color' | 'manual';
 
 /** すべての同期対象レコードに共通の項目。 */
 export interface BaseRecord {

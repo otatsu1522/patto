@@ -11,7 +11,7 @@ import { Icon } from '../ui/Icon';
 import { IconButton } from '../ui/IconButton';
 import { useDragGesture, type DragHandlers } from './dragGesture';
 import { TaskCard } from './TaskCard';
-import { BORDER_WIDTH, SEPARATOR_WIDTH } from '@/theme/tokens';
+import { SEPARATOR_WIDTH } from '@/theme/tokens';
 import { canHover } from '@/lib/hover';
 import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
 
@@ -43,10 +43,10 @@ export interface ColumnViewProps {
   /** 「タスクを追加」を押したとき（作成ダイアログを開く） */
   onAddTask: () => void;
   onCopyTitle: (task: Task) => void;
+  /** メニュー右端と先頭カンバンのヘッダー下線を接続する */
+  connectHeaderLineToMenu?: boolean;
   /** 手動並び替えでタスクの画面位置を測るための参照登録 */
   onTaskMeasure: (taskId: string, node: View | null) => void;
-  /** スマホ Web のドロワー右端に、最初の列のヘッダー下線を接続する */
-  connectHeaderLineToMenu?: boolean;
   taskDrag: (task: Task) => DragHandlers;
   columnDrag: DragHandlers;
   /** 横スクロールなど他の操作が始まったら増える。入力欄のフォーカスを外す合図 */
@@ -58,9 +58,13 @@ export interface ColumnViewProps {
 export function ColumnView(p: ColumnViewProps) {
   const { colors, taskColor, isDark } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
-  // Web ではタスクカード内のどの項目上でもホイールスクロールを ScrollView に届ける。
-  // タッチ操作はブラウザ標準に任せ、縦横のスワイプを維持する。
-  const listRef = useWebWheelScroll({ touchScroll: false, touchAction: 'pan-x pan-y' });
+  // Web ではカードの本文・更新日時などから始めたタッチでも縦スクロールできるよう補助する。
+  // 縦方向だけ一覧を動かし、横方向のスワイプは外側のカンバンに任せる。
+  const listRef = useWebWheelScroll({
+    touchScroll: true,
+    touchAction: 'pan-x pan-y',
+    touchLongPressMs: GESTURE.longPressMs,
+  });
   const listViewportRef = useRef<View>(null);
   const listOffset = useRef(0);
   const taskRefs = useRef(new Map<string, View>());
@@ -101,7 +105,7 @@ export function ColumnView(p: ColumnViewProps) {
       });
     });
     return () => cancelAnimationFrame(frame);
-  }, [p.cursorTaskIndex, p.tasks, p.height]);
+  }, [p.cursorTaskIndex, p.tasks, p.height, listRef]);
 
   const card = (task: Task) => {
     const i = p.tasks.indexOf(task);
