@@ -115,33 +115,71 @@ Android エミュレーターを使用する場合は、Android の開発環境�
 
 Supabase を設定しなくても、端末内へのデータ保存とゲスト利用はできます。その場合、クラウド同期は行われません。
 
-## 5. コマンド
+## 5. 開発コマンド
 
-| コマンド            | 内容                                                         |
-| ------------------- | ------------------------------------------------------------ |
-| `pnpm typecheck`    | 型チェック                                                   |
-| `pnpm lint`         | ESLint によるコードチェック                                  |
-| `pnpm format`       | Prettier によるコード整形                                    |
-| `pnpm format:check` | コードを変更せずに整形状態を確認                             |
-| `pnpm export:web`   | Web 版を `dist/` に書き出す（Cloudflare Pages と同じビルド） |
+開発サーバー、型チェック、lint、コード整形、Web ビルド、依存パッケージの更新などのコマンドは [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) を参照してください。
 
-`pnpm format` はファイルを変更します。整形状態だけを確認する場合は `pnpm format:check` を使用してください。
+## 6. 公開と配布
 
-## 6. Web 版の公開
+公開・配布の操作は、対象プラットフォームごとに行う。公開前に `pnpm typecheck` と `pnpm lint` を実行し、エラーがないことを確認する。
 
-Cloudflare Pages に GitHub 連携で公開します。手順は [docs/DEPLOY.md](docs/DEPLOY.md) を参照してください。
+### 6.1 Web（Cloudflare Pages）
 
-Web 版のビルドは次のコマンドで実行できます。
+ローカルで Web 版をビルドして確認する。
 
-```bash
+```powershell
 pnpm export:web
 ```
 
-ビルド成果物は `dist/` に出力されます。
+ビルド成果物は `dist/` に出力される。本番環境は Cloudflare Pages と GitHub の連携で公開しており、通常は `main` ブランチへの push で自動デプロイされる。
 
-## 7. Android・iOS アプリのビルド・配布
+```powershell
+git status --short
+git add <変更したファイル>
+git commit -m "Describe the change"
+git push origin main
+```
 
-Android APK の作成、iPhone 実機へのインストール、EAS Build の設定、署名、環境変数、料金などの手順は、専用ドキュメント [docs/BUILD.md](docs/BUILD.md) を参照してください。
+`<変更したファイル>` は実際のファイル名に置き換える。`.env.local` や秘密情報をコミットしないこと。Cloudflare Pages の設定、環境変数、公開後の確認は [docs/DEPLOY.md](docs/DEPLOY.md) を参照する。
+
+公開 URL：<https://patto-board.pages.dev>
+
+### 6.2 Android
+
+端末へ直接インストールして確認するプレビュー APK は、プロジェクトルートで次を実行して作成する。
+
+```powershell
+npx eas-cli build --platform android --profile preview
+```
+
+これは `eas.json` の `preview` プロファイルを使った内部配布用 APK のビルドであり、Google Play への公開操作ではない。ビルド成果物の取得、署名、環境変数、インストールなどの詳しい手順は [docs/BUILD.md](docs/BUILD.md) を参照する。
+
+Google Play へ公開する場合は、ストア配布用のビルド・提出設定が別途必要。ビルドと配布の基本手順は [docs/BUILD.md](docs/BUILD.md) を参照し、Google Play Console での提出設定に従う。
+
+### 6.3 iOS
+
+iPhone 実機で確認するプレビュー用ビルドは、次を実行する。
+
+```powershell
+npx eas-cli build --platform ios --profile preview
+```
+
+これは `eas.json` の `preview` プロファイルを使った内部配布用ビルドであり、App Store への公開操作ではない。iPhone の登録、Apple の署名、ビルド成果物のインストールなどの詳しい手順は [docs/BUILD.md](docs/BUILD.md) を参照する。
+
+App Store へ公開する場合は、ストア配布用ビルドと提出手続きが別途必要。ビルドと配布の基本手順は [docs/BUILD.md](docs/BUILD.md) を参照し、App Store Connect での提出設定に従う。
+
+## 7. パッケージと開発環境の更新
+
+更新前に作業内容をコミットし、専用ブランチで次を実行します。
+
+```powershell
+git switch -c chore/update-dependencies
+pnpm up --latest
+pnpm exec expo install --fix
+pnpm dlx expo-doctor
+```
+
+これは依存パッケージを最新安定版へ更新する基本手順です。Expo SDK と各パッケージの互換性確認、`app.config.ts` のプラグイン追加、更新後の検証、バージョンを指定して更新する方法などは [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) を参照してください。
 
 ## 8. ディレクトリ構成
 
