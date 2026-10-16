@@ -1,11 +1,11 @@
 import { usePathname, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useAuthStore } from '@/auth/authStore';
 import { withAlpha } from '@/lib/color';
 import { APP_NAME } from '@/config/app';
 import { BOARD } from '@/config/layout';
-import { archivedProjects, searchTasks, visibleProjects } from '@/domain/selectors';
+import { archivedProjects, visibleProjects } from '@/domain/selectors';
 import type { Project } from '@/domain/types';
 import { pushUndo } from '@/features/undo';
 import { useProjectNavigation } from '@/hooks/useProjectNavigation';
@@ -14,9 +14,8 @@ import { t } from '@/i18n';
 import { useDataStore } from '@/store/dataStore';
 import { useUiStore } from '@/store/uiStore';
 import { syncNow } from '@/sync/controller';
-import { FONT, SPACING, useTheme } from '@/theme';
+import { SPACING, useTheme } from '@/theme';
 import { ProjectDialog } from '../board/NameDialogs';
-import { SearchResults } from '../board/SearchResults';
 import { AppText } from '../ui/AppText';
 import { DropdownMenu } from '../ui/DropdownMenu';
 import { useFeedback } from '../ui/FeedbackProvider';
@@ -36,9 +35,9 @@ interface Props {
   onSwipeClose?: () => void;
 }
 
-/** 左のメニュー: メニューアイコン+アプリ名、検索、プロジェクト一覧、新規作成、設定、同期状態。 */
+/** 左のメニュー: メニューアイコン+アプリ名、プロジェクト一覧、新規作成、検索、設定、同期状態。 */
 export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) {
-  const { colors, fs, taskColor } = useTheme();
+  const { colors, taskColor } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
   const { confirm, toast } = useFeedback();
@@ -48,14 +47,9 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
   const projects = useDataStore((s) => s.projects);
   const columns = useDataStore((s) => s.columns);
   const tasks = useDataStore((s) => s.tasks);
-  const searchTick = useUiStore((s) => s.searchFocusTick);
-
-  const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<Project | null>(null);
   const [showArchived, setShowArchived] = useState(false);
-  const searchRef = useRef<TextInput>(null);
   const projectScrollRef = useWebWheelScroll({ touchScroll: true, touchAction: 'pan-y' });
-  const mountedTick = useRef(searchTick);
   const onSwipeCloseRef = useRef(onSwipeClose);
   useEffect(() => {
     onSwipeCloseRef.current = onSwipeClose;
@@ -113,10 +107,6 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
     };
   }, []);
 
-  useEffect(() => {
-    if (searchTick !== mountedTick.current) searchRef.current?.focus();
-  }, [searchTick]);
-
   const list = useMemo(() => visibleProjects(projects), [projects]);
   const favorites = list.filter((p) => p.isFavorite);
   const normals = list.filter((p) => !p.isFavorite);
@@ -132,10 +122,6 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
     }
     return counts;
   }, [columns, tasks]);
-  const results = useMemo(
-    () => searchTasks({ projects, columns, tasks }, query),
-    [projects, columns, tasks, query],
-  );
   const currentId = pathname.startsWith('/project/') ? pathname.split('/')[2] : null;
 
   const open = useProjectNavigation();
@@ -261,28 +247,6 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
         </AppText>
       </View>
 
-      <View style={[styles.search, { borderBottomColor: colors.divider }]}>
-        <Icon name="search" size={18} color={colors.textMuted} />
-        <TextInput
-          ref={searchRef}
-          value={query}
-          onChangeText={setQuery}
-          placeholder={t('menu.search')}
-          placeholderTextColor={colors.textMuted}
-          accessibilityLabel={t('menu.search')}
-          style={[styles.searchInput, { color: colors.text, fontSize: fs(FONT.body) }]}
-        />
-        {query ? (
-          <IconButton
-            icon="close"
-            label={t('common.close')}
-            onPress={() => setQuery('')}
-            box={32}
-            size={16}
-          />
-        ) : null}
-      </View>
-
       <ScrollView
         ref={projectScrollRef}
         style={[
@@ -296,69 +260,64 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
         keyboardShouldPersistTaps="handled"
         persistentScrollbar
       >
-        {query.trim() ? (
-          <SearchResults
-            results={results}
-            projects={projects}
-            columns={columns}
-            onPress={(task) => {
-              useUiStore.getState().requestTaskDetail(task.projectId, task.id);
-              setQuery('');
-              open(task.projectId);
+        <View style={styles.listContent}>
+          {list.length === 0 ? (
+            <AppText muted style={styles.hint}>
+              {t('menu.noProjects')}
+            </AppText>
+          ) : null}
+          {favorites.map(row)}
+          {favorites.length > 0 && normals.length > 0 ? (
+            <View style={[styles.divider, { backgroundColor: colors.divider }]} />
+          ) : null}
+          {normals.map(row)}
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              useUiStore.getState().requestNewProject();
             }}
-          />
-        ) : (
-          <View style={styles.listContent}>
-            {list.length === 0 ? (
-              <AppText muted style={styles.hint}>
-                {t('menu.noProjects')}
-              </AppText>
-            ) : null}
-            {favorites.map(row)}
-            {favorites.length > 0 && normals.length > 0 ? (
-              <View style={[styles.divider, { backgroundColor: colors.divider }]} />
-            ) : null}
-            {normals.map(row)}
+            style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
+              styles.itemMain,
+              {
+                backgroundColor: pressed || (hovered && canHover) ? colors.hover : 'transparent',
+              },
+            ]}
+          >
+            <Icon name="add" size={20} color={colors.textMuted} />
+            <AppText muted numberOfLines={1} style={styles.flex}>
+              {t('menu.newProject')}
+            </AppText>
+          </Pressable>
 
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                useUiStore.getState().requestNewProject();
-              }}
-              style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
-                styles.itemMain,
-                {
-                  backgroundColor: pressed || (hovered && canHover) ? colors.hover : 'transparent',
-                },
-              ]}
-            >
-              <Icon name="add" size={20} color={colors.textMuted} />
-              <AppText muted numberOfLines={1} style={styles.flex}>
-                {t('menu.newProject')}
-              </AppText>
-            </Pressable>
-
-            {archived.length > 0 ? (
-              <>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => setShowArchived((v) => !v)}
-                  style={styles.archiveToggle}
-                >
-                  <Icon name={showArchived ? 'down' : 'right'} size={14} color={colors.textMuted} />
-                  <AppText variant="caption" muted>
-                    {t('menu.archivedProjects')} ({archived.length})
-                  </AppText>
-                </Pressable>
-                {showArchived ? archived.map(row) : null}
-              </>
-            ) : null}
-          </View>
-        )}
+          {archived.length > 0 ? (
+            <>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setShowArchived((v) => !v)}
+                style={styles.archiveToggle}
+              >
+                <Icon name={showArchived ? 'down' : 'right'} size={14} color={colors.textMuted} />
+                <AppText variant="caption" muted>
+                  {t('menu.archivedProjects')} ({archived.length})
+                </AppText>
+              </Pressable>
+              {showArchived ? archived.map(row) : null}
+            </>
+          ) : null}
+        </View>
       </ScrollView>
 
       <View style={[styles.rule, { backgroundColor: colors.divider }]} />
       <View style={styles.footer}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => useUiStore.getState().setGlobalSearchOpen(true)}
+          style={styles.footerRow}
+        >
+          <Icon name="search" size={20} color={colors.text} />
+          <AppText color={colors.text}>{t('menu.search')}</AppText>
+        </Pressable>
         <Pressable
           accessibilityRole="button"
           onPress={() => {
@@ -429,24 +388,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.sm,
     gap: SPACING.xs,
   },
-  search: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    // 線はサイドバーの左右端まで伸ばし、入力内容だけを内側に揃える。
-    paddingHorizontal: SPACING.lg,
-    borderBottomWidth: SEPARATOR_WIDTH,
-    minHeight: 44,
-    marginBottom: 0,
-  },
-  searchInput: {
-    flex: 1,
-    paddingVertical: SPACING.sm,
-    backgroundColor: 'transparent',
-    outlineStyle: 'none',
-  } as never,
-  // 検索欄の下に余分な大きい空白を作らず、少しだけ間隔を空ける。
-  listContent: { paddingTop: SPACING.xs, paddingBottom: SPACING.xs },
+  listContent: { paddingBottom: SPACING.xs },
   sectionTitle: { paddingHorizontal: SPACING.lg, paddingVertical: SPACING.xs },
   hint: { padding: SPACING.lg },
   item: { flexDirection: 'row', alignItems: 'center', paddingRight: 2 },

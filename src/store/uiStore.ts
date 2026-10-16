@@ -10,8 +10,10 @@ interface UiState {
   helpOpen: boolean;
   /** スマホ: メニューが画面に見えている（ヘッダーのメニューアイコンを隠す） */
   menuVisible: boolean;
-  /** 検索欄にフォーカスさせたいときに増やす */
-  searchFocusTick: number;
+  /** 全タスク検索ダイアログ */
+  globalSearchOpen: boolean;
+  /** 全タスク検索を開く際、最初に選択するプロジェクト（null はすべて） */
+  globalSearchProjectId: string | null;
   boardSearchFocusTick: number;
   /** 全体検索から遷移した後に開くタスク詳細 */
   pendingTaskDetail: { projectId: string; taskId: string } | null;
@@ -21,7 +23,7 @@ interface UiState {
   setShortcutsSuspended: (v: boolean) => void;
   toggleSidebarCollapsed: () => void;
   setHelpOpen: (v: boolean) => void;
-  focusSidebarSearch: () => void;
+  setGlobalSearchOpen: (v: boolean, projectId?: string | null) => void;
   focusBoardSearch: () => void;
   requestTaskDetail: (projectId: string, taskId: string) => void;
   consumePendingTaskDetail: (projectId: string) => string | null;
@@ -35,7 +37,8 @@ export const useUiStore = create<UiState>((set) => ({
   sidebarCollapsed: Platform.OS === 'web',
   helpOpen: false,
   menuVisible: false,
-  searchFocusTick: 0,
+  globalSearchOpen: false,
+  globalSearchProjectId: null,
   boardSearchFocusTick: 0,
   pendingTaskDetail: null,
   newProjectOpen: false,
@@ -44,8 +47,8 @@ export const useUiStore = create<UiState>((set) => ({
   setShortcutsSuspended: (v) => set({ shortcutsSuspended: v }),
   toggleSidebarCollapsed: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
   setHelpOpen: (v) => set({ helpOpen: v }),
-  focusSidebarSearch: () =>
-    set((s) => ({ searchFocusTick: s.searchFocusTick + 1, sidebarCollapsed: false })),
+  setGlobalSearchOpen: (v, projectId = null) =>
+    set({ globalSearchOpen: v, globalSearchProjectId: v ? projectId : null }),
   focusBoardSearch: () => set((s) => ({ boardSearchFocusTick: s.boardSearchFocusTick + 1 })),
   requestTaskDetail: (projectId, taskId) => set({ pendingTaskDetail: { projectId, taskId } }),
   consumePendingTaskDetail: (projectId) => {

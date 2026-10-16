@@ -255,7 +255,7 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
             {shownTask ? (
               <View style={styles.dates}>
                 <View style={styles.dateLine}>
-                  <Icon name="calendar" size={16} color={colors.textMuted} />
+                  <Icon name="edit" size={16} color={colors.textMuted} />
                   <AppText variant="caption" muted>
                     {t('task.createdAt')}: {formatDateTime(shownTask.createdAt)}
                   </AppText>
@@ -315,5 +315,10 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   /** 作成日と更新日: 横に並べて中央寄せ、間に余白 */
-  dates: { flexDirection: 'row', justifyContent: 'center', gap: SPACING.xl },
+  dates: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: SPACING.md,
+    marginBottom: -SPACING.sm,
+  },
 });

@@ -91,7 +91,9 @@ export const ja = {
   'menu.projects': '',
   'menu.newProject': 'プロジェクトを追加',
   'menu.settings': '設定',
-  'menu.search': 'すべてのタスクを検索',
+  'menu.search': '検索',
+  'menu.searchAll': 'すべてのプロジェクト',
+  'menu.searchClear': '検索文字をクリア',
   'menu.searchEmpty': '一致するタスクはありません',
   'menu.archivedProjects': 'アーカイブ済みのプロジェクト',
   'menu.noProjects': 'プロジェクトがありません。最初のプロジェクトを作りましょう。',
@@ -226,7 +228,7 @@ export const ja = {
 
   // 一括操作・アーカイブ・ごみ箱
   'board.menu': 'ボードのメニュー',
-  'board.archiveDone': 'DONEタスクをアーカイブする',
+  'board.archiveDone': 'DONEタスクをアーカイブ',
   'board.archiveDoneResult': '{count} 件のタスクをアーカイブしました',
   'board.archiveDoneNone': 'アーカイブするタスクはありません',
   'board.openArchive': 'アーカイブを見る',
@@ -359,7 +361,8 @@ export const ja = {
   'settings.trashRetention': '削除までの日数',
   'settings.trashClearAll': 'ごみ箱を空にする',
   'settings.archiveClearAll': 'アーカイブを完全に削除',
-  'settings.trashClearAllMessage': 'ごみ箱内の {count} 件のデータを完全に削除します。元に戻せません。',
+  'settings.trashClearAllMessage':
+    'ごみ箱内の {count} 件のデータを完全に削除します。元に戻せません。',
   'settings.archiveClearAllMessage':
     'アーカイブ内の {count} 件のデータを完全に削除します。ごみ箱には移動せず、元に戻せません。',
   'settings.clearPermanently': '完全に削除',
@@ -381,7 +384,7 @@ export const ja = {
   'about.version': 'バージョン',
   'about.website': 'アプリのWeb版',
   'about.license': 'ライセンス',
-  'about.licenseDescription': 'ライセンス',
+  'about.licenseDescription': 'MIT ライセンスの本文を確認できます',
   'about.terms': '利用規約',
   'about.privacy': 'プライバシーポリシー',
   'about.contact': 'お問い合わせ',
@@ -452,7 +455,7 @@ export const ja = {
     '右上の「…」メニューからカンバンの追加・複製・並び順変更ができます。カンバンのタイトルを長押し（PCはドラッグ）しても並び替えできます。',
   'tutorial.todo6.title': '検索する',
   'tutorial.todo6.desc':
-    'メニューの検索欄はすべてのプロジェクトが対象です。右上の「…」メニューの「カンバン内を検索」は、開いているプロジェクトのタスクを探します。',
+    'メニュー下部の「検索」から、すべてのプロジェクトまたは選んだプロジェクトのタスクを検索できます。右上の「…」メニューの「カンバン内を検索」は、開いているプロジェクトのタスクを探します。',
   'tutorial.todo7.title': 'オフラインと同期',
   'tutorial.todo7.desc':
     '通信がなくても使えます。設定のシステム設定で、同期を「オフ・手動・自動」から選べます。既存アカウントへのログイン時はデータを反映するため一度同期します。ログイン済みでアプリを開き直したときは、設定が「自動」の場合だけ自動同期します。メニュー下部の同期表示からも同期できます。',
@@ -508,7 +511,8 @@ export const ja = {
     'テーマ、文字サイズ、カードの表示量を変えます。変更はすぐに反映され、この端末だけに保存されます。',
   'settings.syncHint':
     '同期は、この端末のデータをサーバー（Supabase）と合わせる機能です。この設定は端末ごとなので、スマホとWebで別々に選べます。',
-  'settings.syncModeOffDesc': 'オフ: 通常は同期しません。既存アカウントへのログイン時だけデータを一度同期し、その後は同期を行いません。',
+  'settings.syncModeOffDesc':
+    'オフ: 通常は同期しません。既存アカウントへのログイン時だけデータを一度同期し、その後は同期を行いません。',
   'settings.syncModeManualDesc':
     '手動: 画面を下に引いたとき、同期アイコンやメニュー下部の同期表示をタップしたときだけ同期します。',
   'settings.syncModeAutoDesc':

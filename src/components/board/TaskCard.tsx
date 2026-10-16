@@ -136,7 +136,9 @@ export function TaskCard({
       >
         {task.color ? (
           <View style={[styles.dot, { backgroundColor: taskColor(task.color) }]} />
-        ) : null}
+        ) : (
+          <View style={[styles.dot, styles.emptyDot, { borderColor: colors.border }]} />
+        )}
       </Pressable>
       <DropdownMenu
         items={menuItems}
@@ -249,9 +251,24 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   title: { flexShrink: 1 },
   dot: { width: 12, height: 12, borderRadius: 6 },
-  metadataList: { flexDirection: 'column', alignItems: 'stretch', gap: SPACING.xs, minWidth: 0 },
-  metadataItem: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs, minWidth: 0 },
-  metadataText: { flex: 1, minWidth: 0 },
+  emptyDot: { backgroundColor: 'transparent', borderWidth: 2 },
+  metadataList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    columnGap: SPACING.md,
+    rowGap: SPACING.xs,
+    minWidth: 0,
+  },
+  metadataItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    minWidth: 0,
+    maxWidth: '100%',
+    flexShrink: 0,
+  },
+  metadataText: { flexShrink: 1, minWidth: 0 },
   advance: { width: 36, alignItems: 'center', justifyContent: 'center' },
   done: { textDecorationLine: 'line-through', opacity: 0.6 },
 });

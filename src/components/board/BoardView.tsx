@@ -104,6 +104,8 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
   const { mode, width: windowWidth } = useLayoutMode();
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [scrollX, setScrollX] = useState(0);
+  const [activePageIndex, setActivePageIndex] = useState(0);
+  const activePageIndexRef = useRef(0);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [dragInfo, setDragInfo] = useState<DragInfo | null>(null);
   const [blurSignal, setBlurSignal] = useState(0);
@@ -143,6 +145,16 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
   const snapOffsets = useMemo(() => (pane ? [0, ...offsets] : offsets), [pane, offsets]);
   const closedX = offsets[0] ?? 0;
   const maxOffset = offsets[offsets.length - 1] ?? 0;
+  const updateActivePage = useCallback(
+    (x: number) => {
+      const nextPage = nearestOffsetIndex(offsets, x);
+      if (activePageIndexRef.current !== nextPage) {
+        activePageIndexRef.current = nextPage;
+        setActivePageIndex(nextPage);
+      }
+    },
+    [offsets],
+  );
   /** スマホでは、メニューを画面の上端まで広げるため、カンバンの上にヘッダーの高さの空きを作る */
   const headerOffset = pane ? BOARD.headerHeight : 0;
   // スマホ Web ではヘッダー／フッターを ScrollView 内の sticky レイヤーに置く。
@@ -232,6 +244,9 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
       scrollRef.current?.scrollTo({ x: closedXRef.current, animated: false });
       scrollXRef.current = closedXRef.current;
       setScrollX(closedXRef.current);
+      const initialPage = nearestOffsetIndex(offsets, closedXRef.current);
+      activePageIndexRef.current = initialPage;
+      setActivePageIndex(initialPage);
       scrollUiSnapshotRef.current = {
         page: nearestOffsetIndex(offsets, closedXRef.current),
         menuVisible: false,
@@ -253,6 +268,9 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
     scrollRef.current?.scrollTo({ x: resetX, animated: false });
     scrollXRef.current = resetX;
     setScrollX(resetX);
+    const resetPage = nearestOffsetIndex(offsets, resetX);
+    activePageIndexRef.current = resetPage;
+    setActivePageIndex(resetPage);
     scrollUiSnapshotRef.current = {
       page: nearestOffsetIndex(offsets, resetX),
       menuVisible: false,
@@ -278,6 +296,8 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
   const onScrollEvent = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const x = e.nativeEvent.contentOffset.x;
     scrollXRef.current = x;
+    // ページ番号はスクロール中に独立して更新し、フッター表示をカンバン移動に即時追従させる。
+    updateActivePage(x);
 
     // アニメーション自体は Animated.Value で毎フレーム追従させ、React の再描画は
     // ページ・メニュー開閉・前後ボタンの表示が切り替わるときだけに限定する。
@@ -322,6 +342,7 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
   const onScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const x = e.nativeEvent.contentOffset.x;
     scrollXRef.current = x;
+    updateActivePage(x);
     const nextMenuVisible = pane && x < closedXRef.current - 2;
     // スクロール終了時にも snapshot を同期し、次のドラッグで誤って再描画が止まらないようにする。
     scrollUiSnapshotRef.current = {
@@ -467,7 +488,7 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
     end,
   });
 
-  const page = nearestOffsetIndex(offsets, scrollX);
+  const page = activePageIndex;
   const showButtons = geo.peek > 0;
   // インジケーターのフッターを確保し、タスク一覧がその下に入り込まない高さにする。
   const pagerHeight = geo.compact && columns.length > 1 ? 32 : 0;

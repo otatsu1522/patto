@@ -94,13 +94,13 @@ export function RecordDetailsDialog({ record, onClose, onEdit, projectName, colu
           </AppText>
         </View>
       </View>
+      {detail(t('common.description'), description || t('common.noDescription'), !description)}
       {detail(
         t('task.favorite'),
         task.isFavorite ? t('common.yes') : t('common.no'),
         false,
         task.isFavorite ? 'pin' : 'unpin',
       )}
-      {detail(t('common.description'), description || t('common.noDescription'), !description)}
       {detail(t('task.due'), due, task.dueAt === null, 'calendar')}
       {task.completedAt ? detail(t('task.completedAt'), formatDateTime(task.completedAt)) : null}
       {task.archivedAt ? detail(t('common.archive'), formatDateTime(task.archivedAt)) : null}
@@ -110,17 +110,23 @@ export function RecordDetailsDialog({ record, onClose, onEdit, projectName, colu
 
       <View style={[styles.dateRow, { borderTopColor: colors.divider }]}>
         <View style={styles.dateCell}>
-          <AppText variant="caption" muted style={styles.fieldLabel}>
-            {t('common.createdAt')}
-          </AppText>
+          <View style={styles.dateLabel}>
+            <Icon name="edit" size={16} color={colors.textMuted} />
+            <AppText variant="caption" muted style={styles.fieldLabel}>
+              {t('common.createdAt')}
+            </AppText>
+          </View>
           <AppText selectable style={styles.value}>
             {formatDateTime(task.createdAt)}
           </AppText>
         </View>
         <View style={styles.dateCell}>
-          <AppText variant="caption" muted style={styles.fieldLabel}>
-            {t('common.updatedAt')}
-          </AppText>
+          <View style={styles.dateLabel}>
+            <Icon name="refresh" size={16} color={colors.textMuted} />
+            <AppText variant="caption" muted style={styles.fieldLabel}>
+              {t('common.updatedAt')}
+            </AppText>
+          </View>
           <AppText selectable style={styles.value}>
             {formatDateTime(task.updatedAt)}
           </AppText>
@@ -135,6 +141,7 @@ const styles = StyleSheet.create({
   locationName: { flexShrink: 1 },
   section: { gap: SPACING.xs },
   fieldLabel: { alignSelf: 'flex-start' },
+  dateLabel: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs },
   valueRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, minWidth: 0 },
   value: { flexShrink: 1, minWidth: 0 },
   colorDot: { width: 12, height: 12, borderRadius: 6, flexShrink: 0 },

@@ -250,14 +250,18 @@ export default function ProjectScreen() {
       disabled: cols.length >= LIMITS.maxColumnsPerProject,
       onPress: () => setColumnDialog({ column: null }),
     },
-    { label: t('board.search'), icon: 'search', onPress: () => setSearching(true) },
+    {
+      label: t('board.search'),
+      icon: 'search',
+      onPress: () => useUiStore.getState().setGlobalSearchOpen(true, id ?? null),
+    },
     {
       label: t('board.archiveDone'),
-      icon: 'doneMode',
+      icon: 'archive',
       separator: true,
       onPress: () => void actions.archiveDone(),
     },
-    { label: t('board.openArchive'), icon: 'archive', onPress: () => setArchiveKind('archive') },
+    { label: t('board.openArchive'), icon: 'eye', onPress: () => setArchiveKind('archive') },
     {
       label: t('board.clearArchive'),
       icon: 'trash',
@@ -266,7 +270,7 @@ export default function ProjectScreen() {
     },
     {
       label: t('board.openTrash'),
-      icon: 'trash',
+      icon: 'eye',
       separator: true,
       onPress: () => setArchiveKind('trash'),
     },

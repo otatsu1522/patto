@@ -4,7 +4,7 @@ import { BackHandler, Platform, StyleSheet, View, useWindowDimensions } from 're
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { visibleProjects } from '@/domain/selectors';
 import { popUndo } from '@/features/undo';
-import { closeBoardMenu, toggleBoardMenu, openBoardMenu } from '@/hooks/boardMenu';
+import { closeBoardMenu, toggleBoardMenu } from '@/hooks/boardMenu';
 import { sidebarWidthFor, useLayoutMode } from '@/hooks/useLayout';
 import { useProjectNavigation } from '@/hooks/useProjectNavigation';
 import { useShortcuts } from '@/shortcuts/useShortcuts';
@@ -13,6 +13,7 @@ import { useSettingsStore } from '@/store/settingsStore';
 import { useUiStore } from '@/store/uiStore';
 import { syncNow } from '@/sync/controller';
 import { useTheme } from '@/theme';
+import { GlobalSearchDialog } from '../board/GlobalSearchDialog';
 import { ProjectDialog } from '../board/NameDialogs';
 import { useFeedback } from '../ui/FeedbackProvider';
 import { t } from '@/i18n';
@@ -38,6 +39,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
   const toggleCollapsed = useUiStore((s) => s.toggleSidebarCollapsed);
   const newProjectOpen = useUiStore((s) => s.newProjectOpen);
+  const globalSearchOpen = useUiStore((s) => s.globalSearchOpen);
+  const globalSearchProjectId = useUiStore((s) => s.globalSearchProjectId);
+  const setGlobalSearchOpen = useUiStore((s) => s.setGlobalSearchOpen);
   const setNewProjectOpen = useUiStore((s) => s.setNewProjectOpen);
 
   const permanent = mode === 'expanded';
@@ -57,8 +61,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     toggleSidebar: () => (permanent ? toggleCollapsed() : toggleBoardMenu()),
     search: () => {
       if (pathname.startsWith('/project/')) return useUiStore.getState().focusBoardSearch();
-      if (!permanent) openBoardMenu();
-      useUiStore.getState().focusSidebarSearch();
+      setGlobalSearchOpen(true);
     },
     openSettings: () => router.navigate('/settings'),
     nextProject: () => stepProject(1),
@@ -116,6 +119,16 @@ export function AppShell({ children }: { children: ReactNode }) {
       </View>
 
       <ShortcutHelp />
+      <GlobalSearchDialog
+        visible={globalSearchOpen}
+        initialProjectId={globalSearchProjectId}
+        onClose={() => setGlobalSearchOpen(false)}
+        onSelect={(task) => {
+          setGlobalSearchOpen(false);
+          useUiStore.getState().requestTaskDetail(task.projectId, task.id);
+          navigateToProject(task.projectId);
+        }}
+      />
       <ProjectDialog
         visible={newProjectOpen}
         project={null}

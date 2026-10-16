@@ -69,7 +69,7 @@ export default function AboutScreen() {
               onPress={() => void Linking.openURL(APP_WEB_URL)}
             />
             <LinkRow
-              label="MIT"
+              label="MIT License"
               description={t('about.licenseDescription')}
               onPress={() => router.navigate('/settings/license')}
             />

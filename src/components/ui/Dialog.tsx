@@ -33,8 +33,12 @@ interface Props {
   overlay?: ReactNode;
   /** 幅を広げたいとき（一覧表示など） */
   wide?: boolean;
+  /** ダイアログの本文全体はスクロールさせず、子要素内の一覧だけをスクロールさせる。 */
+  fixedBody?: boolean;
   /** false の場合、背景タップ・戻る操作・×ボタンで閉じられない */
   dismissible?: boolean;
+  /** ダイアログが表示された直後に呼び出す。入力欄の自動フォーカスなどに使用する。 */
+  onShow?: () => void;
 }
 
 /** ダイアログ。キーボードがないときは画面中央、入力中はキーボードの上の表示領域内に配置する。 */
@@ -46,7 +50,9 @@ export function Dialog({
   footer,
   overlay,
   wide,
+  fixedBody = false,
   dismissible = true,
+  onShow,
 }: Props) {
   const { colors } = useTheme();
   const insets = getSystemBarInsets(useSafeAreaInsets());
@@ -56,15 +62,25 @@ export function Dialog({
   const bodyScrollRef = useRef<ScrollView>(null);
   const { revealFocusedInput, onScroll } = useInputFocusScroller(bodyScrollRef, visible);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [webKeyboardHeight, setWebKeyboardHeight] = useState(0);
 
   useEffect(() => {
     if (Platform.OS === 'web') {
       if (!isTouchWeb || !window.visualViewport) return;
       const viewport = window.visualViewport;
-      const update = () => setKeyboardVisible(window.innerHeight - viewport.height > 120);
+      const update = () => {
+        const visibleBottom = viewport.offsetTop + viewport.height;
+        const keyboardHeight = Math.max(0, window.innerHeight - visibleBottom);
+        setWebKeyboardHeight(keyboardHeight);
+        setKeyboardVisible(keyboardHeight > 120);
+      };
       update();
       viewport.addEventListener('resize', update);
-      return () => viewport.removeEventListener('resize', update);
+      viewport.addEventListener('scroll', update);
+      return () => {
+        viewport.removeEventListener('resize', update);
+        viewport.removeEventListener('scroll', update);
+      };
     }
 
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -114,56 +130,73 @@ export function Dialog({
       transparent
       animationType="fade"
       onRequestClose={dismissible ? onClose : () => {}}
+      onShow={onShow}
       statusBarTranslucent
       navigationBarTranslucent
     >
       <View style={styles.modalRoot}>
         <SystemBars />
+        {/* 背景は全画面に固定する。キーボード表示時もメニューや画面本体を移動させない。 */}
+        <Pressable
+          style={[
+            StyleSheet.absoluteFill,
+            styles.backdropLayer,
+            { backgroundColor: colors.overlay },
+          ]}
+          onPress={dismissible ? onClose : undefined}
+          accessibilityLabel={t('common.close')}
+        />
+        {/* キーボード回避はダイアログ本体の位置決めだけに適用する。 */}
         <KeyboardAvoidingView
           behavior={
             Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined
           }
-          style={styles.fill}
+          style={[
+            styles.dialogPositioner,
+            {
+              paddingTop: insets.top + SPACING.lg,
+              paddingBottom:
+                Platform.OS === 'web' && webKeyboardHeight > 0
+                  ? webKeyboardHeight
+                  : keyboardVisible && Platform.OS !== 'web'
+                    ? 0
+                    : insets.bottom + SPACING.lg,
+              justifyContent: keyboardVisible ? 'flex-end' : 'center',
+            },
+          ]}
+          pointerEvents="box-none"
         >
           <Pressable
+            onPress={(e) => e.stopPropagation()}
             style={[
-              styles.backdrop,
+              styles.card,
+              SHADOW.float,
               {
-                backgroundColor: colors.overlay,
-                top: 0,
-                bottom: 0,
-                paddingTop: insets.top + SPACING.lg,
-                paddingBottom: keyboardVisible ? SPACING.md : insets.bottom + SPACING.lg,
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                maxWidth: compact
+                  ? ('100%' as never)
+                  : wide
+                    ? BOARD.dialogMaxWidth + 160
+                    : BOARD.dialogMaxWidth,
+                height: fixedBody ? (keyboardVisible ? '72%' : '82%') : undefined,
               },
             ]}
-            onPress={dismissible ? onClose : undefined}
-            accessibilityLabel={t('common.close')}
           >
-            <Pressable
-              onPress={(e) => e.stopPropagation()}
-              style={[
-                styles.card,
-                SHADOW.float,
-                {
-                  backgroundColor: colors.surface,
-                  borderColor: colors.border,
-                  maxWidth: compact
-                    ? ('100%' as never)
-                    : wide
-                      ? BOARD.dialogMaxWidth + 160
-                      : BOARD.dialogMaxWidth,
-                },
-              ]}
-            >
-              <AuthInputFocusProvider value={revealFocusedInput}>
-                <View style={styles.header}>
-                  <AppText variant="title" style={styles.title} numberOfLines={1}>
-                    {title}
-                  </AppText>
-                  {dismissible ? (
-                    <IconButton icon="close" label={t('common.close')} onPress={onClose} />
-                  ) : null}
+            <AuthInputFocusProvider value={revealFocusedInput}>
+              <View style={styles.header}>
+                <AppText variant="title" style={styles.title} numberOfLines={1}>
+                  {title}
+                </AppText>
+                {dismissible ? (
+                  <IconButton icon="close" label={t('common.close')} onPress={onClose} />
+                ) : null}
+              </View>
+              {fixedBody ? (
+                <View style={[styles.bodyScroll, styles.fixedBodyScroll]}>
+                  <View style={[styles.body, styles.fixedBodyContent]}>{children}</View>
                 </View>
+              ) : (
                 <ScrollView
                   ref={bodyScrollRef}
                   style={styles.bodyScroll}
@@ -175,27 +208,25 @@ export function Dialog({
                 >
                   {children}
                 </ScrollView>
-                {footer ? <View style={styles.footer}>{footer}</View> : null}
-              </AuthInputFocusProvider>
-            </Pressable>
+              )}
+              {footer ? <View style={styles.footer}>{footer}</View> : null}
+            </AuthInputFocusProvider>
           </Pressable>
-          {overlay}
         </KeyboardAvoidingView>
+        {overlay}
       </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  fill: { flex: 1 },
   modalRoot: { flex: 1 },
-  backdrop: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
+  backdropLayer: { zIndex: 0 },
+  dialogPositioner: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: SPACING.lg,
+    paddingHorizontal: SPACING.lg,
   },
   card: {
     width: '100%',
@@ -215,5 +246,7 @@ const styles = StyleSheet.create({
   title: { flex: 1 },
   bodyScroll: { flexShrink: 1, minHeight: 0 },
   body: { padding: SPACING.lg, gap: SPACING.md },
+  fixedBodyScroll: { flex: 1 },
+  fixedBodyContent: { flex: 1 },
   footer: { padding: SPACING.lg, paddingTop: SPACING.sm, gap: SPACING.sm },
 });

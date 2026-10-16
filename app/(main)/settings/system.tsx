@@ -216,14 +216,12 @@ export default function SystemSettings() {
               <Button
                 label={t('settings.import')}
                 variant="outline"
-                icon="download"
                 onPress={() => void doImport()}
                 fullWidth
               />
               <Button
                 label={t('settings.export')}
                 variant="outline"
-                icon="upload"
                 onPress={() => void doExport()}
                 fullWidth
               />
@@ -241,14 +239,12 @@ export default function SystemSettings() {
               <Button
                 label={t('settings.archiveClearAll')}
                 variant="outlineDanger"
-                icon="close"
                 onPress={() => void clearAll('archive')}
                 fullWidth
               />
               <Button
                 label={t('settings.trashClearAll')}
                 variant="outlineDanger"
-                icon="trash"
                 onPress={() => void clearAll('trash')}
                 fullWidth
               />
