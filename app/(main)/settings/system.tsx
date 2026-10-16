@@ -2,7 +2,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
 import { useAuthStore } from '@/auth/authStore';
 import { useFeedback } from '@/components/ui/FeedbackProvider';
-import { ChoiceRow, LinkRow, Section, SwitchRow } from '@/components/ui/Rows';
+import { ChoiceRow, Section, SwitchRow } from '@/components/ui/Rows';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { AppText } from '@/components/ui/AppText';
 import { Button } from '@/components/ui/Button';
@@ -58,8 +58,11 @@ export default function SystemSettings() {
     if (count === 0) return toast(t('board.clearNothing'));
     const r = await confirm({
       title: kind === 'trash' ? t('settings.trashClearAll') : t('settings.archiveClearAll'),
-      message: t('settings.clearAllMessage', { count }),
-      confirmLabel: t('common.delete'),
+      message: t(
+        kind === 'trash' ? 'settings.trashClearAllMessage' : 'settings.archiveClearAllMessage',
+        { count },
+      ),
+      confirmLabel: t('settings.clearPermanently'),
       destructive: true,
     });
     if (r !== 'confirm') return;
@@ -154,6 +157,14 @@ export default function SystemSettings() {
           </Section>
 
           {category(t('settings.systemCategory'))}
+          <Section title={t('settings.notification')}>
+            {hint(t('settings.notificationHint'))}
+            <SwitchRow
+              label={t('settings.toast')}
+              value={settings.toastEnabled}
+              onChange={(v) => update({ toastEnabled: v })}
+            />
+          </Section>
           <Section title={t('settings.syncSection')}>
             {hint(syncAvailable ? t('settings.syncHint') : t('settings.syncLocalOnly'))}
             {syncAvailable ? (
@@ -179,35 +190,44 @@ export default function SystemSettings() {
                     {t('settings.syncModeAutoDesc')}
                   </AppText>
                 </View>
-                <LinkRow
-                  icon="sync"
-                  label={t('settings.syncNow')}
-                  value={
-                    lastSyncedAt
+                <View style={styles.syncAction}>
+                  <Button
+                    label={t('settings.syncNow')}
+                    variant="outline"
+                    icon="sync"
+                    disabled={settings.syncMode === 'off'}
+                    onPress={() => void syncNow()}
+                    fullWidth
+                  />
+                  <AppText variant="caption" muted style={styles.syncLast}>
+                    {lastSyncedAt
                       ? `${t('settings.lastSync')} ${formatDateTime(lastSyncedAt)}`
-                      : t('sync.never')
-                  }
-                  chevron={false}
-                  disabled={settings.syncMode === 'off'}
-                  onPress={() => void syncNow()}
-                />
+                      : t('sync.never')}
+                  </AppText>
+                </View>
               </>
             ) : null}
-          </Section>
-          <Section title={t('settings.notification')}>
-            {hint(t('settings.notificationHint'))}
-            <SwitchRow
-              label={t('settings.toast')}
-              value={settings.toastEnabled}
-              onChange={(v) => update({ toastEnabled: v })}
-            />
           </Section>
 
           {category(t('settings.dataManagement'))}
           <Section title={t('settings.dataSection')}>
             {hint(t('settings.dataHint'))}
-            <LinkRow icon="download" label={t('settings.export')} onPress={() => void doExport()} />
-            <LinkRow icon="upload" label={t('settings.import')} onPress={() => void doImport()} />
+            <View style={styles.actionButtons}>
+              <Button
+                label={t('settings.import')}
+                variant="outline"
+                icon="download"
+                onPress={() => void doImport()}
+                fullWidth
+              />
+              <Button
+                label={t('settings.export')}
+                variant="outline"
+                icon="upload"
+                onPress={() => void doExport()}
+                fullWidth
+              />
+            </View>
           </Section>
           <Section title={t('settings.trashSection')}>
             {hint(t('settings.trashHint'))}
@@ -217,20 +237,22 @@ export default function SystemSettings() {
               value={settings.trashAutoDelete}
               onChange={(v) => update({ trashAutoDelete: v })}
             />
-            <LinkRow
-              icon="trash"
-              label={t('settings.trashClearAll')}
-              destructive
-              chevron={false}
-              onPress={() => void clearAll('trash')}
-            />
-            <LinkRow
-              icon="archive"
-              label={t('settings.archiveClearAll')}
-              destructive
-              chevron={false}
-              onPress={() => void clearAll('archive')}
-            />
+            <View style={styles.actionButtons}>
+              <Button
+                label={t('settings.archiveClearAll')}
+                variant="outlineDanger"
+                icon="close"
+                onPress={() => void clearAll('archive')}
+                fullWidth
+              />
+              <Button
+                label={t('settings.trashClearAll')}
+                variant="outlineDanger"
+                icon="trash"
+                onPress={() => void clearAll('trash')}
+                fullWidth
+              />
+            </View>
           </Section>
           <Section title={t('settings.resetAll')}>
             {hint(t('settings.resetAllHint'))}
@@ -264,5 +286,8 @@ const styles = StyleSheet.create({
   category: { marginTop: SPACING.md, paddingHorizontal: SPACING.sm },
   hint: { padding: SPACING.lg, paddingBottom: 0 },
   syncDescs: { gap: SPACING.xs, paddingHorizontal: SPACING.lg, paddingBottom: SPACING.sm },
+  syncAction: { padding: SPACING.lg, paddingTop: SPACING.sm, gap: SPACING.sm },
+  syncLast: { textAlign: 'center' },
+  actionButtons: { padding: SPACING.lg, paddingTop: SPACING.sm, gap: SPACING.sm },
   resetButton: { padding: SPACING.lg, paddingTop: SPACING.sm },
 });

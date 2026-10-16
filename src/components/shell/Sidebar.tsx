@@ -32,14 +32,12 @@ interface Props {
   showMenuIcon: boolean;
   /** メニューアイコンを押したとき（たたむ） */
   onToggle: () => void;
-  /** 画面を移動したとき（スマホではメニューを閉じる） */
-  onNavigate: () => void;
   /** スマホ Web のメニュー内で右から左へスワイプしたときの閉じる処理 */
   onSwipeClose?: () => void;
 }
 
 /** 左のメニュー: メニューアイコン+アプリ名、検索、プロジェクト一覧、新規作成、設定、同期状態。 */
-export function Sidebar({ width, showMenuIcon, onToggle, onNavigate, onSwipeClose }: Props) {
+export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) {
   const { colors, fs, taskColor } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
@@ -326,7 +324,6 @@ export function Sidebar({ width, showMenuIcon, onToggle, onNavigate, onSwipeClos
               accessibilityRole="button"
               onPress={() => {
                 useUiStore.getState().requestNewProject();
-                onNavigate();
               }}
               style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
                 styles.itemMain,

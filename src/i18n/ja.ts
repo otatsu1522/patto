@@ -347,19 +347,22 @@ export const ja = {
   'settings.syncNow': '今すぐ同期',
   'settings.lastSync': '最終同期',
   'settings.dataSection': '外部連携',
-  'settings.export': 'エクスポート（Trello形式）',
+  'settings.export': 'エクスポート',
   'settings.exportAll': 'すべてのプロジェクト',
   'settings.exportDone': 'エクスポートしました。',
   'settings.exportEmpty': 'エクスポートするプロジェクトがありません。',
-  'settings.import': 'インポート（Trello形式）',
+  'settings.import': 'インポート',
   'settings.importDone': '{count} 件のプロジェクトを取り込みました。',
   'settings.importFailed': '読み込めませんでした。Trello の JSON ファイルを選んでください。',
   'settings.trashSection': 'ごみ箱',
   'settings.trashAutoDelete': 'ごみ箱を自動で削除する',
   'settings.trashRetention': '削除までの日数',
-  'settings.trashClearAll': 'すべてのごみ箱をクリア',
-  'settings.archiveClearAll': 'すべてのアーカイブをクリア',
-  'settings.clearAllMessage': '全プロジェクトの対象 {count} 件を完全に削除します。元に戻せません。',
+  'settings.trashClearAll': 'ごみ箱を空にする',
+  'settings.archiveClearAll': 'アーカイブを完全に削除',
+  'settings.trashClearAllMessage': 'ごみ箱内の {count} 件のデータを完全に削除します。元に戻せません。',
+  'settings.archiveClearAllMessage':
+    'アーカイブ内の {count} 件のデータを完全に削除します。ごみ箱には移動せず、元に戻せません。',
+  'settings.clearPermanently': '完全に削除',
   'settings.shortcutsEnabled': 'キーボードショートカットを使う',
   'settings.shortcutsWebOnly': 'キーボードショートカットは Web 版（PC）で使えます。',
   'settings.shortcutsPress': 'キーを押してください…',
@@ -443,16 +446,16 @@ export const ja = {
     'タスクをタップして「ピン留めする」を選ぶと、カンバンの上にまとまり、横線で区切られます。プロジェクトも同じです。',
   'tutorial.todo4.title': 'タスクの内容を編集する',
   'tutorial.todo4.desc':
-    'タスクをタップして「編集」を選びます。タイトル・説明・色・期限（カレンダーから選択）・カンバンの場所を変えられます。',
+    'タスクをタップして「編集」を選びます。タイトル・説明・色・期限（カレンダーから選択）・所属カンバンを変えられます。',
   'tutorial.todo5.title': 'カンバンを追加・並び替える',
   'tutorial.todo5.desc':
-    '右上の「…」メニューから新しいカンバンを追加できます。カンバンのタイトルを長押し（PCはドラッグ）すると並び替えできます。',
+    '右上の「…」メニューからカンバンの追加・複製・並び順変更ができます。カンバンのタイトルを長押し（PCはドラッグ）しても並び替えできます。',
   'tutorial.todo6.title': '検索する',
   'tutorial.todo6.desc':
     'メニューの検索欄はすべてのプロジェクトが対象です。右上の「…」メニューの「カンバン内を検索」は、開いているプロジェクトのタスクを探します。',
   'tutorial.todo7.title': 'オフラインと同期',
   'tutorial.todo7.desc':
-    '通信がなくても使えます。設定のシステム設定で、同期を「オフ・手動・自動」から選べます。メニュー下部の同期の表示をタップすると、今すぐ同期します。',
+    '通信がなくても使えます。設定のシステム設定で、同期を「オフ・手動・自動」から選べます。既存アカウントへのログイン時はデータを反映するため一度同期します。ログイン済みでアプリを開き直したときは、設定が「自動」の場合だけ自動同期します。メニュー下部の同期表示からも同期できます。',
   'tutorial.todo8.title': 'アーカイブとごみ箱',
   'tutorial.todo8.desc':
     'タスクのメニューから「アーカイブ」できます。DONEモードのカンバンは、右上の「…」メニューからまとめてアーカイブできます。「クリア」で完全に削除します。',
@@ -462,6 +465,27 @@ export const ja = {
   'tutorial.todo10.title': 'ゲストからアカウントを作る',
   'tutorial.todo10.desc':
     'ゲストで使っているときは、設定のプロフィール編集からアカウントを作成できます。データはそのまま引き継がれます。',
+  'tutorial.todo11.title': '新しいタスクを作る',
+  'tutorial.todo11.desc':
+    'カンバンの「＋」からタスクを追加します。タイトルだけで作成でき、説明・色・期限は必要に応じて設定できます。',
+  'tutorial.todo12.title': 'タスクを複製する',
+  'tutorial.todo12.desc':
+    'タスクをタップしてメニューから「複製」を選ぶと、内容を引き継いだタスクを作れます。',
+  'tutorial.todo13.title': 'タスクの並び順を変える',
+  'tutorial.todo13.desc':
+    'カンバンの「…」メニューで更新日順・作成日順・期限順・色順を切り替えられます。手動の並び替えは手動モードで使えます。',
+  'tutorial.todo14.title': 'プロジェクトを管理する',
+  'tutorial.todo14.desc':
+    'メニューの「＋」でプロジェクトを追加できます。プロジェクトのメニューから編集・複製・ピン留め・アーカイブを行い、長押し（PCはドラッグ）で並び替えられます。',
+  'tutorial.todo15.title': '表示を自分好みに変える',
+  'tutorial.todo15.desc':
+    '設定のシステム設定でライト／ダークテーマ、文字サイズ、カードの密度、説明・期限・更新日時の表示を変更できます。',
+  'tutorial.todo16.title': 'データを移動する',
+  'tutorial.todo16.desc':
+    '設定のシステム設定にある「外部連携」から、Trello 形式の JSON をエクスポートしたり、既存の JSON をインポートしたりできます。',
+  'tutorial.todo17.title': 'アカウント情報を管理する',
+  'tutorial.todo17.desc':
+    '設定のアカウントで表示名・メールアドレス・パスワードを変更できます。別端末で使う場合は同じアカウントでログインし、同期を利用してください。',
   'tutorial.doing1.title': 'チュートリアルをやってみる',
   'tutorial.doing1.desc':
     'このタスクを右へ移動して、DONE に入れてみましょう。DONE のタスクには横線が入ります。',
@@ -484,13 +508,13 @@ export const ja = {
     'テーマ、文字サイズ、カードの表示量を変えます。変更はすぐに反映され、この端末だけに保存されます。',
   'settings.syncHint':
     '同期は、この端末のデータをサーバー（Supabase）と合わせる機能です。この設定は端末ごとなので、スマホとWebで別々に選べます。',
-  'settings.syncModeOffDesc': 'オフ: 同期しません。データはこの端末の中だけに保存されます。',
+  'settings.syncModeOffDesc': 'オフ: 通常は同期しません。既存アカウントへのログイン時だけデータを一度同期し、その後は同期を行いません。',
   'settings.syncModeManualDesc':
     '手動: 画面を下に引いたとき、同期アイコンやメニュー下部の同期表示をタップしたときだけ同期します。',
   'settings.syncModeAutoDesc':
     '自動: 変更の数秒後、一定の間隔、ネットに戻ったとき・アプリを開いたときに自動で同期します。Webではサーバー側の変更もすぐ反映します。',
   'settings.trashHint':
-    '削除したものは、いったん「ごみ箱」に入り、復元できます。「ごみ箱を自動で削除する」をONにすると、設定した日数が過ぎたものを自動で完全に削除します。「クリア」は、今すぐ完全に削除します（元に戻せません）。アーカイブは、完了したタスクなどを隠して残しておく機能で、クリアで完全に削除できます。',
+    '削除したものは「ごみ箱」に入り、復元できます。自動削除を有効にすると、設定日数の経過後にごみ箱内のデータを完全に削除します。「ごみ箱を空にする」は、ごみ箱内を今すぐ完全に削除します。アーカイブは、完了したタスクなどを隠して保管する機能です。「アーカイブを完全に削除」は、ごみ箱へ移動せず、アーカイブ内のデータを完全に削除します。どちらも元に戻せません。',
   'settings.trashRetentionDays': '{days} 日後に削除',
   'settings.toastSection': '通知',
   'settings.toastHint':

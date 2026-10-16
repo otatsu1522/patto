@@ -357,7 +357,7 @@ function AccountSections() {
             error={validateMaxLength(name, LIMITS.displayNameMax)}
           />
           <Message text={nameMessage?.text ?? null} ok={nameMessage?.ok} />
-          <Button label={t('settings.saveProfile')} variant="secondary" onPress={saveName} />
+          <Button label={t('settings.saveProfile')} onPress={saveName} />
         </View>
       </Section>
 

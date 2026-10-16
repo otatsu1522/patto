@@ -13,20 +13,20 @@ const MENU_CLOSE_MS = 280;
  *   画面の作り直しが起きないので、切り替えがなめらか。
  * - スマホでは、メニューが閉じ終わってから入れ替える（動きと描画が重なって、ごちゃつかないように）。
  */
-export function useProjectNavigation(): (id: string) => void {
+export function useProjectNavigation(): (id: string, options?: { keepMenuOpen?: boolean }) => void {
   const router = useRouter();
   const pathname = usePathname();
   const { mode } = useLayoutMode();
 
   return useCallback(
-    (id: string) => {
+    (id: string, options: { keepMenuOpen?: boolean } = {}) => {
       useSettingsStore.getState().update({ lastProjectId: id });
       const onProject = pathname.startsWith('/project/');
       const go = () =>
         onProject
           ? router.setParams({ id })
           : router.push({ pathname: '/project/[id]', params: { id } });
-      if (onProject && mode !== 'expanded') {
+      if (onProject && mode !== 'expanded' && !options.keepMenuOpen) {
         closeBoardMenu();
         setTimeout(go, MENU_CLOSE_MS);
       } else {

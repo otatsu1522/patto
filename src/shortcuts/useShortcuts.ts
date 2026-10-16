@@ -35,7 +35,12 @@ export function useShortcuts(handlers: ShortcutHandlers, active = true): void {
     const onKeyDown = (e: KeyboardEvent) => {
       const { settings } = useSettingsStore.getState();
       if (!settings.shortcutsEnabled || isModifierOnly(e.key)) return;
-      if (isTypingTarget(e.target) || useUiStore.getState().dialogCount > 0) return;
+      if (
+        isTypingTarget(e.target) ||
+        useUiStore.getState().dialogCount > 0 ||
+        useUiStore.getState().shortcutsSuspended
+      )
+        return;
       const map = buildKeyMap(resolveBindings(settings.shortcutOverrides));
       const action = map.get(keyToString(e));
       const fn = action ? ref.current[action] : undefined;
@@ -57,7 +62,12 @@ export function useEscape(handler: () => void, active = true): void {
   useEffect(() => {
     if (Platform.OS !== 'web' || !active) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && useUiStore.getState().dialogCount === 0) ref.current();
+      if (
+        e.key === 'Escape' &&
+        useUiStore.getState().dialogCount === 0 &&
+        !useUiStore.getState().shortcutsSuspended
+      )
+        ref.current();
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);

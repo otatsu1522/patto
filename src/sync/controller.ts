@@ -59,8 +59,12 @@ function localPort(): LocalPort {
  * 今すぐ同期する。手動同期（画面を引く・ボタン）と自動同期の両方がここを通る。
  * throwOnError=true のときは失敗を呼び出し元に投げる（完全削除の前処理など）。
  */
-export async function syncNow(opts: { throwOnError?: boolean } = {}): Promise<boolean> {
-  if (!config.isEnabled()) return false;
+export async function syncNow(
+  opts: { throwOnError?: boolean; force?: boolean } = {},
+): Promise<boolean> {
+  // 明示的なログイン時は、同期設定が「オフ」でも既存アカウントのデータを一度取得する。
+  // force はこの一回だけ同期可否判定を迂回し、通常の自動同期設定自体は変更しない。
+  if (!opts.force && !config.isEnabled()) return false;
   const client = getSupabase();
   if (!client) return false;
   if (running) {

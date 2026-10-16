@@ -3,7 +3,7 @@ import * as SystemUI from 'expo-system-ui';
 import { useEffect } from 'react';
 import { ActivityIndicator, AppState, Platform, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/auth/authStore';
 import { isSupabaseConfigured } from '@/config/env';
 import { FeedbackProvider } from '@/components/ui/FeedbackProvider';
@@ -213,7 +213,7 @@ function Boot() {
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={styles.fill}>
-      <SafeAreaProvider>
+      <SafeAreaProvider initialMetrics={Platform.OS === 'web' ? undefined : initialWindowMetrics}>
         <ThemeProvider>
           <FeedbackProvider>
             <Boot />

@@ -63,15 +63,17 @@ export default function ShortcutSettings() {
   const [message, setMessage] = useState<{ id: ActionId; text: string } | null>(null);
   const [info, setInfo] = useState(false);
   const [shortcutRowWidth, setShortcutRowWidth] = useState(0);
+  const [measuredComboWidths, setMeasuredComboWidths] = useState<Record<string, number>>({});
+  const [measuredSlotWidths, setMeasuredSlotWidths] = useState({ add: 0, capture: 0 });
 
   // 設定画面が実際に表示されている間だけ、ボード側のショートカットを停止する。
   // Expo Router は前の画面をスタックに保持するため、mount/unmount ではなく focus/blur に同期する。
   useFocusEffect(
     useCallback(() => {
-      useUiStore.getState().pushDialog();
+      useUiStore.getState().setShortcutsSuspended(true);
       return () => {
         setCapturing(null);
-        useUiStore.getState().popDialog();
+        useUiStore.getState().setShortcutsSuspended(false);
       };
     }, []),
   );
@@ -130,22 +132,50 @@ export default function ShortcutSettings() {
     setCapturing(id);
   };
 
-  const keyFieldWidth = (id: ActionId) => {
+  const keyFieldLayout = (id: ActionId): { width: number; wrap: boolean } => {
     const keys = bindings[id];
-    const keyWidths = keys.reduce((total, key) => total + estimatedComboWidth(key), 0);
-    const slotWidth = capturing === id ? 60 : 34;
+    // 固定文字幅の推測ではなく、実際に描画されたキー枠／点線枠の幅を使う。
+    // 推測値は初回レイアウトが終わるまでの仮値としてのみ使う。
+    const keyWidths = keys.reduce(
+      (total, key) => total + (measuredComboWidths[key] ?? estimatedComboWidth(key)),
+      0,
+    );
+    const slotWidth =
+      capturing === id ? measuredSlotWidths.capture || 72 : measuredSlotWidths.add || 42;
     const fieldChrome = BORDER_WIDTH * 2 + SPACING.sm * 2;
     // キー欄の後ろに「追加」枠が来る。gap は各キーと追加枠の間だけ必要。
     const desiredWidth = fieldChrome + keyWidths + keys.length * SPACING.xs + slotWidth;
     // 行幅からリセットボタン・余白・タイトル用の幅を差し引き、タイトルと重ならない最大幅を求める。
     const measuredMax = shortcutRowWidth - SPACING.md * 2 - 34 - SPACING.sm * 2 - 96;
     const fallbackMax = Math.max(70, Math.min(440, windowWidth * 0.6));
-    const maxWidth = shortcutRowWidth > 0 ? Math.max(70, measuredMax) : fallbackMax;
-    return Math.max(fieldChrome + slotWidth, Math.min(desiredWidth, maxWidth));
+    const minimumWidth = fieldChrome + slotWidth;
+    const maxWidth =
+      shortcutRowWidth > 0
+        ? Math.max(minimumWidth, measuredMax)
+        : Math.max(minimumWidth, fallbackMax);
+    return {
+      width: Math.max(minimumWidth, Math.min(desiredWidth, maxWidth)),
+      // 通常は1行。ラベル用の幅を確保できないほどキーが多い場合だけ折り返す。
+      wrap: desiredWidth > maxWidth,
+    };
   };
 
   const handleShortcutRowLayout = (width: number) => {
     setShortcutRowWidth((current) => (Math.abs(current - width) > 1 ? width : current));
+  };
+
+  const recordComboWidth = (key: string, width: number) => {
+    if (!Number.isFinite(width) || width <= 0) return;
+    setMeasuredComboWidths((current) =>
+      Math.abs((current[key] ?? 0) - width) > 0.5 ? { ...current, [key]: width } : current,
+    );
+  };
+
+  const recordSlotWidth = (kind: 'add' | 'capture', width: number) => {
+    if (!Number.isFinite(width) || width <= 0) return;
+    setMeasuredSlotWidths((current) =>
+      Math.abs(current[kind] - width) > 0.5 ? { ...current, [kind]: width } : current,
+    );
   };
 
   const separator = <View style={[styles.separator, { backgroundColor: colors.border }]} />;
@@ -240,7 +270,10 @@ export default function ShortcutSettings() {
                     style={[
                       styles.keyField,
                       bindings[a.id].length === 0 ? styles.emptyKeyField : undefined,
-                      { width: keyFieldWidth(a.id) },
+                      {
+                        width: keyFieldLayout(a.id).width,
+                        flexWrap: keyFieldLayout(a.id).wrap ? 'wrap' : 'nowrap',
+                      },
                       {
                         borderColor: capturing === a.id ? colors.accent : colors.border,
                         backgroundColor: colors.surface,
@@ -251,6 +284,7 @@ export default function ShortcutSettings() {
                     {bindings[a.id].map((k) => (
                       <Pressable
                         key={k}
+                        onLayout={(event) => recordComboWidth(k, event.nativeEvent.layout.width)}
                         accessibilityRole="button"
                         accessibilityLabel={`${t('settings.shortcutsRemove')}: ${displayKey(k)}`}
                         onPress={(event) => {
@@ -274,6 +308,9 @@ export default function ShortcutSettings() {
                     {capturing === a.id ? (
                       <View
                         pointerEvents="none"
+                        onLayout={(event) =>
+                          recordSlotWidth('capture', event.nativeEvent.layout.width)
+                        }
                         style={[styles.captureSlot, { borderColor: colors.accent }]}
                       >
                         <AppText variant="caption" color={colors.accent} numberOfLines={1}>
@@ -283,6 +320,7 @@ export default function ShortcutSettings() {
                     ) : (
                       <View
                         pointerEvents="none"
+                        onLayout={(event) => recordSlotWidth('add', event.nativeEvent.layout.width)}
                         style={[
                           styles.addSlot,
                           { borderColor: colors.border, backgroundColor: colors.bg },
@@ -312,7 +350,7 @@ export default function ShortcutSettings() {
           </Section>
           <Button
             label={t('settings.shortcutsResetAll')}
-            variant="secondary"
+            variant="outline"
             onPress={() => update({ shortcutOverrides: {} })}
           />
         </View>
@@ -352,7 +390,7 @@ const styles = StyleSheet.create({
   label: { flex: 1, minWidth: 0 },
   keyField: {
     flexGrow: 0,
-    flexShrink: 1,
+    flexShrink: 0,
     minWidth: 0,
     minHeight: 40,
     borderWidth: BORDER_WIDTH,
@@ -361,7 +399,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.xs,
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap',
+    flexWrap: 'nowrap',
     gap: SPACING.xs,
   },
   emptyKeyField: { justifyContent: 'center' },
@@ -375,6 +413,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     paddingVertical: 3,
     minHeight: 30,
+    flexShrink: 0,
   },
   fixedCombo: { backgroundColor: 'transparent' },
   keyCap: {
@@ -388,24 +427,26 @@ const styles = StyleSheet.create({
   addSlot: {
     minWidth: 0,
     minHeight: 30,
-    paddingHorizontal: SPACING.xs,
+    paddingHorizontal: SPACING.sm,
     borderWidth: BORDER_WIDTH,
     borderStyle: 'dashed',
     borderRadius: RADIUS.sm,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   addHint: { textAlign: 'center' },
   separator: { height: BORDER_WIDTH, alignSelf: 'stretch', flexShrink: 0 },
   captureSlot: {
     minHeight: 30,
     minWidth: 0,
-    paddingHorizontal: SPACING.xs,
+    paddingHorizontal: SPACING.sm,
     borderWidth: BORDER_WIDTH,
     borderStyle: 'dashed',
     borderRadius: RADIUS.sm,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   rowMessage: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.sm },
 });

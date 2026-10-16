@@ -1,6 +1,12 @@
 import { create } from 'zustand';
 import { DEFAULT_COLUMNS } from '@/config/defaults';
-import { TUTORIAL_PROJECT_COLOR, TUTORIAL_PROJECT_TITLE, TUTORIAL_TASKS } from '@/config/tutorial';
+import {
+  TUTORIAL_PREVIOUS_TASK_COUNTS,
+  TUTORIAL_PROJECT_COLOR,
+  TUTORIAL_PROJECT_TITLE,
+  TUTORIAL_TASKS,
+  TUTORIAL_TASKS_VERSION,
+} from '@/config/tutorial';
 import { LIMITS } from '@/config/limits';
 import { openLocalDb } from '@/db/sqliteDb';
 import type { LocalDb } from '@/db/types';
@@ -189,8 +195,8 @@ export const useDataStore = create<DataState>((set, get) => {
     });
   }
 
-  /** 既存データでも、チュートリアル生成時の未設定色だけを一度ずつ補完する。 */
-  async function migrateTutorialTaskColors(notify = false): Promise<void> {
+  /** 既存のチュートリアルへ新しい説明タスクを追加し、未編集サンプルの既定色を更新する。 */
+  async function migrateTutorialTasks(notify = false): Promise<void> {
     const state = get();
     const d = getDb();
     let tutorialProjectId = await d.getMeta('tutorialProjectId');
@@ -223,35 +229,168 @@ export const useDataStore = create<DataState>((set, get) => {
     ) {
       return;
     }
-    // ユーザーが既定カンバンの順番を変更している場合、別タスクの色を割り当てない。
-    if (columns.some((column) => (column.fieldUpdatedAt.sortKey ?? 0) > project.createdAt)) return;
+    // ユーザーが既定カンバンの順番を変更している場合、表示順をテンプレートの列順と誤認しない。
+    const columnsWereReordered = columns.some(
+      (column) => (column.fieldUpdatedAt.sortKey ?? 0) > project.createdAt,
+    );
 
     const updatedAt = now();
     const updatedTasks: Task[] = [];
 
-    columns.forEach((column, columnIndex) => {
-      const templates = TUTORIAL_TASKS[columnIndex] ?? [];
-      if (templates.length === 0) return;
+    const existingIndexesByColumn = new Map<string, Set<number>>();
+    for (const column of columns) {
+      const indexes = new Set<number>();
       for (const task of state.tasks) {
         if (
           task.projectId !== tutorialProjectId ||
           task.columnId !== column.id ||
-          task.color != null ||
           task.createdAt > project.createdAt ||
           (task.fieldUpdatedAt.columnId ?? 0) > project.createdAt
         ) {
           continue;
         }
-        // サンプル作成時は列内の順番ごとに createdAt を 1 秒ずつずらしている。
-        // タスク名がユーザーに編集されていても、作成済みのチュートリアルタスクを特定できる。
-        const templateIndex = Math.round((project.createdAt - task.createdAt) / 1000);
-        const template = templates[templateIndex];
-        if (template) updatedTasks.push(patchRecord(task, { color: template.color }, updatedAt));
+        const delta = project.createdAt - task.createdAt;
+        const index = delta / 1000;
+        if (delta >= 0 && Number.isInteger(index) && index < TUTORIAL_PREVIOUS_TASK_COUNTS[0]) {
+          indexes.add(index);
+        }
       }
-    });
+      existingIndexesByColumn.set(column.id, indexes);
+    }
+
+    if (columnsWereReordered) {
+      // 手動で並び替えた列は表示順だけでは役割を判定できない。
+      // 元 TODO サンプルの 3 以降の時刻インデックスを持つ列だけを特定し、
+      // 要望対象である TODO の色だけ更新する。DOING などは誤判定を避けて変更しない。
+      const todoColumn = columns.find((column) =>
+        [...(existingIndexesByColumn.get(column.id) ?? [])].some((index) => index >= 3),
+      );
+      if (todoColumn) {
+        const templates = TUTORIAL_TASKS[0] ?? [];
+        for (const task of state.tasks) {
+          if (
+            task.projectId !== tutorialProjectId ||
+            task.columnId !== todoColumn.id ||
+            task.createdAt > project.createdAt ||
+            (task.fieldUpdatedAt.columnId ?? 0) > project.createdAt
+          ) {
+            continue;
+          }
+          const delta = project.createdAt - task.createdAt;
+          if (delta < 0 || delta % 1000 !== 0) continue;
+          const template = templates[delta / 1000];
+          const colorWasCustomized =
+            (task.fieldUpdatedAt.color ?? task.createdAt) > project.createdAt;
+          if (template && !colorWasCustomized && task.color !== template.color) {
+            updatedTasks.push(patchRecord(task, { color: template.color }, updatedAt));
+          }
+        }
+      }
+    } else {
+      columns.forEach((column, columnIndex) => {
+        const templates = TUTORIAL_TASKS[columnIndex] ?? [];
+        if (templates.length === 0) return;
+        for (const task of state.tasks) {
+          if (
+            task.projectId !== tutorialProjectId ||
+            task.columnId !== column.id ||
+            task.createdAt > project.createdAt ||
+            (task.fieldUpdatedAt.columnId ?? 0) > project.createdAt
+          ) {
+            continue;
+          }
+          // サンプル作成時は列内の順番ごとに createdAt を 1 秒ずつずらしている。
+          // タスク名がユーザーに編集されていても、作成済みのチュートリアルタスクを特定できる。
+          const delta = project.createdAt - task.createdAt;
+          if (delta < 0 || delta % 1000 !== 0) continue;
+          const template = templates[delta / 1000];
+          // 色をユーザーが変更したサンプルは尊重し、初期値のままのものだけ更新する。
+          const colorWasCustomized =
+            (task.fieldUpdatedAt.color ?? task.createdAt) > project.createdAt;
+          if (template && !colorWasCustomized && task.color !== template.color) {
+            updatedTasks.push(patchRecord(task, { color: template.color }, updatedAt));
+          }
+        }
+      });
+    }
+
+    const newTasks: Task[] = [];
+    const tutorialTaskVersion = await d.getMeta('tutorialTaskSchemaVersion');
+    let canMarkTutorialVersion = true;
+    if (tutorialTaskVersion !== TUTORIAL_TASKS_VERSION) {
+      const previousTodoCount = TUTORIAL_PREVIOUS_TASK_COUNTS[0];
+      const todoTemplates = TUTORIAL_TASKS[0] ?? [];
+      if (todoTemplates.length > previousTodoCount) {
+        // TODO 列は旧サンプルの 0〜9 インデックスを持つことで識別する。
+        // カンバンをユーザーが並び替えていても、現在の表示順で別列へ追加しない。
+        const candidates = columns.map((column) => {
+          const sampleIndexes = new Set<number>();
+          const oldSampleIndexes = new Set<number>();
+          for (const task of state.tasks) {
+            if (
+              task.projectId !== tutorialProjectId ||
+              task.columnId !== column.id ||
+              task.createdAt > project.createdAt ||
+              (task.fieldUpdatedAt.columnId ?? 0) > project.createdAt
+            ) {
+              continue;
+            }
+            const delta = project.createdAt - task.createdAt;
+            const index = delta / 1000;
+            if (delta >= 0 && Number.isInteger(index) && index < todoTemplates.length) {
+              sampleIndexes.add(index);
+              if (index < previousTodoCount) oldSampleIndexes.add(index);
+            }
+          }
+          return { column, sampleIndexes, score: oldSampleIndexes.size };
+        });
+        // 旧 TODO サンプルの 3 以降を実際に持つ列だけを候補にする。
+        // 削除済みタスクが多く候補スコアが低くても、DOING/DONE を誤って選ばない。
+        const todoCandidate = candidates
+          .filter((candidate) => [...candidate.sampleIndexes].some((index) => index >= 3))
+          .sort((a, b) => b.score - a.score)[0];
+        // 高いインデックスを見つけられなければ、列の正体を推測せず移行を次回に延期する。
+        if (todoCandidate) {
+          const { column, sampleIndexes } = todoCandidate;
+          let ordered = state.tasks
+            .filter((task) => task.columnId === column.id)
+            .sort(compareBySortKey);
+          for (let index = previousTodoCount; index < todoTemplates.length; index += 1) {
+            if (sampleIndexes.has(index)) continue;
+            // 旧テンプレートの消去済みタスクは復活させず、新規追加分だけを作成する。
+            const template = todoTemplates[index]!;
+            const createdAt = project.createdAt - index * 1000;
+            const sample = buildTask(
+              owner(),
+              createdAt,
+              {
+                projectId: tutorialProjectId,
+                columnId: column.id,
+                title: t(template.title),
+                description: t(template.description),
+                color: template.color,
+              },
+              keyAtEnd(ordered),
+              column.isDoneColumn,
+            );
+            newTasks.push(sample);
+            ordered = [...ordered, sample].sort(compareBySortKey);
+            sampleIndexes.add(index);
+          }
+        } else {
+          canMarkTutorialVersion = false;
+        }
+      }
+    }
 
     // 起動途中に旧ユーザーの同期リスナーへ通知しない。dirty レコードは、認証確定後の同期で送信される。
-    if (updatedTasks.length > 0) await commit({ tasks: updatedTasks }, notify);
+    if (updatedTasks.length > 0 || newTasks.length > 0) {
+      await commit({ tasks: [...updatedTasks, ...newTasks] }, notify);
+    }
+    // 保存は commit 成功後に行い、書き込み失敗時は次回起動で再試行できるようにする。
+    if (tutorialTaskVersion !== TUTORIAL_TASKS_VERSION && canMarkTutorialVersion) {
+      await d.setMeta('tutorialTaskSchemaVersion', TUTORIAL_TASKS_VERSION);
+    }
     if (!(await d.getMeta('tutorialProjectId'))) {
       await d.setMeta('tutorialProjectId', tutorialProjectId);
     }
@@ -282,7 +421,7 @@ export const useDataStore = create<DataState>((set, get) => {
           set({ ...snap, scope, ownerId, ready: true });
           // 見本タスクの色補完は起動を妨げる必須処理ではないため、失敗しても起動は継続する。
           try {
-            await migrateTutorialTaskColors();
+            await migrateTutorialTasks();
           } catch {
             // 次回の起動で再試行する。
           }
@@ -343,7 +482,7 @@ export const useDataStore = create<DataState>((set, get) => {
       await d.upsert('tasks', changes.tasks ?? []);
       // 別端末から取得した TUTORIAL にも未設定色を適用する。更新行は次の同期で送信する。
       try {
-        await migrateTutorialTaskColors(true);
+        await migrateTutorialTasks(true);
       } catch {
         // 色補完に失敗しても同期自体は成功扱いとし、次回の起動／同期で再試行する。
       }
@@ -710,6 +849,7 @@ export const useDataStore = create<DataState>((set, get) => {
         )?.id ?? null;
 
       if (await d.getMeta('tutorialSeeded')) {
+        await migrateTutorialTasks(true);
         return (await d.getMeta('tutorialProjectId')) ?? findTutorialId();
       }
       if (get().projects.length > 0) {
@@ -751,6 +891,7 @@ export const useDataStore = create<DataState>((set, get) => {
       await commit({ projects: [project], columns, tasks });
       await d.setMeta('tutorialSeeded', '1');
       await d.setMeta('tutorialProjectId', project.id);
+      await d.setMeta('tutorialTaskSchemaVersion', TUTORIAL_TASKS_VERSION);
       return project.id;
     },
 

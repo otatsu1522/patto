@@ -28,7 +28,7 @@ export default function HomeScreen() {
   if (mode !== 'expanded') {
     return (
       <View style={{ flex: 1, flexDirection: 'row' }}>
-        <Sidebar width={width} showMenuIcon={false} onToggle={() => {}} onNavigate={() => {}} />
+        <Sidebar width={width} showMenuIcon={false} onToggle={() => {}} />
       </View>
     );
   }

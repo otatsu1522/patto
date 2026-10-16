@@ -2,13 +2,14 @@ import { Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NavigationBar } from 'expo-navigation-bar';
 import { StatusBar } from 'expo-status-bar';
-import { getSystemBarInsets } from '@/lib/systemBarInsets';
 import { useTheme } from '@/theme';
 
 /** アプリ本体と各 Modal で、システムバーの前景色・背景を同じ方法で管理する。 */
 export function SystemBars() {
   const { colors, isDark } = useTheme();
-  const insets = getSystemBarInsets(useSafeAreaInsets());
+  // 背景ビューは、OSが実際に通知するシステムバー領域だけを覆う。
+  // 固定値で最小高さを足すと、非 edge-to-edge 環境でアプリ内容に重なる。
+  const insets = useSafeAreaInsets();
 
   return (
     <>

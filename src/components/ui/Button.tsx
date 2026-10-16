@@ -7,7 +7,8 @@ import { Icon } from './Icon';
 import { BORDER_WIDTH } from '@/theme/tokens';
 import { canHover } from '@/lib/hover';
 
-type Variant = 'primary' | 'accent' | 'secondary' | 'danger' | 'ghost';
+type Variant =
+  'primary' | 'accent' | 'secondary' | 'danger' | 'ghost' | 'outline' | 'outlineDanger';
 
 interface Props {
   label: string;
@@ -18,6 +19,8 @@ interface Props {
   loading?: boolean;
   fullWidth?: boolean;
   style?: ViewStyle;
+  /** テキスト・アイコンの色を明示的に上書きする（設定画面など）。 */
+  textColor?: string;
 }
 
 export function Button({
@@ -29,6 +32,7 @@ export function Button({
   loading,
   fullWidth,
   style,
+  textColor,
 }: Props) {
   const { colors } = useTheme();
   const palette = {
@@ -37,7 +41,10 @@ export function Button({
     secondary: { bg: colors.surface, fg: colors.text, border: colors.border },
     danger: { bg: colors.danger, fg: colors.onDanger, border: colors.danger },
     ghost: { bg: 'transparent', fg: colors.primary, border: 'transparent' },
+    outline: { bg: 'transparent', fg: colors.text, border: colors.text },
+    outlineDanger: { bg: 'transparent', fg: colors.danger, border: colors.danger },
   }[variant];
+  const foreground = textColor ?? palette.fg;
   const inactive = disabled || loading;
   return (
     <Pressable
@@ -57,11 +64,11 @@ export function Button({
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={palette.fg} />
+        <ActivityIndicator color={foreground} />
       ) : icon ? (
-        <Icon name={icon} size={18} color={palette.fg} />
+        <Icon name={icon} size={18} color={foreground} />
       ) : null}
-      <AppText bold color={palette.fg}>
+      <AppText bold color={foreground}>
         {label}
       </AppText>
     </Pressable>

@@ -13,6 +13,7 @@ import { getSupabase } from './supabase';
 
 const IDENTITY_KEY = 'patto:identity';
 const NEEDS_REAUTH_KEY = 'patto:needs-reauth';
+const LOGIN_SYNC_PENDING_KEY = 'patto:login-sync-pending';
 const BOOTSTRAP_TIMEOUT_MS = 20_000;
 let bootstrapInFlight: Promise<void> | null = null;
 let bootstrapGeneration = 0;
@@ -49,7 +50,11 @@ interface AuthState {
   setBootstrapError: (message: string | null) => void;
   /** サーバーの最新 user_metadata / email を取得して他端末の変更を反映する。 */
   refreshRemoteIdentity: () => Promise<void>;
-  signIn: (email: string, password: string) => Promise<AuthResult>;
+  signIn: (
+    email: string,
+    password: string,
+    options?: { syncAfterLogin?: boolean },
+  ) => Promise<AuthResult>;
   signUp: (email: string, password: string, displayName: string) => Promise<AuthResult>;
   continueAsGuest: () => Promise<AuthResult>;
   /** ゲストにメールとパスワードを紐付け、同じユーザーIDのままアカウントにする */
@@ -94,7 +99,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
   /** この端末でこのユーザーとして使い始める（端末内DBを開き、状態を保存する）。 */
   async function enter(
     identity: Identity,
-    options: { seedTutorial?: boolean; isCurrent?: () => boolean } = {},
+    options: { seedTutorial?: boolean; isCurrent?: () => boolean; deferStatus?: boolean } = {},
   ) {
     await useDataStore.getState().open(identity.userId, identity.userId);
     if (options.isCurrent && !options.isCurrent()) return;
@@ -118,7 +123,13 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
     await persist(identity);
     if (options.isCurrent && !options.isCurrent()) return;
-    set({ identity, status: identity.mode, needsReauth: false, bootstrapError: null });
+    set({
+      identity,
+      // ログイン直後にクラウドデータを取り込む場合、画面を先に表示しない。
+      status: options.deferStatus ? 'loading' : identity.mode,
+      needsReauth: false,
+      bootstrapError: null,
+    });
   }
 
   /** 端末内のデータを消してログイン画面へ戻す。 */
@@ -127,6 +138,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
     await useDataStore.getState().close();
     if (identity) await destroyLocalDb(identity.userId);
     await persist(null);
+    await kv.remove(LOGIN_SYNC_PENDING_KEY);
     setNeedsReauthPersisted(false);
     useSettingsStore.getState().update({ lastProjectId: null });
     set({ identity: null, status: 'signedOut', needsReauth: false });
@@ -154,9 +166,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
       let timeoutId: ReturnType<typeof setTimeout> | undefined;
       const work = (async () => {
-        const [raw, savedNeedsReauth] = await Promise.all([
+        const [raw, savedNeedsReauth, pendingLoginSync] = await Promise.all([
           kv.get(IDENTITY_KEY),
           kv.get(NEEDS_REAUTH_KEY),
+          kv.get(LOGIN_SYNC_PENDING_KEY),
         ]);
         let identity: Identity | null = null;
         try {
@@ -176,7 +189,27 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
         // 通信せず、端末に保存した情報だけで判断する（オフラインでも起動できる）。
         if (identity) {
-          await enter(identity, { isCurrent: () => generation === bootstrapGeneration });
+          const shouldFinishLoginSync =
+            pendingLoginSync === '1' && identity.mode === 'account' && !identity.local;
+          await enter(identity, {
+            isCurrent: () => generation === bootstrapGeneration,
+            deferStatus: shouldFinishLoginSync,
+          });
+          if (shouldFinishLoginSync) {
+            try {
+              const synced = await syncNow({ force: true, throwOnError: true });
+              if (!synced) throw new Error(t('auth.needOnlineFirst'));
+              await kv.remove(LOGIN_SYNC_PENDING_KEY);
+              if (generation === bootstrapGeneration) {
+                set({ identity, status: identity.mode, bootstrapError: null });
+              }
+            } catch {
+              // ログイン時の同期が完了しない間は、空のプロジェクト一覧を表示しない。
+              throw new Error(t('auth.needOnlineFirst'));
+            }
+          } else if (pendingLoginSync === '1') {
+            await kv.remove(LOGIN_SYNC_PENDING_KEY);
+          }
           if (
             savedNeedsReauth === '1' &&
             identity.mode === 'account' &&
@@ -295,31 +328,41 @@ export const useAuthStore = create<AuthState>((set, get) => {
       }
     },
 
-    async signIn(email, password) {
+    async signIn(email, password, options = {}) {
       const client = getSupabase();
       if (!client) return notConfigured();
+      const syncAfterLogin = options.syncAfterLogin !== false;
+      let waitingForInitialSync = false;
       try {
         const { data, error } = await client.auth.signInWithPassword({
           email: normalizeEmail(email),
           password,
         });
         if (error) return { ok: false, message: mapAuthError(error) };
-        await enter({
+        const identity: Identity = {
           mode: 'account',
           userId: data.user.id,
           email: data.user.email ?? '',
           displayName: displayNameOf(data.user),
-        });
+        };
+        await enter(identity, { deferStatus: syncAfterLogin });
         get().setNeedsReauth(false);
 
-        // 初めてこのアカウントを使う端末ではローカルDBが空の場合がある。
-        // 同期が有効なら初回ログイン時に一度取り込み、先頭プロジェクトをすぐ選べるようにする。
-        const hasLocalProjects = visibleProjects(useDataStore.getState().projects).length > 0;
-        if (!hasLocalProjects && useSettingsStore.getState().settings.syncMode !== 'off') {
-          await syncNow();
+        if (syncAfterLogin) {
+          waitingForInitialSync = true;
+          await kv.set(LOGIN_SYNC_PENDING_KEY, '1');
+          const synced = await syncNow({ force: true, throwOnError: true });
+          if (!synced) throw new Error(t('auth.needOnlineFirst'));
+          await kv.remove(LOGIN_SYNC_PENDING_KEY);
+          set({ identity, status: 'account', needsReauth: false, bootstrapError: null });
         }
         return { ok: true };
       } catch (e) {
+        if (waitingForInitialSync) {
+          // 同期が失敗した状態でアプリを表示すると、既存プロジェクトがないように見えてしまう。
+          set({ status: 'error', bootstrapError: t('auth.needOnlineFirst') });
+          return { ok: false, message: t('auth.needOnlineFirst') };
+        }
         return fail(e);
       }
     },
@@ -434,7 +477,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
     async reauthenticate(password) {
       const identity = get().identity;
       if (!identity?.email) return notConfigured();
-      const res = await get().signIn(identity.email, password);
+      const res = await get().signIn(identity.email, password, { syncAfterLogin: false });
       if (res.ok) get().setNeedsReauth(false);
       return res;
     },

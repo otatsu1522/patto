@@ -13,7 +13,6 @@ import { useSettingsStore } from '@/store/settingsStore';
 import { useUiStore } from '@/store/uiStore';
 import { syncNow } from '@/sync/controller';
 import { useTheme } from '@/theme';
-import { getSystemBarInsets } from '@/lib/systemBarInsets';
 import { ProjectDialog } from '../board/NameDialogs';
 import { useFeedback } from '../ui/FeedbackProvider';
 import { t } from '@/i18n';
@@ -29,7 +28,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { colors } = useTheme();
   const { mode } = useLayoutMode();
   const { width: windowWidth } = useWindowDimensions();
-  const insets = getSystemBarInsets(useSafeAreaInsets());
+  // レイアウトにはOSが実際に返すinsetsだけを使う。最低値の補正を使うと、
+  // システム側ですでにバー領域を確保するネイティブ構成で余白が二重になる。
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const navigateToProject = useProjectNavigation();
   const { toast } = useFeedback();
@@ -77,16 +78,17 @@ export function AppShell({ children }: { children: ReactNode }) {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       // Dialog コンポーネントの Modal は onRequestClose で自身を閉じる。
       if (useUiStore.getState().dialogCount > 0) return false;
-      // スマホのメニューが開いている場合は、画面遷移や終了確認より先に閉じる。
-      if (mode !== 'expanded' && useUiStore.getState().menuVisible) {
-        closeBoardMenu();
-        lastBackPress.current = 0;
-        return true;
-      }
       // 設定などのサブ画面では通常のナビゲーションを優先する。
       const mainScreen = pathname === '/home' || pathname.startsWith('/project/');
       if (!mainScreen && router.canGoBack()) {
         router.back();
+        return true;
+      }
+      // メイン画面にいる場合だけ、開いているメニューを閉じる。
+      // 設定画面では先に上の router.back() が実行される。
+      if (mode !== 'expanded' && useUiStore.getState().menuVisible) {
+        closeBoardMenu();
+        lastBackPress.current = 0;
         return true;
       }
       const now = Date.now();
@@ -105,12 +107,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <View style={[styles.root, { backgroundColor: colors.surface, paddingTop: insets.top }]}>
       <View style={[styles.row, { backgroundColor: colors.bg }]}>
         {permanent && !collapsed ? (
-          <Sidebar
-            width={width}
-            showMenuIcon={false}
-            onToggle={toggleCollapsed}
-            onNavigate={() => {}}
-          />
+          <Sidebar width={width} showMenuIcon={false} onToggle={toggleCollapsed} />
         ) : null}
         <View style={[styles.content, { paddingBottom: insets.bottom }]}>
           <ReauthBanner />
@@ -127,7 +124,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           setNewProjectOpen(false);
           const p = await useDataStore.getState().createProject(v);
           toast(t('toast.projectCreated'));
-          navigateToProject(p.id);
+          navigateToProject(p.id, { keepMenuOpen: true });
         }}
       />
     </View>

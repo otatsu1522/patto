@@ -18,6 +18,7 @@ const config: ExpoConfig = {
   web: { bundler: 'metro', output: 'single', favicon: './assets/favicon.png' },
   plugins: [
     'expo-router',
+    'expo-sharing',
     'expo-secure-store',
     'expo-sqlite',
     'expo-localization',

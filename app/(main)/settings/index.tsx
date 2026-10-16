@@ -52,7 +52,7 @@ export default function SettingsIndex() {
               {!isGuest && identity ? (
                 <Button
                   label={t('settings.logout')}
-                  variant="secondary"
+                  variant="outline"
                   icon="logout"
                   onPress={() => void logout()}
                   fullWidth

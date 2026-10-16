@@ -537,7 +537,6 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                     width={menuWidth}
                     showMenuIcon={false}
                     onToggle={closeBoardMenu}
-                    onNavigate={closeBoardMenu}
                     onSwipeClose={closeBoardMenu}
                   />
                 </View>
