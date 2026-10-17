@@ -190,14 +190,12 @@ export const ja = {
   'column.sort.color': '色順',
   'column.sort.manual': '手動',
   'column.deleteTitle': 'カンバンを削除',
-  'column.deleteMessage': '「{name}」を削除します。中のタスク（{count} 件）はどうしますか？',
-  'column.deleteWithTasks': 'タスクも一緒に削除',
-  'column.moveTasksTo': '別のカンバンへ移動',
+  'column.deleteMessage':
+    '「{name}」を削除します。中のタスク（{count} 件）も一緒にごみ箱へ移動します。',
   'column.limitReached': 'カンバンは {max} 個までです。',
   'column.empty': 'カンバンがありません',
   'column.emptyHint': '右上のメニューから追加できます。',
   'column.taskCount': '{count}',
-  'column.moveTasksPrompt': '移動先のカンバンを選んでください',
   'column.color': '色',
 
   // タスク
@@ -339,13 +337,20 @@ export const ja = {
   'settings.toastDuration': '表示時間',
   'settings.toastDurationHint': 'トーストが自動で消えるまでの時間を設定します。',
   'settings.toastDurationSeconds': '{seconds} 秒',
+  'settings.screenBorderGroup': '画面の枠線・区切り線',
+  'settings.controlBorderGroup': 'フォームやボタンなど、操作部品の枠線',
   'settings.borderWidth': '線の太さ',
-  'settings.borderWidthHint':
-    '画面の枠線・区切り線の太さを設定します。フォームやボタンには適用されません。',
+  'settings.borderWidthHint': '画面の枠線・区切り線の太さを px 単位で設定します。',
+  'settings.controlBorderWidth': 'フォーム・ボタンの線の太さ',
+  'settings.controlBorderWidthHint':
+    'フォームやボタンなど、操作部品の枠線の太さを px 単位で設定します。',
   'settings.borderColor': '線の色',
   'settings.borderColorHint':
     '「テーマ標準」は、ライトでは明るいグレー、ダークでは暗いグレーになります。',
   'settings.borderColorDefault': 'テーマ標準',
+  'settings.controlBorderColor': '線の色',
+  'settings.controlBorderColorHint':
+    'フォームやボタンなど、操作部品の枠線色をタスクの色パレットから選択します。テーマ標準ではライト／ダークテーマに合った標準色を使います。',
   'settings.qa': 'よくある質問',
   'settings.qaHint': '操作方法や独自の機能、データの扱いについて説明します。',
   'settings.qaQuestionPrefix': 'Q{number}.',

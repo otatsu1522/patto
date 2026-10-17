@@ -156,15 +156,17 @@ export default function SystemSettings() {
                 { value: 'system', label: t('settings.theme.system') },
               ]}
             />
+          </Section>
+          <Section title={t('settings.screenBorderGroup')}>
             {hint(t('settings.borderWidthHint'))}
             <ChoiceRow<'1' | '2' | '3'>
               label={t('settings.borderWidth')}
               value={String(settings.borderWidth) as '1' | '2' | '3'}
               onChange={(v) => update({ borderWidth: Number(v) as 1 | 2 | 3 })}
               options={[
-                { value: '1', label: '1' },
-                { value: '2', label: '2' },
-                { value: '3', label: '3' },
+                { value: '1', label: '1 px' },
+                { value: '2', label: '2 px' },
+                { value: '3', label: '3 px' },
               ]}
             />
             <View style={styles.borderColorPicker}>
@@ -175,6 +177,33 @@ export default function SystemSettings() {
                 label={t('settings.borderColor')}
                 value={settings.borderColor}
                 onChange={(v) => update({ borderColor: v })}
+                noneColor={colors.border}
+                noneLabel={t('settings.borderColorDefault')}
+                labelVariant="body"
+                labelMuted={false}
+              />
+            </View>
+          </Section>
+          <Section title={t('settings.controlBorderGroup')}>
+            {hint(t('settings.controlBorderWidthHint'))}
+            <ChoiceRow<'1' | '2' | '3'>
+              label={t('settings.controlBorderWidth')}
+              value={String(settings.controlBorderWidth) as '1' | '2' | '3'}
+              onChange={(v) => update({ controlBorderWidth: Number(v) as 1 | 2 | 3 })}
+              options={[
+                { value: '1', label: '1 px' },
+                { value: '2', label: '2 px' },
+                { value: '3', label: '3 px' },
+              ]}
+            />
+            <View style={styles.borderColorPicker}>
+              <AppText variant="caption" muted>
+                {t('settings.controlBorderColorHint')}
+              </AppText>
+              <ColorPicker
+                label={t('settings.controlBorderColor')}
+                value={settings.controlBorderColor}
+                onChange={(v) => update({ controlBorderColor: v })}
                 noneColor={colors.border}
                 noneLabel={t('settings.borderColorDefault')}
                 labelVariant="body"
@@ -302,10 +331,10 @@ export default function SystemSettings() {
                   <Button
                     label={syncInProgress ? t('sync.syncing') : t('settings.syncNow')}
                     variant="outline"
-                    icon="cloudUpload"
-                    loading={syncInProgress}
+                    icon={syncInProgress ? 'sync' : 'cloudUpload'}
                     disabled={settings.syncMode === 'off' || syncInProgress}
                     textColor={syncInProgress ? colors.accent : undefined}
+                    style={syncInProgress ? styles.syncInProgressButton : undefined}
                     onPress={() => void runManualSync()}
                     fullWidth
                   />
@@ -351,7 +380,7 @@ export default function SystemSettings() {
               <Button
                 label={t('settings.archiveClearAll')}
                 variant="outlineDanger"
-                icon="deleteSweep"
+                icon="delete"
                 onPress={() => void clearAll('archive')}
                 fullWidth
               />
@@ -400,6 +429,7 @@ const styles = StyleSheet.create({
   hint: { padding: SPACING.lg, paddingBottom: 0 },
   syncDescs: { gap: SPACING.xs, paddingHorizontal: SPACING.lg, paddingBottom: SPACING.sm },
   syncAction: { padding: SPACING.lg, paddingTop: SPACING.sm, gap: SPACING.sm },
+  syncInProgressButton: { opacity: 1 },
   syncLast: { textAlign: 'center' },
   toastCategories: { paddingTop: SPACING.xs },
   toastDuration: { paddingVertical: SPACING.sm, gap: SPACING.sm },

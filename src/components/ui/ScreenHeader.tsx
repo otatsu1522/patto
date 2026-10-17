@@ -8,7 +8,6 @@ import { BOARD, UI_METRICS } from '@/config/layout';
 import { SPACING, useTheme } from '@/theme';
 import { AppText } from './AppText';
 import { IconButton } from './IconButton';
-import { BORDER_WIDTH } from '@/theme/tokens';
 
 /** 設定画面などの上部バー（メニューまたは戻るボタン + タイトル）。 */
 export function ScreenHeader({ title, onBack }: { title: string; onBack?: () => void }) {
@@ -54,7 +53,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: SPACING.sm,
-    borderBottomWidth: BORDER_WIDTH,
     minHeight: BOARD.headerHeight,
   },
   title: { flex: 1, textAlign: 'center' },

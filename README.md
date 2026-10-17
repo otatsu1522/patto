@@ -213,19 +213,19 @@ patto/
 
 ## 9. 設定値の変更
 
-| 対象                                         | ファイル                                                    |
-| -------------------------------------------- | ----------------------------------------------------------- |
-| アプリ名・説明・バージョン・リンク           | `src/config/app.info.json`                                  |
-| ライト/ダークの色・タスク色                  | `src/theme/palette.ts` `src/theme/taskColors.ts`            |
-| 余白・角丸・文字・線幅などのUIトークン       | `src/theme/tokens.ts`                                       |
-| 画面に表示する文言                           | `src/i18n/ja.ts`                                            |
-| よくある質問の質問・回答                     | `src/config/qa.ts`                                          |
-| 初期設定（トースト時間、線の太さ・色など）   | `src/config/defaults.ts`                                    |
-| 入力上限・同期間隔・ごみ箱の日数             | `src/config/limits.ts`                                      |
-| 列数・ブレークポイント・ジェスチャー・UI寸法 | `src/config/layout.ts`                                      |
-| アイコンの対応表・Google SVG アイコン        | `src/config/icons.ts` `src/config/svgIcons.ts`              |
-| ショートカットの既定のキー                   | `src/shortcuts/actions.ts`                                  |
-| ロゴ（view_kanban）                          | `src/config/logo.ts`（アプリ内）、`assets/`（アイコン画像） |
+| 対象                                                       | ファイル                                                    |
+| ---------------------------------------------------------- | ----------------------------------------------------------- |
+| アプリ名・説明・バージョン・リンク                         | `src/config/app.info.json`                                  |
+| ライト/ダークの色・タスク色                                | `src/theme/palette.ts` `src/theme/taskColors.ts`            |
+| 余白・角丸・文字・線幅などのUIトークン                     | `src/theme/tokens.ts`                                       |
+| 画面に表示する文言                                         | `src/i18n/ja.ts`                                            |
+| よくある質問の質問・回答                                   | `src/config/qa.ts`                                          |
+| 初期設定（トースト時間、画面／操作部品の線の太さ・色など） | `src/config/defaults.ts`                                    |
+| 入力上限・同期間隔・ごみ箱の日数                           | `src/config/limits.ts`                                      |
+| 列数・ブレークポイント・ジェスチャー・UI寸法               | `src/config/layout.ts`                                      |
+| アイコンの対応表・Google SVG アイコン                      | `src/config/icons.ts` `src/config/svgIcons.ts`              |
+| ショートカットの既定のキー                                 | `src/shortcuts/actions.ts`                                  |
+| ロゴ（view_kanban）                                        | `src/config/logo.ts`（アプリ内）、`assets/`（アイコン画像） |
 
 アプリ名を変えたら、`package.json` の `name` と、Cloudflare Pages / Supabase 側の名前も必要に応じて合わせてください。
 

@@ -9,7 +9,6 @@ import { SPACING, useTheme } from '@/theme';
 import { AppText } from '../ui/AppText';
 import { IconButton } from '../ui/IconButton';
 import { SyncIndicator } from '../shell/SyncIndicator';
-import { BORDER_WIDTH } from '@/theme/tokens';
 
 interface Props {
   title: string;
@@ -70,7 +69,6 @@ const styles = StyleSheet.create({
     height: BOARD.headerHeight,
     paddingHorizontal: SPACING.sm,
     gap: SPACING.xs,
-    borderBottomWidth: BORDER_WIDTH,
   },
   side: { width: BOARD.touchTarget, alignItems: 'center', justifyContent: 'center' },
   center: {

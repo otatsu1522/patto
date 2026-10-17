@@ -115,6 +115,6 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   links: { alignItems: 'center' },
   divider: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
-  line: { flex: 1, height: 1 },
+  line: { flex: 1 },
   note: { textAlign: 'center' },
 });

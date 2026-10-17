@@ -7,7 +7,6 @@ import {
   ScrollView,
   StyleSheet,
   View,
-  useWindowDimensions,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
@@ -53,8 +52,7 @@ interface SettingsDrawerTouch {
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const { colors } = useTheme();
-  const { mode } = useLayoutMode();
-  const { width: windowWidth } = useWindowDimensions();
+  const { mode, width: windowWidth } = useLayoutMode();
   // レイアウトにはOSが実際に返すinsetsだけを使う。最低値の補正を使うと、
   // システム側ですでにバー領域を確保するネイティブ構成で余白が二重になる。
   const insets = useSafeAreaInsets();

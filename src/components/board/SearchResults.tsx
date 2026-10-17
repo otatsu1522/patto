@@ -4,7 +4,6 @@ import type { KanbanColumn, Project, Task } from '@/domain/types';
 import { t } from '@/i18n';
 import { SPACING, useTheme } from '@/theme';
 import { AppText } from '../ui/AppText';
-import { BORDER_WIDTH } from '@/theme/tokens';
 import { canHover } from '@/lib/hover';
 
 interface Props {
@@ -45,16 +44,22 @@ export function SearchResults({ results, projects, columns, onPress }: Props) {
               },
             ]}
           >
-            <AppText variant="caption" muted numberOfLines={UI_METRICS.text.singleLineMax}>
-              {project?.title ?? ''}
-              {t('common.breadcrumbSeparator')}
-              {column?.title ?? ''}
-            </AppText>
-            <AppText bold>{task.title}</AppText>
-            {task.description ? (
-              <AppText variant="caption" muted numberOfLines={UI_METRICS.text.previewLines}>
-                {task.description}
+            <View pointerEvents="none">
+              <AppText variant="caption" muted numberOfLines={UI_METRICS.text.singleLineMax}>
+                {project?.title ?? ''}
+                {t('common.breadcrumbSeparator')}
+                {column?.title ?? ''}
               </AppText>
+            </View>
+            <View pointerEvents="none">
+              <AppText bold>{task.title}</AppText>
+            </View>
+            {task.description ? (
+              <View pointerEvents="none">
+                <AppText variant="caption" muted numberOfLines={UI_METRICS.text.previewLines}>
+                  {task.description}
+                </AppText>
+              </View>
             ) : null}
           </Pressable>
         );
@@ -69,6 +74,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
     gap: UI_METRICS.search.resultGap,
-    borderBottomWidth: BORDER_WIDTH,
   },
 });

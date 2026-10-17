@@ -82,19 +82,18 @@ export function useBoardActions(projectId: string) {
       },
 
       async deleteColumn(column: KanbanColumn) {
-        const count = tasksOf(store().tasks, column.id, column.sortMode).length;
-        const others = columnsOf(store().columns, projectId).filter((c) => c.id !== column.id);
+        // 表示中のタスクだけでなく、アーカイブ済みを含む未削除タスクを数える。
+        const count = store().tasks.filter(
+          (task) => task.columnId === column.id && task.deletedAt === null,
+        ).length;
         const r = await confirm({
           title: t('column.deleteTitle'),
           message: t('column.deleteMessage', { name: column.title, count }),
-          confirmLabel: t('column.deleteWithTasks'),
+          confirmLabel: t('common.delete'),
           destructive: true,
-          extraLabel: count > 0 && others.length > 0 ? t('column.moveTasksTo') : undefined,
         });
-        if (r === 'cancel') return;
-        let moveTo: string | null = null;
-        if (r === 'extra') moveTo = others[0]!.id;
-        await store().deleteColumn(column.id, moveTo);
+        if (r !== 'confirm') return;
+        await store().deleteColumn(column.id);
         withUndo(t('board.undoDeleted'), () => store().restoreItem('column', column.id), 'other');
       },
 

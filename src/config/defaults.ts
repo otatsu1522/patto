@@ -28,10 +28,14 @@ export interface AppSettings {
   toastEnabled: boolean;
   /** トースト表示時間（秒） */
   toastDurationSeconds: number;
-  /** 画面の通常枠線の太さ */
+  /** 画面の通常枠線の太さ（px） */
   borderWidth: 1 | 2 | 3;
+  /** フォーム・ボタンなど、操作部品の枠線の太さ（px） */
+  controlBorderWidth: 1 | 2 | 3;
   /** 画面の通常枠線色（null はテーマ既定色） */
   borderColor: TaskColorKey | null;
+  /** フォーム・ボタンなど、操作部品の枠線色（null はテーマ既定色） */
+  controlBorderColor: TaskColorKey | null;
   /** トースト表示がONのときに表示する操作分類 */
   toastCategories: ToastCategory[];
   trashAutoDelete: boolean;
@@ -54,7 +58,9 @@ export const defaultSettings = (isWeb: boolean, retentionDays: number): AppSetti
   toastEnabled: true,
   toastDurationSeconds: 2,
   borderWidth: 1,
+  controlBorderWidth: 1,
   borderColor: null,
+  controlBorderColor: null,
   toastCategories: [...TOAST_CATEGORIES],
   trashAutoDelete: true,
   trashRetentionDays: retentionDays,

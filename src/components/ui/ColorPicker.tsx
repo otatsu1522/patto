@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
-import { BOARD, UI_METRICS } from '@/config/layout';
+import { UI_METRICS } from '@/config/layout';
 import { t } from '@/i18n';
-import { BORDER_WIDTH_EMPHASIS, RADIUS, SPACING, useTheme, ICON_SIZE, LAYER } from '@/theme';
+import { RADIUS, SPACING, useTheme, ICON_SIZE, LAYER } from '@/theme';
 import { TASK_COLOR_PICKER_KEYS, type TaskColorKey } from '@/theme/taskColors';
 import { BRAND } from '@/theme/palette';
 import { AppText } from './AppText';
@@ -11,7 +11,7 @@ interface Props {
   label: string;
   value: TaskColorKey | null;
   onChange: (v: TaskColorKey | null) => void;
-  /** null の選択肢に表示する色。指定時は「色なし」の斜線を表示しない。 */
+  /** null の選択肢の背景色。省略時はテーマの面色を使う。 */
   noneColor?: string;
   /** null の選択肢のアクセシビリティ名。 */
   noneLabel?: string;
@@ -20,7 +20,7 @@ interface Props {
   labelMuted?: boolean;
 }
 
-/** パレットから色を選ぶ。先頭の null 選択肢は通常「色なし」として斜線表示する。 */
+/** パレットから色を選ぶ。先頭の null 選択肢はデフォルト色を表し、斜線は表示しない。 */
 export function ColorPicker({
   label,
   value,
@@ -30,7 +30,7 @@ export function ColorPicker({
   labelVariant = 'label',
   labelMuted = true,
 }: Props) {
-  const { colors, taskColor, isDark } = useTheme();
+  const { colors, taskColor, isDark, controlLineWidth } = useTheme();
   return (
     <View style={styles.wrap}>
       <AppText variant={labelVariant} muted={labelMuted}>
@@ -44,14 +44,13 @@ export function ColorPicker({
           style={[
             styles.swatch,
             {
+              // 未設定の丸は、設定中の線色に左右されないテーマ標準色で表示する。
               borderColor: colors.border,
+              borderWidth: controlLineWidth,
               backgroundColor: noneColor ?? colors.surface,
             },
           ]}
         >
-          {noneColor === undefined ? (
-            <View style={[styles.slash, { backgroundColor: colors.border }]} />
-          ) : null}
           {value === null ? (
             <View style={styles.checkBadge}>
               <Icon name="check" size={ICON_SIZE.xs} color={colors.text} />
@@ -91,13 +90,6 @@ export function ColorPicker({
 const styles = StyleSheet.create({
   wrap: { gap: SPACING.xs },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
-  slash: {
-    position: 'absolute',
-    width: BOARD.touchTarget,
-    height: BORDER_WIDTH_EMPHASIS,
-    borderRadius: BORDER_WIDTH_EMPHASIS / 2,
-    transform: [{ rotate: '-45deg' }],
-  },
   checkBadge: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -109,7 +101,6 @@ const styles = StyleSheet.create({
     width: UI_METRICS.colorPicker.swatchSize,
     height: UI_METRICS.colorPicker.swatchSize,
     borderRadius: RADIUS.pill,
-    borderWidth: BORDER_WIDTH_EMPHASIS,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',

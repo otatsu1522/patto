@@ -10,7 +10,6 @@ import { Button } from '../ui/Button';
 import { Dialog } from '../ui/Dialog';
 import { EmptyState } from '../ui/EmptyState';
 import { IconButton } from '../ui/IconButton';
-import { BORDER_WIDTH } from '@/theme/tokens';
 import { UI_METRICS } from '@/config/layout';
 
 interface Props {
@@ -159,7 +158,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
-    borderWidth: BORDER_WIDTH,
     borderRadius: RADIUS.md,
     paddingLeft: SPACING.md,
     paddingRight: SPACING.xs,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { BOARD, UI_METRICS } from '@/config/layout';
 import { searchTasks, visibleProjects } from '@/domain/selectors';
@@ -6,7 +6,7 @@ import type { Task } from '@/domain/types';
 import { t } from '@/i18n';
 import { useDataStore } from '@/store/dataStore';
 import { RADIUS, SPACING, useTheme, ICON_SIZE, ICON_BUTTON_BOX, LAYER } from '@/theme';
-import { CONTROL_BORDER_WIDTH, FONT } from '@/theme/tokens';
+import { FONT } from '@/theme/tokens';
 import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
 import { Dialog } from '../ui/Dialog';
 import { AppText } from '../ui/AppText';
@@ -24,14 +24,13 @@ interface Props {
 
 /** プロジェクトを選んで全タスクを検索するダイアログ。検索ロジックと候補表示は既存処理を利用する。 */
 export function GlobalSearchDialog({ visible, initialProjectId = null, onClose, onSelect }: Props) {
-  const { colors, fs } = useTheme();
+  const { colors, fs, controlLineWidth, controlLineColor } = useTheme();
   const projects = useDataStore((s) => s.projects);
   const columns = useDataStore((s) => s.columns);
   const tasks = useDataStore((s) => s.tasks);
   const [query, setQuery] = useState('');
   const [projectId, setProjectId] = useState<string | null>(null);
   const inputRef = useRef<TextInput>(null);
-  const revealAuthInput = useAuthInputFocus();
   const projectList = useMemo(() => visibleProjects(projects), [projects]);
   const projectListRef = useRef(projectList);
 
@@ -84,22 +83,27 @@ export function GlobalSearchDialog({ visible, initialProjectId = null, onClose, 
       fixedBody
     >
       <View
-        style={[styles.searchField, { backgroundColor: colors.bg, borderColor: colors.border }]}
+        style={[
+          styles.searchField,
+          {
+            backgroundColor: colors.bg,
+            borderColor: controlLineColor,
+            borderWidth: controlLineWidth,
+          },
+        ]}
       >
         <Icon name="search" size={ICON_SIZE.xl} color={colors.textMuted} />
-        <TextInput
+        <GlobalSearchInput
           key={visible ? 'global-search-open' : 'global-search-closed'}
-          ref={inputRef}
-          onFocus={() => revealAuthInput?.(inputRef.current)}
-          onBlur={() => revealAuthInput?.(null)}
-          showSoftInputOnFocus={visible}
+          inputRef={inputRef}
+          visible={visible}
           value={query}
           onChangeText={setQuery}
           placeholder={t('board.searchPlaceholder')}
           placeholderTextColor={colors.textMuted}
           accessibilityLabel={t('board.searchPlaceholder')}
-          returnKeyType="search"
-          style={[styles.input, { color: colors.text, fontSize: fs(FONT.bodyLarge) }]}
+          textColor={colors.text}
+          fontSize={fs(FONT.bodyLarge)}
         />
         <IconButton
           icon="close"
@@ -127,7 +131,8 @@ export function GlobalSearchDialog({ visible, initialProjectId = null, onClose, 
                 styles.filter,
                 {
                   backgroundColor: projectId === null ? colors.primary : 'transparent',
-                  borderColor: projectId === null ? colors.primary : colors.border,
+                  borderColor: projectId === null ? colors.primary : controlLineColor,
+                  borderWidth: controlLineWidth,
                 },
               ]}
             >
@@ -151,7 +156,8 @@ export function GlobalSearchDialog({ visible, initialProjectId = null, onClose, 
                     styles.filter,
                     {
                       backgroundColor: selected ? colors.primary : 'transparent',
-                      borderColor: selected ? colors.primary : colors.border,
+                      borderColor: selected ? colors.primary : controlLineColor,
+                      borderWidth: controlLineWidth,
                     },
                   ]}
                 >
@@ -190,10 +196,51 @@ export function GlobalSearchDialog({ visible, initialProjectId = null, onClose, 
   );
 }
 
+interface GlobalSearchInputProps {
+  inputRef: RefObject<TextInput | null>;
+  visible: boolean;
+  value: string;
+  onChangeText: (value: string) => void;
+  placeholder: string;
+  placeholderTextColor: string;
+  accessibilityLabel: string;
+  textColor: string;
+  fontSize: number;
+}
+
+/** Dialog 内でフォーカス通知を取得し、共通ダイアログのキーボード位置調整へ伝える。 */
+function GlobalSearchInput({
+  inputRef,
+  visible,
+  value,
+  onChangeText,
+  placeholder,
+  placeholderTextColor,
+  accessibilityLabel,
+  textColor,
+  fontSize,
+}: GlobalSearchInputProps) {
+  const revealAuthInput = useAuthInputFocus();
+  return (
+    <TextInput
+      ref={inputRef}
+      onFocus={() => revealAuthInput?.(inputRef.current)}
+      onBlur={() => revealAuthInput?.(null)}
+      showSoftInputOnFocus={visible}
+      value={value}
+      onChangeText={onChangeText}
+      placeholder={placeholder}
+      placeholderTextColor={placeholderTextColor}
+      accessibilityLabel={accessibilityLabel}
+      returnKeyType="search"
+      style={[styles.input, { color: textColor, fontSize }]}
+    />
+  );
+}
+
 const styles = StyleSheet.create({
   searchField: {
     minHeight: BOARD.touchTarget,
-    borderWidth: CONTROL_BORDER_WIDTH,
     borderRadius: RADIUS.md,
     flexDirection: 'row',
     alignItems: 'center',
@@ -231,7 +278,6 @@ const styles = StyleSheet.create({
     minHeight: UI_METRICS.search.filterChipMinHeight,
     maxWidth: UI_METRICS.search.filterChipMaxWidth,
     justifyContent: 'center',
-    borderWidth: CONTROL_BORDER_WIDTH,
     borderRadius: RADIUS.sm,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.xs,

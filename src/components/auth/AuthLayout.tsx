@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { APP_NAME } from '@/config/app';
 import { UI_METRICS } from '@/config/layout';
 import { TIMING } from '@/config/timing';
-import { BORDER_WIDTH, RADIUS, SHADOW, SPACING, useTheme } from '@/theme';
+import { RADIUS, SHADOW, SPACING, useTheme } from '@/theme';
 import { AppText } from '../ui/AppText';
 import { Logo } from '../ui/Logo';
 import { AuthInputFocusProvider, useInputFocusScroller } from './AuthInputFocusContext';
@@ -72,7 +72,6 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: UI_METRICS.dialog.contentMaxWidth,
     borderRadius: RADIUS.lg,
-    borderWidth: BORDER_WIDTH,
     padding: SPACING.xl,
     gap: SPACING.md,
   },

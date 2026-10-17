@@ -126,7 +126,8 @@ export const UI_METRICS = {
     comboPlusPaddingHorizontal: 1,
     estimatedKeyCapCharWidth: 7,
     estimatedComboSeparatorWidth: 12,
-    estimatedComboTrailingWidth: 10,
+    /** キー枠の左右 padding の合計。枠線幅は設定値から別途加算する。 */
+    estimatedComboTrailingWidth: 8,
     addActionSlotWidth: 42,
     captureActionSlotWidth: 72,
     /** ショートカット行の再レイアウト判定の最小差(px) */

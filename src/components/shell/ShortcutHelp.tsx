@@ -8,11 +8,10 @@ import { useUiStore } from '@/store/uiStore';
 import { RADIUS, SPACING, useTheme, OPACITY } from '@/theme';
 import { AppText } from '../ui/AppText';
 import { Dialog } from '../ui/Dialog';
-import { CONTROL_BORDER_WIDTH } from '@/theme/tokens';
 
 /** ショートカット一覧（? キーで表示）。 */
 export function ShortcutHelp() {
-  const { colors } = useTheme();
+  const { colors, controlLineWidth, controlLineColor } = useTheme();
   const open = useUiStore((s) => s.helpOpen);
   const setOpen = useUiStore((s) => s.setHelpOpen);
   const overrides = useSettingsStore((s) => s.settings.shortcutOverrides);
@@ -20,7 +19,14 @@ export function ShortcutHelp() {
   const renderCombo = (shortcut: string) => (
     <View
       key={shortcut}
-      style={[styles.combo, { borderColor: colors.border, backgroundColor: colors.hover }]}
+      style={[
+        styles.combo,
+        {
+          borderColor: controlLineColor,
+          backgroundColor: colors.hover,
+          borderWidth: controlLineWidth,
+        },
+      ]}
     >
       {displayKeyParts(shortcut).map((part, index) => (
         <Fragment key={`${part}-${index}`}>
@@ -49,10 +55,23 @@ export function ShortcutHelp() {
           </AppText>
         </View>
         <View
-          style={[styles.keyField, styles.fixedField, { borderColor: colors.border }]}
+          style={[
+            styles.keyField,
+            styles.fixedField,
+            { borderColor: controlLineColor, borderWidth: controlLineWidth },
+          ]}
           pointerEvents="none"
         >
-          <View style={[styles.combo, { borderColor: colors.divider, backgroundColor: colors.bg }]}>
+          <View
+            style={[
+              styles.combo,
+              {
+                borderColor: controlLineColor,
+                backgroundColor: colors.bg,
+                borderWidth: controlLineWidth,
+              },
+            ]}
+          >
             <View style={styles.keyCap}>
               <AppText variant="caption" bold>
                 {t('shortcut.keyEscape')}
@@ -90,7 +109,6 @@ const styles = StyleSheet.create({
   keyField: {
     flex: 1,
     minWidth: 0,
-    borderWidth: CONTROL_BORDER_WIDTH,
     borderRadius: RADIUS.md,
     padding: SPACING.xs,
     flexDirection: 'row',
@@ -100,7 +118,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: UI_METRICS.shortcuts.comboGap,
-    borderWidth: CONTROL_BORDER_WIDTH,
     borderRadius: RADIUS.sm,
     paddingHorizontal: UI_METRICS.shortcuts.comboPaddingHorizontal,
     paddingVertical: UI_METRICS.shortcuts.comboPaddingVertical,

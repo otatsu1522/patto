@@ -15,7 +15,7 @@ import {
 } from '@/config/app';
 import { BOARD, UI_METRICS } from '@/config/layout';
 import { t, type StringKey } from '@/i18n';
-import { BORDER_WIDTH, RADIUS, SPACING, useTheme } from '@/theme';
+import { RADIUS, SPACING, useTheme } from '@/theme';
 
 export default function AboutScreen() {
   const scrollRef = useWebWheelScroll({ touchAction: 'pan-x pan-y' });
@@ -108,7 +108,6 @@ const styles = StyleSheet.create({
   },
   copyright: { textAlign: 'center', paddingTop: SPACING.xl, paddingBottom: SPACING.sm },
   introCard: {
-    borderWidth: BORDER_WIDTH,
     borderRadius: RADIUS.lg,
     padding: SPACING.lg,
     gap: SPACING.xl,

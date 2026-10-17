@@ -133,7 +133,7 @@ interface DataState extends Snapshot {
     id: string,
     patch: Partial<Pick<KanbanColumn, 'title' | 'color' | 'sortMode' | 'isDoneColumn'>>,
   ) => Promise<void>;
-  deleteColumn: (id: string, moveTasksToColumnId: string | null) => Promise<void>;
+  deleteColumn: (id: string) => Promise<void>;
   duplicateColumn: (id: string) => Promise<boolean>;
   moveColumn: (id: string, toIndex: number) => Promise<void>;
 
@@ -649,17 +649,13 @@ export const useDataStore = create<DataState>((set, get) => {
       await commit(changes);
     },
 
-    async deleteColumn(id, moveTo) {
+    async deleteColumn(id) {
       const c = column(id);
       if (!c) return;
       const ts = now();
-      const target = moveTo ? column(moveTo) : undefined;
+      // カンバン内の未削除タスクは、アーカイブ状態にかかわらず一緒にごみ箱へ移す。
       const tks = get().tasks.filter((x) => x.columnId === id && isActive(x));
-      const changed = tks.map((x) =>
-        target
-          ? patchRecord(x, moveTaskPatch(target, ts), ts)
-          : patchRecord(x, { deletedAt: ts }, ts),
-      );
+      const changed = tks.map((x) => patchRecord(x, { deletedAt: ts }, ts));
       await commit({ columns: [patchRecord(c, { deletedAt: ts }, ts)], tasks: changed });
     },
 

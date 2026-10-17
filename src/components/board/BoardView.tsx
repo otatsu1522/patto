@@ -48,7 +48,6 @@ import { t } from '@/i18n';
 import type { Cursor } from '@/shortcuts/cursor';
 import {
   BORDER_WIDTH_EMPHASIS,
-  CONTROL_BORDER_WIDTH,
   BORDER_WIDTH_NONE,
   RADIUS,
   SHADOW,
@@ -124,7 +123,7 @@ interface ScrollUiSnapshot {
  */
 export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(props, ref) {
   const { columns, tasksOf, cursor, header } = props;
-  const { colors, isDark, lineWidth, lineColor } = useTheme();
+  const { colors, isDark, lineWidth, lineColor, controlLineWidth, controlLineColor } = useTheme();
   const { mode, width: windowWidth, height: windowHeight } = useLayoutMode();
   const insets = useSafeAreaInsets();
   // 画面切替直後に width=0 のため ScrollView 自体が描画されず、1フレーム白くなるのを防ぐ。
@@ -1218,8 +1217,8 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                       }
                       style={{
                         backgroundColor: colors.surface,
-                        borderWidth: CONTROL_BORDER_WIDTH,
-                        borderColor: colors.border,
+                        borderWidth: controlLineWidth,
+                        borderColor: controlLineColor,
                       }}
                     />
                   </View>
@@ -1238,8 +1237,8 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                       }
                       style={{
                         backgroundColor: colors.surface,
-                        borderWidth: CONTROL_BORDER_WIDTH,
-                        borderColor: colors.border,
+                        borderWidth: controlLineWidth,
+                        borderColor: controlLineColor,
                       }}
                     />
                   </View>

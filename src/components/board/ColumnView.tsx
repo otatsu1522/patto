@@ -21,7 +21,7 @@ import { Icon } from '../ui/Icon';
 import { IconButton } from '../ui/IconButton';
 import { useDragGesture, type DragHandlers } from './dragGesture';
 import { TaskCard } from './TaskCard';
-import { BORDER_WIDTH_NONE, SEPARATOR_WIDTH } from '@/theme/tokens';
+import { BORDER_WIDTH_NONE } from '@/theme/tokens';
 import { canHover } from '@/lib/hover';
 import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
 
@@ -323,7 +323,7 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.sm,
     zIndex: LAYER.dragColumn,
   },
-  columnDivider: { position: 'absolute', top: 0, bottom: 0, width: SEPARATOR_WIDTH },
+  columnDivider: { position: 'absolute', top: 0, bottom: 0 },
   header: {
     // 上のヘッダー区切り線と下線の間で、タイトル行を縦方向の中央に配置する。
     position: 'relative',
@@ -340,7 +340,6 @@ const styles = StyleSheet.create({
     left: -(BOARD.columnGap / 2),
     right: -(BOARD.columnGap / 2),
     bottom: 0,
-    height: SEPARATOR_WIDTH,
   },
   titleWrap: {
     flex: 1,
@@ -369,9 +368,6 @@ const styles = StyleSheet.create({
   divider: {
     width: UI_METRICS.board.pinnedDividerWidth,
     alignSelf: 'center',
-    height: SEPARATOR_WIDTH,
-    minHeight: SEPARATOR_WIDTH,
-    maxHeight: SEPARATOR_WIDTH,
     flexShrink: 0,
     marginVertical: SPACING.xs,
   },

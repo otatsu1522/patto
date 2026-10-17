@@ -1,5 +1,6 @@
 import { useWindowDimensions } from 'react-native';
 import { BOARD, BREAKPOINTS, UI_METRICS } from '@/config/layout';
+import { useSettingsStore } from '@/store/settingsStore';
 
 export type LayoutMode = 'compact' | 'medium' | 'expanded';
 
@@ -9,7 +10,12 @@ export const layoutModeFor = (width: number): LayoutMode =>
 /** 画面幅から表示モード（スマホ縦 / スマホ横・小型タブレット / PC）を決める。 */
 export function useLayoutMode(): { mode: LayoutMode; width: number; height: number } {
   const { width, height } = useWindowDimensions();
-  return { mode: layoutModeFor(width), width, height };
+  const screenFrameInset = useSettingsStore((s) =>
+    s.settings.borderColor === null ? 0 : s.settings.borderWidth * 2,
+  );
+  const contentWidth = Math.max(0, width - screenFrameInset);
+  const contentHeight = Math.max(0, height - screenFrameInset);
+  return { mode: layoutModeFor(contentWidth), width: contentWidth, height: contentHeight };
 }
 
 export interface BoardGeometry {
@@ -77,7 +83,8 @@ export function boardGeometry(
   const fit = Math.max(1, Math.floor((containerWidth - p * 2 + gap) / (minColumnWidth + gap)));
   const limit = Math.min(visibleColumns, fit);
   if (n <= limit) {
-    const columnWidth = (containerWidth - p * 2 - gap * (n - 1)) / n;
+    // サブピクセル幅を切り捨て、ブラウザの scrollWidth 丸めで不要な横スクロールが出るのを防ぐ。
+    const columnWidth = Math.floor((containerWidth - p * 2 - gap * (n - 1)) / n);
     return {
       visible: n,
       columnWidth,

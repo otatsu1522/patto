@@ -3,7 +3,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { t } from '@/i18n';
 import { UI_METRICS } from '@/config/layout';
 import { LAYER, RADIUS, SHADOW, SPACING, useTheme } from '@/theme';
-import { BORDER_WIDTH } from '@/theme/tokens';
 import { AppText } from './AppText';
 import { Button } from './Button';
 import { getSystemBarInsets } from '@/lib/systemBarInsets';
@@ -76,7 +75,6 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: UI_METRICS.dialog.contentMaxWidth,
-    borderWidth: BORDER_WIDTH,
     borderRadius: RADIUS.lg,
     padding: SPACING.lg,
     gap: SPACING.md,

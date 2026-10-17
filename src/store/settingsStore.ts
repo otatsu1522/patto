@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import { create } from 'zustand';
 import { defaultSettings, TOAST_DURATION_SECONDS, type AppSettings } from '@/config/defaults';
 import { TRASH } from '@/config/limits';
+import { isTaskColorKey } from '@/theme/taskColors';
 import { kv } from '@/lib/kv';
 
 const STORAGE_KEY = 'patto:settings';
@@ -28,12 +29,26 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       stored = {};
     }
     const settings = { ...defaultSettings(isWeb, TRASH.retentionDays), ...stored };
+    let normalized = false;
     if (!TOAST_DURATION_SECONDS.some((seconds) => seconds === settings.toastDurationSeconds)) {
       settings.toastDurationSeconds = Number.isFinite(settings.toastDurationSeconds)
         ? Math.min(3, Math.max(1, Math.round(settings.toastDurationSeconds)))
         : 2;
-      void kv.set(STORAGE_KEY, JSON.stringify(settings));
+      normalized = true;
     }
+    if (![1, 2, 3].includes(settings.controlBorderWidth)) {
+      settings.controlBorderWidth = 1;
+      normalized = true;
+    }
+    if (settings.borderColor !== null && !isTaskColorKey(settings.borderColor)) {
+      settings.borderColor = null;
+      normalized = true;
+    }
+    if (settings.controlBorderColor !== null && !isTaskColorKey(settings.controlBorderColor)) {
+      settings.controlBorderColor = null;
+      normalized = true;
+    }
+    if (normalized) void kv.set(STORAGE_KEY, JSON.stringify(settings));
     set({ settings, loaded: true });
   },
   update(patch) {

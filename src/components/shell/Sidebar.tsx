@@ -25,7 +25,6 @@ import { useFeedback } from '../ui/FeedbackProvider';
 import { Icon } from '../ui/Icon';
 import { IconButton } from '../ui/IconButton';
 import { useSyncLabel } from './SyncIndicator';
-import { BORDER_WIDTH, SEPARATOR_WIDTH } from '@/theme/tokens';
 import { canHover, isTouchWeb } from '@/lib/hover';
 
 interface Props {
@@ -185,7 +184,7 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
               styles.dot,
               {
                 backgroundColor: p.color ? taskColor(p.color) : 'transparent',
-                borderColor: p.color ? 'transparent' : selected ? colors.onPrimary : lineColor,
+                borderColor: p.color ? 'transparent' : colors.border,
                 borderWidth: lineWidth,
               },
             ]}
@@ -400,20 +399,31 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
         </Pressable>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={sync.enabled ? `${t('sync.now')} (${sync.label})` : sync.label}
+          accessibilityLabel={
+            sync.enabled
+              ? `${t('sync.now')} (${sync.label}${sync.pendingLabel ? ` (${sync.pendingLabel})` : ''})`
+              : sync.label
+          }
           disabled={!sync.enabled}
           onPress={() => void syncNow()}
           style={styles.footerRow}
         >
           <Icon name={sync.icon} size={ICON_SIZE.xl} color={sync.color} />
-          <AppText
-            color={sync.color}
-            numberOfLines={UI_METRICS.text.singleLineMax}
-            style={styles.flex}
-          >
-            {identity?.mode === 'guest' ? `${t('menu.guestBadge')} · ` : ''}
-            {sync.label}
-          </AppText>
+          <View style={styles.syncTextRow}>
+            <AppText
+              color={sync.color}
+              numberOfLines={UI_METRICS.text.singleLineMax}
+              style={styles.syncPrimaryLabel}
+            >
+              {identity?.mode === 'guest' ? `${t('menu.guestBadge')} · ` : ''}
+              {sync.label}
+            </AppText>
+            {sync.pendingLabel ? (
+              <AppText muted numberOfLines={1} style={styles.syncPendingLabel}>
+                ({sync.pendingLabel})
+              </AppText>
+            ) : null}
+          </View>
         </Pressable>
       </View>
 
@@ -448,7 +458,6 @@ const styles = StyleSheet.create({
     top: 0,
     right: 0,
     bottom: 0,
-    width: SEPARATOR_WIDTH,
     zIndex: LAYER.sidebarEdge,
     elevation: LAYER.sidebarEdge,
   },
@@ -485,19 +494,15 @@ const styles = StyleSheet.create({
     width: UI_METRICS.board.colorDotSize,
     height: UI_METRICS.board.colorDotSize,
     borderRadius: UI_METRICS.board.colorDotSize / 2,
-    borderWidth: BORDER_WIDTH,
   },
   divider: {
     width: UI_METRICS.board.pinnedDividerWidth,
     alignSelf: 'center',
-    height: SEPARATOR_WIDTH,
-    minHeight: SEPARATOR_WIDTH,
-    maxHeight: SEPARATOR_WIDTH,
     flexShrink: 0,
     marginVertical: SPACING.xs,
   },
   // プロジェクト内の区切り線と同じ太さ・左右の余白に揃える。
-  rule: { height: SEPARATOR_WIDTH, marginVertical: SPACING.xs, marginHorizontal: 0 },
+  rule: { marginVertical: SPACING.xs, marginHorizontal: 0 },
   archiveToggle: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -505,6 +510,15 @@ const styles = StyleSheet.create({
     padding: SPACING.lg,
   },
   footer: { paddingVertical: SPACING.xs },
+  syncTextRow: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: SPACING.xs,
+  },
+  syncPrimaryLabel: { flexShrink: 1, minWidth: 0 },
+  syncPendingLabel: { flexShrink: 0 },
   footerRow: {
     flexDirection: 'row',
     alignItems: 'center',

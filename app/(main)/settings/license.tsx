@@ -5,7 +5,7 @@ import { LICENSE_BODY, LICENSE_TRANSLATION_NOTE } from '@/config/license';
 import { APP_DISPLAY_COPYRIGHT } from '@/config/app';
 import { BOARD, UI_METRICS } from '@/config/layout';
 import { t } from '@/i18n';
-import { BORDER_WIDTH, RADIUS, SPACING, useTheme, OPACITY } from '@/theme';
+import { RADIUS, SPACING, useTheme, OPACITY } from '@/theme';
 import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
 
 export default function LicenseScreen() {
@@ -52,12 +52,11 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: BOARD.dialogMaxWidth + UI_METRICS.dialog.settingsPanelExtraWidth,
-    borderWidth: BORDER_WIDTH,
     borderRadius: RADIUS.lg,
     padding: SPACING.lg,
     gap: SPACING.md,
   },
   copyright: { opacity: OPACITY.copyright },
-  divider: { height: BORDER_WIDTH, alignSelf: 'stretch', marginVertical: SPACING.xs },
+  divider: { alignSelf: 'stretch', marginVertical: SPACING.xs },
   body: { lineHeight: UI_METRICS.license.bodyLineHeight },
 });

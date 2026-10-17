@@ -9,6 +9,7 @@ import { isSupabaseConfigured } from '@/config/env';
 import { UI_METRICS } from '@/config/layout';
 import { TIMING } from '@/config/timing';
 import { FeedbackProvider } from '@/components/ui/FeedbackProvider';
+import { ScreenFrame } from '@/components/ui/ScreenFrame';
 import { SystemBars } from '@/components/ui/SystemBars';
 import { MenuProvider } from '@/components/ui/MenuHost';
 import { autoPurgeLocal } from '@/features/maintenance';
@@ -220,9 +221,11 @@ export default function RootLayout() {
     <GestureHandlerRootView style={styles.fill}>
       <SafeAreaProvider initialMetrics={Platform.OS === 'web' ? undefined : initialWindowMetrics}>
         <ThemeProvider>
-          <FeedbackProvider>
-            <Boot />
-          </FeedbackProvider>
+          <ScreenFrame>
+            <FeedbackProvider>
+              <Boot />
+            </FeedbackProvider>
+          </ScreenFrame>
         </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

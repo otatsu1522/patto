@@ -20,7 +20,6 @@ import {
 
 export {
   BORDER_WIDTH,
-  CONTROL_BORDER_WIDTH,
   BORDER_WIDTH_NONE,
   BORDER_WIDTH_EMPHASIS,
   FONT,
@@ -47,6 +46,10 @@ interface Theme {
   taskColor: (key: TaskColorKey) => string;
   /** ユーザー設定に応じた通常の画面枠線・区切り線 */
   lineWidth: 1 | 2 | 3;
+  /** ユーザー設定に応じたフォーム・ボタンなどの枠線 */
+  controlLineWidth: 1 | 2 | 3;
+  /** ユーザー設定に応じたフォーム・ボタンなどの枠線色 */
+  controlLineColor: string;
   lineColor: string;
 }
 
@@ -98,7 +101,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const mode = useSettingsStore((s) => s.settings.themeMode);
   const scaleKey = useSettingsStore((s) => s.settings.fontScale);
   const lineWidth = useSettingsStore((s) => s.settings.borderWidth);
+  const controlLineWidth = useSettingsStore((s) => s.settings.controlBorderWidth);
   const borderColor = useSettingsStore((s) => s.settings.borderColor);
+  const controlBorderColor = useSettingsStore((s) => s.settings.controlBorderColor);
 
   const value = useMemo<Theme>(() => {
     const isDark = mode === 'system' ? system === 'dark' : mode === 'dark';
@@ -111,13 +116,19 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       fs: (size: number) => Math.round(size * fontScale),
       taskColor: (key) => map[key] ?? TASK_COLOR_FALLBACK,
       lineWidth,
+      controlLineWidth,
       lineColor: borderColor
         ? (map[borderColor] ?? TASK_COLOR_FALLBACK)
         : isDark
           ? darkPalette.border
           : lightPalette.border,
+      controlLineColor: controlBorderColor
+        ? (map[controlBorderColor] ?? TASK_COLOR_FALLBACK)
+        : isDark
+          ? darkPalette.border
+          : lightPalette.border,
     };
-  }, [mode, system, scaleKey, lineWidth, borderColor]);
+  }, [mode, system, scaleKey, lineWidth, controlLineWidth, borderColor, controlBorderColor]);
 
   // 画面遷移（ナビゲーション）の背景色などもテーマに合わせる。合わせないとOS標準の背景色になる。
   const navigationTheme = useMemo(() => {

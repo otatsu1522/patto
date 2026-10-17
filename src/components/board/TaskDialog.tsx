@@ -7,7 +7,7 @@ import type { Task } from '@/domain/types';
 import { firstError, validateMaxLength, validateTitle } from '@/domain/validation';
 import { t } from '@/i18n';
 import { formatDateTime } from '@/lib/dates';
-import { CONTROL_BORDER_WIDTH, SPACING, useTheme, ICON_SIZE } from '@/theme';
+import { SPACING, useTheme, ICON_SIZE } from '@/theme';
 import type { TaskColorKey } from '@/theme/taskColors';
 import { AppText } from '../ui/AppText';
 import { Button } from '../ui/Button';
@@ -49,7 +49,7 @@ const dueText = (task: Task | null): string =>
  * 複製・アーカイブ・削除・ピン留めは、タスクをタップしたときのメニューから行う。
  */
 export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, onSubmit }: Props) {
-  const { colors } = useTheme();
+  const { colors, controlLineWidth, controlLineColor } = useTheme();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [color, setColor] = useState<TaskColorKey | null>(null);
@@ -222,7 +222,11 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
                 onPress={() => setSelectOpen((v) => !v)}
                 style={[
                   styles.select,
-                  { borderColor: colors.border, backgroundColor: colors.surface },
+                  {
+                    borderColor: controlLineColor,
+                    backgroundColor: colors.surface,
+                    borderWidth: controlLineWidth,
+                  },
                 ]}
               >
                 <AppText style={styles.flex} numberOfLines={UI_METRICS.text.singleLineMax}>
@@ -235,7 +239,7 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
                 />
               </Pressable>
               {selectOpen ? (
-                <View style={[styles.list, { borderColor: colors.border }]}>
+                <View style={{ borderColor: controlLineColor, borderWidth: controlLineWidth }}>
                   {columns.map((c) => (
                     <Pressable
                       key={c.id}
@@ -307,11 +311,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
-    borderWidth: CONTROL_BORDER_WIDTH,
     paddingHorizontal: SPACING.md,
     minHeight: BOARD.touchTarget,
   },
-  list: { borderWidth: CONTROL_BORDER_WIDTH },
   option: {
     flexDirection: 'row',
     alignItems: 'center',

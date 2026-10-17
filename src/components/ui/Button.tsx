@@ -4,7 +4,6 @@ import type { IconKey } from '@/config/icons';
 import { RADIUS, SPACING, useTheme, ICON_SIZE, OPACITY } from '@/theme';
 import { AppText } from './AppText';
 import { Icon } from './Icon';
-import { CONTROL_BORDER_WIDTH } from '@/theme/tokens';
 import { canHover } from '@/lib/hover';
 
 type Variant =
@@ -34,15 +33,16 @@ export function Button({
   style,
   textColor,
 }: Props) {
-  const { colors } = useTheme();
+  const { colors, controlLineWidth, controlLineColor } = useTheme();
   const palette = {
+    // 塗りつぶしボタンは背景と枠線を同色にし、操作部品の枠線色設定の対象外にする。
     primary: { bg: colors.primary, fg: colors.onPrimary, border: colors.primary },
     accent: { bg: colors.accent, fg: colors.onAccent, border: colors.accent },
-    secondary: { bg: colors.surface, fg: colors.text, border: colors.border },
+    secondary: { bg: colors.surface, fg: colors.text, border: controlLineColor },
     danger: { bg: colors.danger, fg: colors.onDanger, border: colors.danger },
     ghost: { bg: 'transparent', fg: colors.primary, border: 'transparent' },
-    outline: { bg: 'transparent', fg: colors.text, border: colors.text },
-    outlineDanger: { bg: 'transparent', fg: colors.danger, border: colors.danger },
+    outline: { bg: 'transparent', fg: colors.text, border: controlLineColor },
+    outlineDanger: { bg: 'transparent', fg: colors.danger, border: controlLineColor },
   }[variant];
   const foreground = textColor ?? palette.fg;
   const inactive = disabled || loading;
@@ -57,6 +57,7 @@ export function Button({
         {
           backgroundColor: palette.bg,
           borderColor: palette.border,
+          borderWidth: controlLineWidth,
           opacity: inactive
             ? OPACITY.buttonDisabled
             : pressed
@@ -86,7 +87,6 @@ const styles = StyleSheet.create({
     minHeight: BOARD.touchTarget,
     paddingHorizontal: SPACING.lg,
     borderRadius: RADIUS.md,
-    borderWidth: CONTROL_BORDER_WIDTH,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

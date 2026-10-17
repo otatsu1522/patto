@@ -15,7 +15,6 @@ import { t } from '@/i18n';
 import { FONT, RADIUS, SPACING, useTheme, ICON_SIZE, ICON_BUTTON_BOX } from '@/theme';
 import { AppText } from './AppText';
 import { IconButton } from './IconButton';
-import { CONTROL_BORDER_WIDTH } from '@/theme/tokens';
 import { useAuthInputFocus } from '../auth/AuthInputFocusContext';
 
 interface Props extends Omit<TextInputProps, 'style'> {
@@ -49,7 +48,7 @@ export const TextField = forwardRef<TextInput, Props>(function TextField(
   },
   ref,
 ) {
-  const { colors, fs } = useTheme();
+  const { colors, fs, controlLineWidth, controlLineColor } = useTheme();
   const { height: windowHeight } = useWindowDimensions();
   const [hidden, setHidden] = useState(true);
   const [measuredContentHeight, setMeasuredContentHeight] = useState<number | null>(null);
@@ -162,13 +161,17 @@ export const TextField = forwardRef<TextInput, Props>(function TextField(
       <View
         style={[
           styles.box,
-          { borderColor: error ? colors.danger : colors.border, backgroundColor: colors.surface },
+          {
+            borderColor: error ? colors.danger : controlLineColor,
+            backgroundColor: colors.surface,
+            borderWidth: controlLineWidth,
+          },
           // autoGrow の初期表示は通常の1行入力欄と同じ高さに固定する。
           // Textarea のブラウザー既定サイズで外枠が押し広げられないよう、外枠側で高さを管理する。
           autoGrow
             ? {
-                height: autoGrowHeight + CONTROL_BORDER_WIDTH * 2,
-                maxHeight: autoGrowMaxHeight + CONTROL_BORDER_WIDTH * 2,
+                height: autoGrowHeight + controlLineWidth * 2,
+                maxHeight: autoGrowMaxHeight + controlLineWidth * 2,
                 alignItems: 'stretch',
                 overflow: 'hidden',
               }
@@ -302,7 +305,6 @@ const styles = StyleSheet.create({
   box: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: CONTROL_BORDER_WIDTH,
     borderRadius: RADIUS.md,
     paddingHorizontal: SPACING.md,
   },

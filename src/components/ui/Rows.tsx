@@ -4,7 +4,6 @@ import { BOARD, UI_METRICS } from '@/config/layout';
 import { RADIUS, SPACING, useTheme, ICON_SIZE, OPACITY } from '@/theme';
 import { AppText } from './AppText';
 import { Icon } from './Icon';
-import { BORDER_WIDTH, CONTROL_BORDER_WIDTH } from '@/theme/tokens';
 import { canHover } from '@/lib/hover';
 
 export function Section({
@@ -135,7 +134,7 @@ export function ChoiceRow<T extends string>({
   options: { value: T; label: string }[];
   onChange: (v: T) => void;
 }) {
-  const { colors } = useTheme();
+  const { colors, controlLineWidth, controlLineColor } = useTheme();
   return (
     <View style={[styles.row, styles.column]}>
       {label ? <AppText>{label}</AppText> : null}
@@ -151,7 +150,8 @@ export function ChoiceRow<T extends string>({
               style={[
                 styles.choice,
                 {
-                  borderColor: selected ? colors.primary : colors.border,
+                  borderColor: selected ? colors.primary : controlLineColor,
+                  borderWidth: controlLineWidth,
                   backgroundColor: selected ? colors.primary : colors.surface,
                 },
               ]}
@@ -175,7 +175,7 @@ export function Divider() {
 const styles = StyleSheet.create({
   section: { gap: SPACING.xs },
   sectionTitle: { paddingHorizontal: SPACING.sm },
-  card: { borderRadius: RADIUS.lg, borderWidth: BORDER_WIDTH, overflow: 'hidden' },
+  card: { borderRadius: RADIUS.lg, overflow: 'hidden' },
   row: {
     minHeight: BOARD.touchTarget + UI_METRICS.rows.itemTouchHeightAdjustment,
     flexDirection: 'row',
@@ -191,6 +191,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
     borderRadius: RADIUS.sm,
-    borderWidth: CONTROL_BORDER_WIDTH,
   },
 });

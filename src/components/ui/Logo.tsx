@@ -3,7 +3,6 @@ import Svg, { Path } from 'react-native-svg';
 import { VIEW_KANBAN_PATH } from '@/config/logo';
 import { UI_METRICS } from '@/config/layout';
 import { BRAND } from '@/theme/palette';
-import { BORDER_WIDTH } from '@/theme/tokens';
 import { useTheme } from '@/theme';
 
 /** Patto のロゴ: Google の Material Symbols「view_kanban」。必要に応じて白い枠を付ける。 */
@@ -14,7 +13,7 @@ export function Logo({
   size?: number;
   framed?: boolean;
 }) {
-  const { lineWidth, lineColor } = useTheme();
+  const { colors, lineWidth, lineColor } = useTheme();
   return (
     <View
       style={[
@@ -25,7 +24,7 @@ export function Logo({
       ]}
     >
       <Svg width="100%" height="100%" viewBox="0 -960 960 960">
-        <Path d={VIEW_KANBAN_PATH} fill={BRAND.foreground} />
+        <Path d={VIEW_KANBAN_PATH} fill={framed ? BRAND.foreground : colors.text} />
       </Svg>
     </View>
   );
@@ -34,8 +33,6 @@ export function Logo({
 const styles = StyleSheet.create({
   framed: {
     backgroundColor: BRAND.background,
-    borderWidth: BORDER_WIDTH,
-    borderColor: BRAND.border,
   },
   unframed: { backgroundColor: 'transparent', borderWidth: 0 },
 });

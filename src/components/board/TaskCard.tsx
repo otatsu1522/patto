@@ -140,7 +140,13 @@ export function TaskCard({
         {task.color ? (
           <View style={[styles.dot, { backgroundColor: taskColor(task.color) }]} />
         ) : (
-          <View style={[styles.dot, styles.emptyDot, { borderColor: colors.border }]} />
+          <View
+            style={[
+              styles.dot,
+              styles.emptyDot,
+              { borderColor: colors.border, borderWidth: lineWidth },
+            ]}
+          />
         )}
       </Pressable>
       <DropdownMenu
@@ -262,7 +268,7 @@ const styles = StyleSheet.create({
     height: UI_METRICS.board.colorDotSize,
     borderRadius: UI_METRICS.board.colorDotSize / 2,
   },
-  emptyDot: { backgroundColor: 'transparent', borderWidth: BORDER_WIDTH_EMPHASIS },
+  emptyDot: { backgroundColor: 'transparent' },
   metadataList: {
     flexDirection: 'row',
     flexWrap: 'wrap',

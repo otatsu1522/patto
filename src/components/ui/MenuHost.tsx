@@ -7,7 +7,6 @@ import { RADIUS, SHADOW, SPACING, useTheme, LAYER, ICON_SIZE, OPACITY } from '@/
 import { AppText } from './AppText';
 import type { MenuItem } from './DropdownMenu';
 import { Icon } from './Icon';
-import { BORDER_WIDTH, SEPARATOR_WIDTH } from '@/theme/tokens';
 import { canHover } from '@/lib/hover';
 import { DIAGNOSTIC_MESSAGES } from '@/config/diagnostics';
 
@@ -32,7 +31,6 @@ export const useMenuHost = (): Host => {
 };
 
 const ITEM_HEIGHT = BOARD.touchTarget;
-const MENU_SEPARATOR_HEIGHT = SEPARATOR_WIDTH;
 const MENU_SEPARATOR_INSET = SPACING.sm;
 
 /**
@@ -197,7 +195,6 @@ const styles = StyleSheet.create({
   menu: {
     position: 'absolute',
     borderRadius: RADIUS.md,
-    borderWidth: BORDER_WIDTH,
     overflow: 'hidden',
   },
   menuScroll: { flex: 1, minHeight: 0 },
@@ -212,9 +209,6 @@ const styles = StyleSheet.create({
   iconSlot: { width: UI_METRICS.menu.iconSlotWidth, alignItems: 'center' },
   label: { flex: 1 },
   sep: {
-    height: MENU_SEPARATOR_HEIGHT,
-    minHeight: MENU_SEPARATOR_HEIGHT,
-    maxHeight: MENU_SEPARATOR_HEIGHT,
     flexShrink: 0,
     marginHorizontal: MENU_SEPARATOR_INSET,
   },

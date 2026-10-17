@@ -4,7 +4,7 @@ import { monthGrid, shiftMonth } from '@/domain/calendar';
 import { BOARD } from '@/config/layout';
 import { t } from '@/i18n';
 import { startOfDay } from '@/lib/dates';
-import { BORDER_WIDTH_EMPHASIS, SPACING, useTheme } from '@/theme';
+import { SPACING, useTheme } from '@/theme';
 import { AppText } from './AppText';
 import { Button } from './Button';
 import { Dialog } from './Dialog';
@@ -24,7 +24,7 @@ const CELL = BOARD.touchTarget;
 
 /** 期限を選ぶカレンダー（年月日のみ）。 */
 export function CalendarDialog({ visible, value, onClose, onSelect }: Props) {
-  const { colors } = useTheme();
+  const { colors, controlLineWidth } = useTheme();
   const base = value !== null ? new Date(value) : new Date();
   const [view, setView] = useState({ year: base.getFullYear(), month: base.getMonth() + 1 });
 
@@ -110,6 +110,7 @@ export function CalendarDialog({ visible, value, onClose, onSelect }: Props) {
                         ? colors.hover
                         : 'transparent',
                     borderColor: isToday ? colors.accent : 'transparent',
+                    borderWidth: controlLineWidth,
                   },
                 ]}
               >
@@ -136,7 +137,6 @@ const styles = StyleSheet.create({
     height: CELL,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: BORDER_WIDTH_EMPHASIS,
   },
   footer: { flexDirection: 'row', gap: SPACING.sm },
   flex: { flex: 1 },

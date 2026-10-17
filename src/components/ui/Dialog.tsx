@@ -18,7 +18,6 @@ import { LAYER, RADIUS, SHADOW, SPACING, useTheme } from '@/theme';
 import { useLayoutMode } from '@/hooks/useLayout';
 import { AppText } from './AppText';
 import { IconButton } from './IconButton';
-import { BORDER_WIDTH } from '@/theme/tokens';
 import { SystemBars } from './SystemBars';
 import { getSystemBarInsets } from '@/lib/systemBarInsets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -430,7 +429,9 @@ export function Dialog({
                 </AppText>
                 {dismissible ? (
                   <IconButton icon="close" label={t('common.close')} onPress={onClose} />
-                ) : null}
+                ) : (
+                  <View style={styles.headerActionPlaceholder} />
+                )}
               </View>
               {fixedBody ? (
                 <View style={[styles.bodyScroll, styles.fixedBodyScroll]}>
@@ -472,7 +473,6 @@ const styles = StyleSheet.create({
     position: 'relative',
     maxHeight: UI_METRICS.dialog.maxHeightPercent,
     borderRadius: RADIUS.lg,
-    borderWidth: BORDER_WIDTH,
     overflow: 'hidden',
   },
   header: {
@@ -483,6 +483,7 @@ const styles = StyleSheet.create({
     paddingTop: SPACING.sm,
   },
   title: { flex: 1 },
+  headerActionPlaceholder: { width: BOARD.touchTarget, height: BOARD.touchTarget },
   bodyScroll: { flexShrink: 1, minHeight: 0 },
   body: { padding: SPACING.lg, gap: SPACING.md },
   fixedBodyScroll: { flex: 1 },

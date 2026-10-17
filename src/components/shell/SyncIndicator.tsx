@@ -11,7 +11,13 @@ import { useTheme, ICON_SIZE, ICON_BUTTON_BOX } from '@/theme';
 import { IconButton } from '../ui/IconButton';
 
 /** 同期の状態を表す文言とアイコン。 */
-export function useSyncLabel(): { icon: IconKey; label: string; color: string; enabled: boolean } {
+export function useSyncLabel(): {
+  icon: IconKey;
+  label: string;
+  pendingLabel?: string;
+  color: string;
+  enabled: boolean;
+} {
   const { colors } = useTheme();
   const normalColor = colors.text;
   const identity = useAuthStore((s) => s.identity);
@@ -42,8 +48,9 @@ export function useSyncLabel(): { icon: IconKey; label: string; color: string; e
     return { icon: 'error', label: t('sync.error'), color: normalColor, enabled: true };
   if (pending > 0)
     return {
-      icon: 'sync',
-      label: t('sync.pending', { count: pending }),
+      icon: 'cloudUpload',
+      label: last ? t('sync.syncedAt', { time: formatTime(last) }) : t('sync.never'),
+      pendingLabel: t('sync.pending', { count: pending }),
       color: normalColor,
       enabled: true,
     };
@@ -57,11 +64,13 @@ export function useSyncLabel(): { icon: IconKey; label: string; color: string; e
 
 /** タイトルの横に出す同期状態のアイコン。押すと今すぐ同期する。 */
 export function SyncIndicator() {
-  const { icon, label, color, enabled } = useSyncLabel();
+  const { icon, label, pendingLabel, color, enabled } = useSyncLabel();
   return (
     <IconButton
       icon={icon}
-      label={enabled ? `${t('sync.now')} (${label})` : label}
+      label={
+        enabled ? `${t('sync.now')} (${label}${pendingLabel ? ` (${pendingLabel})` : ''})` : label
+      }
       color={color}
       size={ICON_SIZE.xl}
       box={ICON_BUTTON_BOX.medium}

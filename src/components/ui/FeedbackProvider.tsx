@@ -16,7 +16,6 @@ import { useSettingsStore } from '@/store/settingsStore';
 import { RADIUS, SHADOW, SPACING, useTheme } from '@/theme';
 import { AppText } from './AppText';
 import { Button } from './Button';
-import { BORDER_WIDTH } from '@/theme/tokens';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SystemBars } from './SystemBars';
 import { getSystemBarInsets } from '@/lib/systemBarInsets';
@@ -27,10 +26,8 @@ export interface ConfirmOptions {
   message?: string;
   confirmLabel?: string;
   destructive?: boolean;
-  /** 3つ目の選択肢（例:「別のカンバンへ移動」）。選ぶと 'extra' が返る */
-  extraLabel?: string;
 }
-export type ConfirmResult = 'confirm' | 'extra' | 'cancel';
+export type ConfirmResult = 'confirm' | 'cancel';
 
 interface Toast {
   message: string;
@@ -204,13 +201,6 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
                       onPress={() => close('cancel')}
                     />
                   ) : null}
-                  {dialogMode === 'confirm' && dialog.extraLabel ? (
-                    <Button
-                      label={dialog.extraLabel}
-                      variant="secondary"
-                      onPress={() => close('extra')}
-                    />
-                  ) : null}
                   <Button
                     label={dialog.confirmLabel ?? t('common.ok')}
                     variant={dialogMode === 'confirm' && dialog.destructive ? 'danger' : 'primary'}
@@ -242,7 +232,6 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: UI_METRICS.dialog.feedbackCardMaxWidth,
     borderRadius: RADIUS.lg,
-    borderWidth: BORDER_WIDTH,
     padding: SPACING.lg,
     gap: SPACING.md,
   },

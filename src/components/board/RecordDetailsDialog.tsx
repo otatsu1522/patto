@@ -8,7 +8,7 @@ import { AppText } from '../ui/AppText';
 import { Button } from '../ui/Button';
 import { Dialog } from '../ui/Dialog';
 import { Icon } from '../ui/Icon';
-import { BORDER_WIDTH, SPACING, useTheme, ICON_SIZE } from '@/theme';
+import { SPACING, useTheme, ICON_SIZE } from '@/theme';
 import { StyleSheet, View } from 'react-native';
 
 interface Props {
@@ -167,7 +167,6 @@ const styles = StyleSheet.create({
   dateRow: {
     flexDirection: 'row',
     gap: SPACING.lg,
-    borderTopWidth: BORDER_WIDTH,
     paddingTop: SPACING.md,
   },
   dateCell: { flex: 1, minWidth: 0, gap: SPACING.xs },
