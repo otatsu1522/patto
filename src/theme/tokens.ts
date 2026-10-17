@@ -65,7 +65,7 @@ export const SHADOW = {
 export const BORDER_WIDTH_NONE = 0;
 
 /** 通常の枠線・区切り線の太さ（Web・ネイティブ共通）。 */
-export const BORDER_WIDTH = 1;
+export const BORDER_WIDTH = 2;
 
 /** 選択・フォーカス・色スウォッチなど、強調表示に使う太い線の太さ。 */
 export const BORDER_WIDTH_EMPHASIS = 2;

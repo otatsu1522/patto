@@ -24,6 +24,7 @@ import { getSystemBarInsets } from '@/lib/systemBarInsets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isTouchWeb } from '@/lib/hover';
 import { AuthInputFocusProvider, useInputFocusScroller } from '../auth/AuthInputFocusContext';
+import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
 
 interface Props {
   visible: boolean;
@@ -41,7 +42,7 @@ interface Props {
   onShow?: () => void;
   /** Modal の終了イベント後に呼び出す（次のダイアログを競合せず開く用途）。 */
   onDismiss?: () => void;
-  /** 次のダイアログへ即時に切り替える際、閉じるアニメーションを省略する。 */
+  /** 旧呼び出し元との互換用。現在のダイアログはアニメーションなしで表示を切り替える。 */
   dismissImmediately?: boolean;
 }
 
@@ -57,37 +58,60 @@ export function Dialog({
   dismissible = true,
   onShow,
   onDismiss,
-  dismissImmediately = false,
 }: Props) {
   const { colors } = useTheme();
   const insets = getSystemBarInsets(useSafeAreaInsets());
   const { mode } = useLayoutMode();
   const push = useUiStore((s) => s.pushDialog);
   const pop = useUiStore((s) => s.popDialog);
-  const bodyScrollRef = useRef<ScrollView>(null);
-  const { revealFocusedInput, onScroll } = useInputFocusScroller(bodyScrollRef, visible);
+  const bodyScrollRef = useWebWheelScroll({
+    enabled: visible && !fixedBody,
+    touchScroll: visible && !fixedBody,
+    touchAction: 'pan-y',
+  });
+  const { revealFocusedInput, onScroll } = useInputFocusScroller(
+    bodyScrollRef,
+    visible && !fixedBody,
+  );
   const [keyboardState, setKeyboardState] = useState({
     visibleFor: visible,
     keyboardVisible: false,
     webKeyboardHeight: 0,
+    webViewportTop: 0,
+    webViewportHeight: 0,
   });
-  // 入力がフォーカスされた段階で KAV の振る舞いを準備しておき、
-  // Keyboard show 後に behavior を切り替えてダイアログが後追いで跳ねるのを防ぐ。
-  const [dialogInputFocused, setDialogInputFocused] = useState(false);
+  // フォーカス状態とキーボードが実際に表示された状態を分離する。
+  // KeyboardAvoidingView の behavior は表示中ずっと固定し、フォーカス時の後追いレイアウト変更を防ぐ。
   const dialogInputFocusedRef = useRef(false);
   const nativeKeyboardSessionRef = useRef(false);
+  // Web では blur がキーボード閉じ始めより先に届くため、viewport が戻るまでセッションを保持する。
+  const webKeyboardSessionRef = useRef(false);
+  const webViewportBaselineHeightRef = useRef(
+    typeof window !== 'undefined'
+      ? Math.max(window.innerHeight, window.visualViewport?.height ?? 0)
+      : 0,
+  );
 
   const updateKeyboardState = useCallback(
-    (nextKeyboardVisible: boolean, nextWebKeyboardHeight = 0) => {
+    (
+      nextKeyboardVisible: boolean,
+      nextWebKeyboardHeight = 0,
+      nextWebViewportTop = 0,
+      nextWebViewportHeight = 0,
+    ) => {
       setKeyboardState((previous) =>
         previous.visibleFor === visible &&
         previous.keyboardVisible === nextKeyboardVisible &&
-        previous.webKeyboardHeight === nextWebKeyboardHeight
+        previous.webKeyboardHeight === nextWebKeyboardHeight &&
+        previous.webViewportTop === nextWebViewportTop &&
+        previous.webViewportHeight === nextWebViewportHeight
           ? previous
           : {
               visibleFor: visible,
               keyboardVisible: nextKeyboardVisible,
               webKeyboardHeight: nextWebKeyboardHeight,
+              webViewportTop: nextWebViewportTop,
+              webViewportHeight: nextWebViewportHeight,
             },
       );
     },
@@ -96,14 +120,23 @@ export function Dialog({
 
   const handleDialogInputFocus = useCallback(
     (input?: TextInput | null) => {
-      if (input === null) {
+      if (input === null || input === undefined) {
         dialogInputFocusedRef.current = false;
-        // キーボードが表示中なら、hide イベントまで KAV を有効のままにする。
-        if (!nativeKeyboardSessionRef.current) setDialogInputFocused(false);
-      } else if (input) {
-        // フォーカスと、ソフトウェアキーボードが実際に表示された状態を分けて管理する。
-        dialogInputFocusedRef.current = true;
-        setDialogInputFocused(true);
+      } else if (Platform.OS === 'web') {
+        // TextField はフォーカス時だけでなく、内容サイズ変化時にもこの通知を送る。
+        // DOM 上の activeElement と照合し、サイズ変更をフォーカス開始と誤認しない。
+        const node =
+          typeof HTMLElement !== 'undefined' && input instanceof HTMLElement
+            ? input
+            : (input as unknown as { getNativeRef?: () => unknown }).getNativeRef?.();
+        dialogInputFocusedRef.current =
+          typeof document !== 'undefined' &&
+          typeof HTMLElement !== 'undefined' &&
+          node instanceof HTMLElement &&
+          document.activeElement === node;
+      } else {
+        // ネイティブでも内容サイズ変更通知を受けるため、実際の入力フォーカスを確認する。
+        dialogInputFocusedRef.current = input.isFocused();
       }
       revealFocusedInput(input);
     },
@@ -113,7 +146,18 @@ export function Dialog({
   // レイアウトeffectより前のレンダーでも、開閉直後は中央配置の状態として扱う。
   const keyboardStateMatchesVisibility = keyboardState.visibleFor === visible;
   const keyboardVisible = keyboardStateMatchesVisibility && keyboardState.keyboardVisible;
-  const webKeyboardHeight = keyboardStateMatchesVisibility ? keyboardState.webKeyboardHeight : 0;
+  const webKeyboardViewportActive =
+    Platform.OS === 'web' &&
+    isTouchWeb &&
+    keyboardStateMatchesVisibility &&
+    keyboardVisible &&
+    keyboardState.webViewportHeight > 0;
+  const webViewportTop = webKeyboardViewportActive ? keyboardState.webViewportTop : 0;
+  const webViewportHeight = webKeyboardViewportActive ? keyboardState.webViewportHeight : 0;
+  const dialogTopPadding = insets.top + SPACING.lg;
+  const webKeyboardMaxHeight = webKeyboardViewportActive
+    ? Math.max(0, webViewportHeight - dialogTopPadding)
+    : undefined;
   const wasVisibleRef = useRef(visible);
   const onDismissRef = useRef(onDismiss);
 
@@ -122,17 +166,25 @@ export function Dialog({
   useLayoutEffect(() => {
     dialogInputFocusedRef.current = false;
     nativeKeyboardSessionRef.current = false;
+    webKeyboardSessionRef.current = false;
     // 開くときは keyboardStateMatchesVisibility によって前回値を描画へ使わないため、
     // 表示開始直後に状態を更新して余計なレイアウト再計算を起こさない。
     if (visible) return;
-    // 閉じたダイアログでは KAV の keyboard behavior も無効化する。
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- 非表示時に入力セッションを初期化する。
-    setDialogInputFocused(false);
     // 閉じた時点でだけ前回の状態を破棄し、次回表示へ持ち越さない。
     setKeyboardState((previous) =>
-      previous.visibleFor === false && !previous.keyboardVisible && previous.webKeyboardHeight === 0
+      previous.visibleFor === false &&
+      !previous.keyboardVisible &&
+      previous.webKeyboardHeight === 0 &&
+      previous.webViewportTop === 0 &&
+      previous.webViewportHeight === 0
         ? previous
-        : { visibleFor: false, keyboardVisible: false, webKeyboardHeight: 0 },
+        : {
+            visibleFor: false,
+            keyboardVisible: false,
+            webKeyboardHeight: 0,
+            webViewportTop: 0,
+            webViewportHeight: 0,
+          },
     );
   }, [visible]);
 
@@ -175,14 +227,38 @@ export function Dialog({
           // 実際に入力要素へフォーカスがある場合に限り、表示領域の下端との差を採用する。
           const active = document.activeElement;
           const focusedInput =
+            dialogInputFocusedRef.current &&
             active instanceof HTMLElement &&
             active.matches('input, textarea, [contenteditable="true"]');
           const visibleBottom = viewport.offsetTop + viewport.height;
-          const measuredHeight = Math.max(0, window.innerHeight - visibleBottom);
-          const keyboardVisible =
-            focusedInput && measuredHeight > UI_METRICS.keyboard.dialogVisibleHeightPx;
+          if (focusedInput) {
+            webViewportBaselineHeightRef.current = Math.max(
+              webViewportBaselineHeightRef.current,
+              window.innerHeight,
+              visibleBottom,
+            );
+          } else if (!webKeyboardSessionRef.current) {
+            // キーボードセッション終了後にだけ基準値を更新する。
+            // blur が先行しても、閉じきる前に基準値を縮めない。
+            webViewportBaselineHeightRef.current = Math.max(visibleBottom, window.innerHeight);
+          }
+          const measuredHeight = Math.max(0, webViewportBaselineHeightRef.current - visibleBottom);
+          if (focusedInput && measuredHeight > UI_METRICS.keyboard.dialogVisibleHeightPx) {
+            webKeyboardSessionRef.current = true;
+          } else if (
+            webKeyboardSessionRef.current &&
+            measuredHeight <= UI_METRICS.keyboard.dialogHideTolerancePx
+          ) {
+            webKeyboardSessionRef.current = false;
+          }
+          const keyboardVisible = webKeyboardSessionRef.current;
           const webKeyboardHeight = keyboardVisible ? measuredHeight : 0;
-          updateKeyboardState(keyboardVisible, webKeyboardHeight);
+          updateKeyboardState(
+            keyboardVisible,
+            webKeyboardHeight,
+            viewport.offsetTop,
+            viewport.height,
+          );
         });
       };
       update();
@@ -217,22 +293,12 @@ export function Dialog({
       nativeKeyboardSessionRef.current = false;
       if (Platform.OS === 'ios') Keyboard.scheduleLayoutAnimation(event);
       updateKeyboardState(false);
-      // iOS の WillHide はアニメーション開始時。入力フォーカスを外すのは DidHide まで待ち、
-      // キーボードがまだ表示中なのに KAV の behavior が解除される段差を防ぐ。
-      if (Platform.OS !== 'ios' && !dialogInputFocusedRef.current) {
-        setDialogInputFocused(false);
-      }
+      // iOS の WillHide はアニメーション開始時。キーボード状態だけを先に戻し、
+      // 入力フォーカス自体は TextField の blur 通知に任せる。
     });
-    const didHide =
-      Platform.OS === 'ios'
-        ? Keyboard.addListener('keyboardDidHide', () => {
-            if (!dialogInputFocusedRef.current) setDialogInputFocused(false);
-          })
-        : null;
     return () => {
       show.remove();
       hide.remove();
-      didHide?.remove();
     };
   }, [visible, updateKeyboardState]);
 
@@ -243,14 +309,27 @@ export function Dialog({
       const viewport = typeof window !== 'undefined' ? window.visualViewport : undefined;
       const active = typeof document !== 'undefined' ? document.activeElement : null;
       const focusedInput =
+        dialogInputFocusedRef.current &&
         active instanceof HTMLElement &&
         active.matches('input, textarea, [contenteditable="true"]');
       if (isTouchWeb && viewport && focusedInput) {
         const visibleBottom = viewport.offsetTop + viewport.height;
-        const keyboardHeight = Math.max(0, window.innerHeight - visibleBottom);
+        webViewportBaselineHeightRef.current = Math.max(
+          webViewportBaselineHeightRef.current,
+          window.innerHeight,
+          visibleBottom,
+        );
+        const keyboardHeight = Math.max(0, webViewportBaselineHeightRef.current - visibleBottom);
         const keyboardVisible = keyboardHeight > UI_METRICS.keyboard.dialogVisibleHeightPx;
-        updateKeyboardState(keyboardVisible, keyboardVisible ? keyboardHeight : 0);
+        webKeyboardSessionRef.current = keyboardVisible;
+        updateKeyboardState(
+          keyboardVisible,
+          keyboardVisible ? keyboardHeight : 0,
+          viewport.offsetTop,
+          viewport.height,
+        );
       } else {
+        webKeyboardSessionRef.current = false;
         updateKeyboardState(false);
       }
     }
@@ -265,36 +344,12 @@ export function Dialog({
     return pop;
   }, [visible, push, pop]);
 
-  // Web ではフォームやカラーピッカー上でホイールイベントが内側の要素に留まり、
-  // ダイアログ本文がスクロールしない場合がある。スクロール要素で捕捉して本文を直接動かす。
-  useEffect(() => {
-    if (!visible || Platform.OS !== 'web') return;
-    const scrollable = (
-      bodyScrollRef.current as unknown as { getScrollableNode?: () => unknown } | null
-    )?.getScrollableNode?.();
-    const node = scrollable as HTMLElement | null;
-    if (!node) return;
-
-    const onWheel = (event: WheelEvent) => {
-      if (event.ctrlKey || event.deltaY === 0) return;
-      const maxScrollTop = node.scrollHeight - node.clientHeight;
-      if (maxScrollTop <= 0) return;
-      const next = Math.max(0, Math.min(maxScrollTop, node.scrollTop + event.deltaY));
-      if (next === node.scrollTop) return;
-      event.preventDefault();
-      node.scrollTop = next;
-    };
-
-    node.addEventListener('wheel', onWheel, { passive: false, capture: true });
-    return () => node.removeEventListener('wheel', onWheel, true);
-  }, [visible]);
-
   const compact = mode === 'compact';
   return (
     <Modal
       visible={visible}
       transparent
-      animationType={dismissImmediately || (onDismiss && Platform.OS !== 'ios') ? 'none' : 'fade'}
+      animationType="none"
       onRequestClose={dismissible ? onClose : () => {}}
       onShow={handleShow}
       onDismiss={finishDismiss}
@@ -316,25 +371,25 @@ export function Dialog({
         {/* キーボード回避はダイアログ本体の位置決めだけに適用する。 */}
         <KeyboardAvoidingView
           behavior={
-            !dialogInputFocused
-              ? undefined
-              : Platform.OS === 'ios'
-                ? 'padding'
-                : Platform.OS === 'android'
-                  ? 'height'
-                  : undefined
+            Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined
           }
           style={[
             styles.dialogPositioner,
             {
-              paddingTop: insets.top + SPACING.lg,
-              paddingBottom: keyboardVisible
-                ? Platform.OS === 'web'
-                  ? webKeyboardHeight
-                  : 0
-                : insets.bottom + SPACING.lg,
-              // キーボード表示時は表示領域の最下端へ寄せ、ダイアログ下端と
-              // キーボード上端の間に余白を作らない。
+              paddingTop: dialogTopPadding,
+              paddingBottom: keyboardVisible ? 0 : insets.bottom + SPACING.lg,
+              // モバイルWebでは VisualViewport 自体をダイアログの表示領域にする。
+              // 画面全体の高さからキーボード分を二重に引かず、下端をキーボード上端へ合わせる。
+              ...(webKeyboardViewportActive
+                ? {
+                    position: 'absolute' as const,
+                    top: webViewportTop,
+                    left: 0,
+                    right: 0,
+                    height: webViewportHeight,
+                  }
+                : undefined),
+              // キーボード表示時は表示領域の最下端へ寄せ、下端に余白を作らない。
               justifyContent: keyboardVisible ? 'flex-end' : 'center',
             },
           ]}
@@ -352,8 +407,13 @@ export function Dialog({
                 maxWidth: compact
                   ? ('100%' as never)
                   : BOARD.dialogMaxWidth + UI_METRICS.dialog.standardExtraWidth,
-                // 固定本文の高さはキーボード状態で切り替えず、表示領域の maxHeight に任せる。
-                height: fixedBody ? UI_METRICS.dialog.fixedBodyHeight : undefined,
+                // キーボード表示中は VisualViewport 内に収め、本文のスクロール領域を潰さない。
+                maxHeight: webKeyboardMaxHeight ?? UI_METRICS.dialog.maxHeightPercent,
+                height: fixedBody
+                  ? webKeyboardViewportActive
+                    ? webKeyboardMaxHeight
+                    : UI_METRICS.dialog.fixedBodyHeight
+                  : undefined,
               },
             ]}
           >

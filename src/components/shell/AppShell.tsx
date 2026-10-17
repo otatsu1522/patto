@@ -72,6 +72,18 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const permanent = mode === 'expanded';
   const lastBackPress = useRef(0);
+  const currentPathRef = useRef(pathname);
+  const browserHistoryEntryRef = useRef<{ href: string; state: History['state'] } | null>(null);
+  useLayoutEffect(() => {
+    if (currentPathRef.current !== pathname) lastBackPress.current = 0;
+    currentPathRef.current = pathname;
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      browserHistoryEntryRef.current = {
+        href: window.location.href,
+        state: window.history.state,
+      };
+    }
+  }, [pathname]);
   const settingsDrawerRef = useRef<ScrollView>(null);
   const settingsDrawerXRef = useRef(0);
   const settingsMenuTargetRef = useRef<boolean | null>(null);
@@ -522,6 +534,59 @@ export function AppShell({ children }: { children: ReactNode }) {
     });
     return () => subscription.remove();
   }, [mode, pathname, router, toast, closeSettingsDrawer]);
+
+  // モバイルWebのブラウザー戻るもAndroidと同じ2段階にする。
+  // 1回目は現在の履歴エントリを復元してトーストを表示し、2回目はブラウザー標準へ渡す。
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !isTouchWeb || typeof window === 'undefined') return;
+
+    const onPopState = (event: PopStateEvent) => {
+      if (useUiStore.getState().dialogCount > 0) return;
+      const currentPath = currentPathRef.current;
+      const ui = useUiStore.getState();
+      const inMainArea =
+        currentPath === '/home' ||
+        currentPath.startsWith('/project/') ||
+        currentPath === '/settings' ||
+        currentPath.startsWith('/settings/');
+
+      if (inMainArea && ui.menuVisible && mode !== 'expanded') {
+        const entry = browserHistoryEntryRef.current;
+        if (entry) {
+          event.stopImmediatePropagation();
+          window.history.pushState(entry.state, '', entry.href);
+        }
+        if (currentPath.startsWith('/settings')) closeSettingsDrawer();
+        else closeBoardMenu();
+        lastBackPress.current = 0;
+        return;
+      }
+
+      const mainScreen =
+        currentPath === '/home' ||
+        currentPath.startsWith('/project/') ||
+        currentPath === '/settings';
+      if (!mainScreen) return;
+
+      const now = Date.now();
+      if (now - lastBackPress.current < TIMING.androidBackExitWindowMs) {
+        lastBackPress.current = 0;
+        return;
+      }
+
+      const entry = browserHistoryEntryRef.current;
+      if (!entry) return;
+      // popstate は preventDefault で止められないため、capture で Router より先に処理し、
+      // 現在のURL／履歴状態を戻してアプリ内に留まる。
+      event.stopImmediatePropagation();
+      window.history.pushState(entry.state, '', entry.href);
+      lastBackPress.current = now;
+      toast(t('app.pressBackAgain'), undefined, { category: 'other' });
+    };
+
+    window.addEventListener('popstate', onPopState, true);
+    return () => window.removeEventListener('popstate', onPopState, true);
+  }, [mode, toast, closeSettingsDrawer]);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.surface, paddingTop: insets.top }]}>

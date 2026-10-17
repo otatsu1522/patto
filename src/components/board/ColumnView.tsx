@@ -223,7 +223,11 @@ export function ColumnView(p: ColumnViewProps) {
           style={[
             styles.headerUnderline,
             {
-              left: p.connectHeaderLineToMenu ? -BOARD.columnGap : -(BOARD.columnGap / 2),
+              left: p.connectHeaderLineToMenu
+                ? Platform.OS === 'web'
+                  ? 0
+                  : -BOARD.columnGap
+                : -(BOARD.columnGap / 2),
               backgroundColor: colors.divider,
             },
           ]}

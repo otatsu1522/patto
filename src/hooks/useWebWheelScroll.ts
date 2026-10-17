@@ -18,6 +18,8 @@ function getScrollElement(ref: { current: ScrollView | null }): HTMLElement | nu
 export interface WebWheelScrollOptions {
   /** false の場合、タッチ移動はブラウザ標準に任せる（横スクロールを併用する一覧向け）。 */
   touchScroll?: boolean;
+  /** false の場合、この ScrollView にはイベント処理を取り付けない。 */
+  enabled?: boolean;
   /** スクロール要素に設定する touch-action。 */
   touchAction?: string;
   /** これ以上長押しされたタッチは、カードのドラッグ操作に任せる。 */
@@ -33,11 +35,12 @@ export function useWebWheelScroll({
   touchScroll = true,
   touchAction = 'pan-y',
   touchLongPressMs,
+  enabled = true,
 }: WebWheelScrollOptions = {}) {
   const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
-    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    if (!enabled || Platform.OS !== 'web' || typeof document === 'undefined') return;
 
     let element: HTMLElement | null = null;
     let frame = 0;
@@ -136,6 +139,9 @@ export function useWebWheelScroll({
 
       const delta = lastY - touch.clientY;
       lastY = touch.clientY;
+      // ネストしたリストにまだスクロール余地がある場合は、そちらの標準操作を優先する。
+      // 子リストの端に達した後は、このダイアログ本文へスクロールを引き継ぐ。
+      if (hasNestedScrollable(event.target, delta)) return;
       const current = element.scrollTop;
       const next = Math.max(
         0,
@@ -206,7 +212,7 @@ export function useWebWheelScroll({
       observer?.disconnect();
       detach();
     };
-  }, [touchAction, touchScroll, touchLongPressMs]);
+  }, [enabled, touchAction, touchScroll, touchLongPressMs]);
 
   return scrollRef;
 }

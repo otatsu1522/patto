@@ -164,7 +164,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
       <Modal
         visible={dialog !== null}
         transparent
-        animationType="fade"
+        animationType="none"
         onRequestClose={() => close('cancel')}
         statusBarTranslucent
         navigationBarTranslucent
@@ -183,37 +183,39 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
               },
             ]}
           >
-            <View
-              style={[
-                styles.card,
-                SHADOW.float,
-                { backgroundColor: colors.surface, borderColor: colors.border },
-              ]}
-            >
-              <AppText variant="title">{dialog?.title}</AppText>
-              {dialog?.message ? <AppText muted>{dialog.message}</AppText> : null}
-              <View style={styles.actions}>
-                {dialogMode === 'confirm' ? (
+            {dialog ? (
+              <View
+                style={[
+                  styles.card,
+                  SHADOW.float,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
+              >
+                <AppText variant="title">{dialog.title}</AppText>
+                {dialog.message ? <AppText muted>{dialog.message}</AppText> : null}
+                <View style={styles.actions}>
+                  {dialogMode === 'confirm' ? (
+                    <Button
+                      label={t('common.cancel')}
+                      variant="secondary"
+                      onPress={() => close('cancel')}
+                    />
+                  ) : null}
+                  {dialogMode === 'confirm' && dialog.extraLabel ? (
+                    <Button
+                      label={dialog.extraLabel}
+                      variant="secondary"
+                      onPress={() => close('extra')}
+                    />
+                  ) : null}
                   <Button
-                    label={t('common.cancel')}
-                    variant="secondary"
-                    onPress={() => close('cancel')}
+                    label={dialog.confirmLabel ?? t('common.ok')}
+                    variant={dialogMode === 'confirm' && dialog.destructive ? 'danger' : 'primary'}
+                    onPress={() => close('confirm')}
                   />
-                ) : null}
-                {dialogMode === 'confirm' && dialog?.extraLabel ? (
-                  <Button
-                    label={dialog.extraLabel}
-                    variant="secondary"
-                    onPress={() => close('extra')}
-                  />
-                ) : null}
-                <Button
-                  label={dialog?.confirmLabel ?? t('common.ok')}
-                  variant={dialogMode === 'confirm' && dialog?.destructive ? 'danger' : 'primary'}
-                  onPress={() => close('confirm')}
-                />
+                </View>
               </View>
-            </View>
+            ) : null}
           </View>
         </View>
       </Modal>

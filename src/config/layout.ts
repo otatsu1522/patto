@@ -97,6 +97,8 @@ export const UI_METRICS = {
   keyboard: {
     /** ダイアログでキーボード表示中と判断する visual viewport 差 */
     dialogVisibleHeightPx: 120,
+    /** Webでキーボードが閉じたと判断する viewport 差。閉じる途中の位置跳ねを防ぐ */
+    dialogHideTolerancePx: 24,
     /** プロフィール画面でキーボード表示中と判断する viewport 差 */
     profileViewportDeltaPx: 100,
     /** TextFieldでキーボード表示中と判断する viewport 差 */
