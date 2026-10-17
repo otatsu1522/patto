@@ -35,7 +35,7 @@ const pendingCount = () => {
 
 /** ゲスト: アカウント作成 / ログイン画面へ戻る。アカウント: 表示名・メールアドレス・パスワード変更・削除。 */
 export default function ProfileScreen() {
-  const scrollRef = useWebWheelScroll();
+  const scrollRef = useWebWheelScroll({ touchAction: 'pan-x pan-y' });
   const { revealFocusedInput, onScroll } = useInputFocusScroller(scrollRef);
   const identity = useAuthStore((s) => s.identity);
 
@@ -339,12 +339,12 @@ function AccountSections() {
     if (r !== 'confirm') return;
     const res = await useAuthStore.getState().deleteAccount();
     if (!res.ok) setDeleteMessage(res.message);
-    else toast(t('settings.deleteAccountDone'));
+    else toast(t('settings.deleteAccountDone'), undefined, { category: 'other' });
   };
 
   return (
     <>
-      <Section title={t('auth.displayName')}>
+      <Section title={t('settings.changeDisplayName')}>
         <View style={styles.form}>
           <AppText variant="caption" muted>
             {t('settings.displayNameHint')}
@@ -359,7 +359,7 @@ function AccountSections() {
             error={validateMaxLength(name, LIMITS.displayNameMax)}
           />
           <Message text={nameMessage?.text ?? null} ok={nameMessage?.ok} />
-          <Button label={t('settings.saveProfile')} onPress={saveName} />
+          <Button label={t('settings.changeDisplayName')} onPress={saveName} />
         </View>
       </Section>
 
@@ -455,7 +455,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
     overflowY: 'auto',
-    touchAction: 'pan-y',
+    touchAction: 'pan-x pan-y',
     overscrollBehaviorY: 'auto',
   } as never,
   content: { padding: SPACING.lg, alignItems: 'center', flexGrow: 1 },

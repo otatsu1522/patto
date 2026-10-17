@@ -46,7 +46,7 @@ export function BoardHeader({ title, right, search, menu = true, active = true }
       <View style={styles.side}>
         {showMenu ? (
           <IconButton
-            icon="menu"
+            icon="panelLeft"
             label={t('menu.toggle')}
             onPress={() =>
               permanent ? useUiStore.getState().toggleSidebarCollapsed() : toggleBoardMenu()

@@ -13,6 +13,7 @@ import { AppText } from '../ui/AppText';
 import { Icon } from '../ui/Icon';
 import { IconButton } from '../ui/IconButton';
 import { SearchResults } from './SearchResults';
+import { useAuthInputFocus } from '../auth/AuthInputFocusContext';
 
 interface Props {
   visible: boolean;
@@ -30,6 +31,7 @@ export function GlobalSearchDialog({ visible, initialProjectId = null, onClose, 
   const [query, setQuery] = useState('');
   const [projectId, setProjectId] = useState<string | null>(null);
   const inputRef = useRef<TextInput>(null);
+  const revealAuthInput = useAuthInputFocus();
   const projectList = useMemo(() => visibleProjects(projects), [projects]);
   const projectListRef = useRef(projectList);
 
@@ -88,6 +90,8 @@ export function GlobalSearchDialog({ visible, initialProjectId = null, onClose, 
         <TextInput
           key={visible ? 'global-search-open' : 'global-search-closed'}
           ref={inputRef}
+          onFocus={() => revealAuthInput?.(inputRef.current)}
+          onBlur={() => revealAuthInput?.(null)}
           showSoftInputOnFocus={visible}
           value={query}
           onChangeText={setQuery}

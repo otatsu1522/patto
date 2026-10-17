@@ -1,7 +1,7 @@
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/ui/AppText';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
-import { LICENSE_BODY } from '@/config/license';
+import { LICENSE_BODY, LICENSE_TRANSLATION_NOTE } from '@/config/license';
 import { APP_DISPLAY_COPYRIGHT } from '@/config/app';
 import { BOARD, UI_METRICS } from '@/config/layout';
 import { t } from '@/i18n';
@@ -9,7 +9,7 @@ import { BORDER_WIDTH, RADIUS, SPACING, useTheme, OPACITY } from '@/theme';
 import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
 
 export default function LicenseScreen() {
-  const scrollRef = useWebWheelScroll();
+  const scrollRef = useWebWheelScroll({ touchAction: 'pan-x pan-y' });
   const { colors } = useTheme();
 
   return (
@@ -24,6 +24,9 @@ export default function LicenseScreen() {
             {APP_DISPLAY_COPYRIGHT}
           </AppText>
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          <AppText variant="caption" muted>
+            {LICENSE_TRANSLATION_NOTE}
+          </AppText>
           <AppText variant="caption" style={styles.body}>
             {LICENSE_BODY}
           </AppText>
@@ -39,7 +42,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
     overflowY: 'auto',
-    touchAction: 'pan-y',
+    touchAction: 'pan-x pan-y',
     overscrollBehaviorY: 'auto',
   } as never,
   content: { padding: SPACING.lg, alignItems: 'center', flexGrow: 1 },

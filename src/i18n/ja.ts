@@ -51,21 +51,25 @@ export const ja = {
   'common.none': 'なし',
   'common.required': '必須',
   'common.error': 'エラー',
+  'color.none': '未選択',
   'color.red': '赤',
   'color.orange': 'オレンジ',
   'color.amber': '琥珀',
-  'color.yellow': '黄',
-  'color.lime': 'ライム',
+  'color.yellow': '黄色',
+  'color.lime': '黄緑',
   'color.green': '緑',
   'color.teal': '青緑',
   'color.sky': '水色',
   'color.blue': '青',
-  'color.indigo': '藍',
+  'color.indigo': '紺',
   'color.purple': '紫',
   'color.pink': 'ピンク',
   'color.rose': 'ローズ',
   'color.brown': '茶',
-  'color.slate': 'スレート',
+  'color.slate': '濃いグレー',
+  'color.navy': '紺',
+  'color.gray': 'グレー',
+  'color.darkGray': '濃いグレー',
 
   // 認証
   'auth.email': 'メールアドレス',
@@ -249,13 +253,14 @@ export const ja = {
   'board.archiveDoneNone': 'アーカイブするタスクはありません',
   'board.openArchive': 'アーカイブを見る',
   'board.clearArchive': 'アーカイブのクリア',
+  'board.moveArchiveToTrash': 'ごみ箱へ移動',
   'board.restoreAll': 'すべて元に戻す',
   'board.restoreAllFailed':
     'すべてを元に戻せませんでした。残っている項目を確認して再試行してください。',
   'board.openTrash': 'ごみ箱を見る',
   'board.clearTrash': 'ごみ箱のクリア',
   'board.clearArchiveMessage':
-    'アーカイブ済みのタスク {count} 件を完全に削除します。元に戻せません。',
+    'アーカイブ内のタスク {count} 件をごみ箱へ移動します。必要に応じて、ごみ箱から元に戻せます。',
   'board.clearTrashMessage': 'ごみ箱の中身 {count} 件を完全に削除します。元に戻せません。',
   'board.clearNothing': 'クリアするものはありません',
   'board.clearNeedsSync': 'クリアは同期を行ってから実行します。インターネットに接続してください。',
@@ -306,7 +311,7 @@ export const ja = {
   'settings.passwordMustDiffer':
     '新しいパスワードは現在のパスワードと異なるものを指定してください。',
   'settings.newPassword': '新しいパスワード',
-  'settings.saveProfile': '表示名を保存',
+  'settings.changeDisplayName': '表示名を変更',
   'settings.profileSaved': '保存しました。',
   'settings.onlineOnly': 'この操作にはインターネット接続が必要です。',
   'settings.deleteAccount': 'アカウントを削除',
@@ -381,11 +386,11 @@ export const ja = {
   'settings.trashAutoDelete': 'ごみ箱を自動で削除する',
   'settings.trashRetention': '削除までの日数',
   'settings.trashClearAll': 'ごみ箱を空にする',
-  'settings.archiveClearAll': 'アーカイブを完全に削除',
+  'settings.archiveClearAll': 'アーカイブのクリア',
   'settings.trashClearAllMessage':
     'ごみ箱内の {count} 件のデータを完全に削除します。元に戻せません。',
   'settings.archiveClearAllMessage':
-    'アーカイブ内の {count} 件のデータを完全に削除します。ごみ箱には移動せず、元に戻せません。',
+    'アーカイブ内のタスク {count} 件をごみ箱へ移動します。必要に応じて、ごみ箱から元に戻せます。',
   'settings.clearPermanently': '完全に削除',
   'settings.shortcutsEnabled': 'キーボードショートカットを使う',
   'settings.shortcutsWebOnly': 'キーボードショートカットは Web 版（PC）で使えます。',
@@ -478,13 +483,13 @@ export const ja = {
     '右上の「…」メニューからカンバンの追加・複製・並び順変更ができます。カンバンのタイトルを長押し（PCはドラッグ）しても並び替えできます。',
   'tutorial.todo6.title': '検索する',
   'tutorial.todo6.desc':
-    'メニュー下部の「検索」から、すべてのプロジェクトまたは選んだプロジェクトのタスクを検索できます。右上の「…」メニューの「カンバン内を検索」は、開いているプロジェクトのタスクを探します。',
+    'サイドメニュー上部のアプリ名の右にある検索アイコンから、すべてのプロジェクトのタスクを検索できます。右上の「…」メニューの「カンバン内を検索」は、開いているプロジェクトのタスクを探します。',
   'tutorial.todo7.title': 'オフラインと同期',
   'tutorial.todo7.desc':
     '通信がなくても使えます。設定のシステム設定で、同期を「オフ・手動・自動」から選べます。既存アカウントへのログイン時はデータを反映するため一度同期します。ログイン済みでアプリを開き直したときは、設定が「自動」の場合だけ自動同期します。メニュー下部の同期表示からも同期できます。',
   'tutorial.todo8.title': 'アーカイブとごみ箱',
   'tutorial.todo8.desc':
-    'タスクのメニューから「アーカイブ」できます。DONEモードのカンバンは、右上の「…」メニューからまとめてアーカイブできます。「クリア」で完全に削除します。',
+    'タスクのメニューから「アーカイブ」できます。DONEモードのカンバンは、右上の「…」メニューからまとめてアーカイブできます。「アーカイブのクリア」はごみ箱へ移動し、「ごみ箱のクリア」は完全に削除します。',
   'tutorial.todo9.title': 'PCではキーボードで操作する',
   'tutorial.todo9.desc':
     'h j k l で移動、g でつかむ、e で編集、n で新規作成、? で一覧を表示します（設定で変更できます）。',
@@ -541,12 +546,21 @@ export const ja = {
   'settings.syncModeAutoDesc':
     '自動: 変更の数秒後、一定の間隔、ネットに戻ったとき・アプリを開いたときに自動で同期します。Webではサーバー側の変更もすぐ反映します。',
   'settings.trashHint':
-    '削除したものは「ごみ箱」に入り、復元できます。自動削除を有効にすると、設定日数の経過後にごみ箱内のデータを完全に削除します。「ごみ箱を空にする」は、ごみ箱内を今すぐ完全に削除します。アーカイブは、完了したタスクなどを隠して保管する機能です。「アーカイブを完全に削除」は、ごみ箱へ移動せず、アーカイブ内のデータを完全に削除します。どちらも元に戻せません。',
+    '削除したものは「ごみ箱」に入り、復元できます。自動削除を有効にすると、設定日数の経過後にごみ箱内のデータを完全に削除します。「ごみ箱を空にする」は、ごみ箱内を今すぐ完全に削除します。アーカイブは、完了したタスクなどを隠して保管する機能です。「アーカイブのクリア」はアーカイブ内のタスクをごみ箱へ移動するため、必要に応じて復元できます。',
   'settings.trashRetentionDays': '{days} 日後に削除',
   'settings.toastSection': '通知',
   'settings.toastHint':
-    'タスクの作成・更新などの操作結果を、画面の下に短く表示します（「元に戻す」付きの通知も含みます）。OFFにしても、失敗の知らせは表示されます。',
+    '操作結果を画面の下に短く表示します。OFFにするとトーストは表示されません。ONの場合は、下から表示したい通知の種類を選べます。',
   'settings.toast': 'トーストを表示する',
+  'settings.toastCategoriesHint': '表示したい通知の種類を選択してください。',
+  'settings.toastCategory.movement': '移動',
+  'settings.toastCategory.movementHint': 'タスクを別のカンバンへ移動したときに表示します。',
+  'settings.toastCategory.creation': '作成・複製',
+  'settings.toastCategory.creationHint':
+    'タスク・カンバン・プロジェクトを新規作成または複製したときに表示します。',
+  'settings.toastCategory.other': '更新・削除など',
+  'settings.toastCategory.otherHint':
+    '編集、削除、アーカイブ、ピン留め、インポート・エクスポートなどの操作結果を表示します。',
   'settings.dataHint':
     'Trello形式のファイルで、ほかのアプリとデータをやり取りします。アプリを移行するときに使います。エクスポートはすべてのプロジェクトを書き出し、インポートはファイルのプロジェクトを追加します（いまのデータは消えません）。',
   'settings.exportConfirmTitle': 'エクスポートしますか？',

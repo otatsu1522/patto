@@ -4,8 +4,13 @@ import { NavigationBar } from 'expo-navigation-bar';
 import { StatusBar } from 'expo-status-bar';
 import { useTheme, LAYER } from '@/theme';
 
+interface Props {
+  /** false の場合、システムバーのグローバル設定はルート側へ任せ、背景だけを描画する。 */
+  manageSystemUi?: boolean;
+}
+
 /** アプリ本体と各 Modal で、システムバーの前景色・背景を同じ方法で管理する。 */
-export function SystemBars() {
+export function SystemBars({ manageSystemUi = true }: Props) {
   const { colors, isDark } = useTheme();
   // 背景ビューは、OSが実際に通知するシステムバー領域だけを覆う。
   // 固定値で最小高さを足すと、非 edge-to-edge 環境でアプリ内容に重なる。
@@ -13,8 +18,8 @@ export function SystemBars() {
 
   return (
     <>
-      <StatusBar style={isDark ? 'light' : 'dark'} />
-      {Platform.OS === 'android' ? (
+      {manageSystemUi ? <StatusBar style={isDark ? 'light' : 'dark'} /> : null}
+      {manageSystemUi && Platform.OS === 'android' ? (
         // SDK 57 の style は、light=明るいバー＋暗いアイコン、dark=暗いバー＋明るいアイコン。
         <NavigationBar style={isDark ? 'dark' : 'light'} />
       ) : null}

@@ -60,6 +60,7 @@ export default function ProjectScreen() {
   const pendingTaskDetail = useUiStore((s) => s.pendingTaskDetail);
 
   const project = projects.find((p) => p.id === id);
+  const projectActive = project ? isActive(project) : false;
   const cols = useMemo(() => (id ? columnsOf(columns, id) : []), [columns, id]);
   const tasksByColumn = useMemo(() => {
     const map = new Map<string, Task[]>();
@@ -77,6 +78,7 @@ export default function ProjectScreen() {
   const [taskDetailsVisible, setTaskDetailsVisible] = useState(false);
   const [taskDetailsDismissImmediately, setTaskDetailsDismissImmediately] = useState(false);
   const [archiveKind, setArchiveKind] = useState<'archive' | 'trash' | null>(null);
+  const pendingArchiveClearRef = useRef<(() => void) | null>(null);
   const [cursor, setCursor] = useState<Cursor | null>(null);
   const [query, setQuery] = useState('');
   const searchResultsScrollRef = useWebWheelScroll({ touchScroll: true, touchAction: 'pan-y' });
@@ -91,7 +93,9 @@ export default function ProjectScreen() {
 
   const duplicateTaskById = async (taskId: string) => {
     try {
-      if (await useDataStore.getState().duplicateTask(taskId)) toast(t('toast.duplicated'));
+      if (await useDataStore.getState().duplicateTask(taskId)) {
+        toast(t('toast.duplicated'), undefined, { category: 'creation' });
+      }
     } catch (error) {
       duplicateFailed(error);
     }
@@ -99,7 +103,9 @@ export default function ProjectScreen() {
 
   const duplicateColumnById = async (columnId: string) => {
     try {
-      if (await useDataStore.getState().duplicateColumn(columnId)) toast(t('toast.duplicated'));
+      if (await useDataStore.getState().duplicateColumn(columnId)) {
+        toast(t('toast.duplicated'), undefined, { category: 'creation' });
+      }
     } catch (error) {
       duplicateFailed(error);
     }
@@ -122,7 +128,7 @@ export default function ProjectScreen() {
     setTaskDetailsVisible(false);
     setTaskDetailsDismissImmediately(false);
     setArchiveKind(null);
-  }, [id]);
+  }, [id, projectActive]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // サイドバーの全体検索から別プロジェクトへ移動した場合、移動先で対象タスクの詳細を開く。
@@ -268,7 +274,7 @@ export default function ProjectScreen() {
   });
 
   if (!ready) return null;
-  if (!project || !isActive(project)) return <Redirect href="/home" />;
+  if (!project) return <Redirect href="/home" />;
 
   // ---- メニュー ----
   const boardMenu: MenuItem[] = [
@@ -292,7 +298,7 @@ export default function ProjectScreen() {
     { label: t('board.openArchive'), icon: 'eye', onPress: () => setArchiveKind('archive') },
     {
       label: t('board.clearArchive'),
-      icon: 'trash',
+      icon: 'delete',
       destructive: true,
       onPress: () => void actions.clear('archive'),
     },
@@ -304,7 +310,7 @@ export default function ProjectScreen() {
     },
     {
       label: t('board.clearTrash'),
-      icon: 'trash',
+      icon: 'deleteForever',
       destructive: true,
       onPress: () => void actions.clear('trash'),
     },
@@ -402,7 +408,9 @@ export default function ProjectScreen() {
         icon: task.isFavorite ? 'unpin' : 'pin',
         onPress: () => {
           void store.updateTask(task.id, { isFavorite: !task.isFavorite });
-          toast(t(task.isFavorite ? 'toast.unpinned' : 'toast.pinned'));
+          toast(t(task.isFavorite ? 'toast.unpinned' : 'toast.pinned'), undefined, {
+            category: 'other',
+          });
         },
       },
       ...(taskColumn?.sortMode === 'manual'
@@ -494,45 +502,48 @@ export default function ProjectScreen() {
       await store.updateTask(dialog.taskId, fields);
       const task = tasks.find((x) => x.id === dialog.taskId);
       const target = cols.find((c) => c.id === v.columnId);
-      if (task && target && task.columnId !== target.id) await store.moveTask(task.id, target.id);
-      toast(t('toast.taskUpdated'));
+      const moved = !!task && !!target && task.columnId !== target.id;
+      if (moved && task && target) await store.moveTask(task.id, target.id);
+      toast(t('toast.taskUpdated'), undefined, { category: moved ? 'movement' : 'other' });
     } else {
       const targetColumn =
         cols.find((column) => column.id === v.columnId && column.projectId === project.id) ??
         cols.find((column) => column.projectId === project.id);
       if (!targetColumn) {
-        toast(t('column.emptyHint'), undefined, { force: true });
+        toast(t('column.emptyHint'), undefined, { category: 'other' });
         return;
       }
       await store.createTask({ projectId: project.id, columnId: targetColumn.id, ...fields });
-      toast(t('toast.taskCreated'));
+      toast(t('toast.taskCreated'), undefined, { category: 'creation' });
     }
   };
 
-  const header = (active: boolean) => (
-    <BoardHeader
-      active={active}
-      title={project.title}
-      search={searching ? { value: query, onChange: setQuery, onClose: closeSearch } : null}
-      right={
-        <DropdownMenu
-          items={boardMenu}
-          trigger={(open) => <IconButton icon="more" label={t('board.menu')} onPress={open} />}
-        />
-      }
-    />
-  );
+  const header = (active: boolean) =>
+    projectActive ? (
+      <BoardHeader
+        active={active}
+        title={project.title}
+        search={searching ? { value: query, onChange: setQuery, onClose: closeSearch } : null}
+        right={
+          <DropdownMenu
+            items={boardMenu}
+            trigger={(open) => <IconButton icon="more" label={t('board.menu')} onPress={open} />}
+          />
+        }
+      />
+    ) : null;
 
   return (
     <View style={styles.fill}>
       <View style={styles.fill}>
         <BoardView
-          header={header}
+          header={projectActive ? header : undefined}
           resetKey={id}
           ref={boardRef}
-          columns={cols}
+          columns={projectActive ? cols : []}
+          showEmptyState={projectActive}
           tasksOf={(columnId) => tasksByColumn.get(columnId) ?? []}
-          cursor={cursor}
+          cursor={projectActive ? cursor : null}
           compactCards={density === 'compact'}
           detailedCards={density === 'detailed'}
           showTaskDescription={showTaskDescription}
@@ -550,11 +561,11 @@ export default function ProjectScreen() {
           }}
           onColumnDrop={(column, toIndex) => void store.moveColumn(column.id, toIndex)}
           onAddTask={(column) => openCreateTask(column.id)}
-          onCopyTitle={() => toast(t('task.copyTitle'))}
+          onCopyTitle={() => toast(t('task.copyTitle'), undefined, { category: 'other' })}
           onRefresh={syncEnabled ? async () => void (await syncNow()) : undefined}
         />
 
-        {cursor?.grabbed ? (
+        {projectActive && cursor?.grabbed ? (
           <View
             pointerEvents="none"
             style={[styles.banner, SHADOW.float, { backgroundColor: colors.primary }]}
@@ -600,7 +611,7 @@ export default function ProjectScreen() {
       </View>
 
       <ColumnDialog
-        visible={columnDialog !== null}
+        visible={projectActive && columnDialog !== null}
         column={columnDialog?.column ?? null}
         onClose={() => setColumnDialog(null)}
         onSubmit={async (v) => {
@@ -608,12 +619,14 @@ export default function ProjectScreen() {
           setColumnDialog(null);
           if (target) await store.updateColumn(target.id, v);
           else await store.createColumn({ projectId: project.id, ...v });
-          toast(t(target ? 'toast.columnUpdated' : 'toast.columnCreated'));
+          toast(t(target ? 'toast.columnUpdated' : 'toast.columnCreated'), undefined, {
+            category: target ? 'other' : 'creation',
+          });
         }}
       />
       <RecordDetailsDialog
         record={taskDetails}
-        visible={taskDetailsVisible}
+        visible={projectActive && taskDetailsVisible}
         dismissImmediately={taskDetailsDismissImmediately}
         onClose={() => setTaskDetailsVisible(false)}
         onDismiss={() => {
@@ -633,7 +646,7 @@ export default function ProjectScreen() {
         }
       />
       <TaskDialog
-        visible={taskDialog !== null}
+        visible={projectActive && taskDialog !== null}
         task={editingTask}
         columns={cols.map((c) => ({ id: c.id, title: c.title }))}
         defaultColumnId={taskDialog?.mode === 'create' ? taskDialog.columnId : (cols[0]?.id ?? '')}
@@ -641,13 +654,21 @@ export default function ProjectScreen() {
         onSubmit={submitTask}
       />
       <ArchiveDialog
-        kind={archiveKind}
+        kind={projectActive ? archiveKind : null}
         projectId={project.id}
         onClose={() => setArchiveKind(null)}
-        onClear={async () => {
+        onClear={() => {
           const kind = archiveKind;
+          if (!kind) return;
+          // 一覧の Modal が閉じてから確認 Modal を開き、二つの native Modal の
+          // 表示・終了アニメーションが同時に走らないようにする。
+          pendingArchiveClearRef.current = () => void actions.clear(kind);
           setArchiveKind(null);
-          if (kind) await actions.clear(kind);
+        }}
+        onDismiss={() => {
+          const continueClear = pendingArchiveClearRef.current;
+          pendingArchiveClearRef.current = null;
+          continueClear?.();
         }}
       />
     </View>

@@ -10,6 +10,7 @@ import { useSyncStore } from '@/sync/status';
 import type { TableName } from '@/domain/types';
 import { SYNC } from '@/config/limits';
 import { DAY_MS } from '@/lib/dates';
+import { nowMs } from '@/lib/clock';
 
 export type ClearKind = 'trash' | 'archive';
 
@@ -19,32 +20,53 @@ export const previewClear = (kind: ClearKind, projectId?: string): number =>
 export type ClearResult = { ok: true; count: number } | { ok: false; message: string };
 
 /**
- * ごみ箱 / アーカイブを完全に削除する。
- * アカウント利用中は、競合を避けるため先に同期し、サーバー側を削除してから端末側を削除する。
- * 同期オフ・端末内のみのときは端末内だけ削除する。
+ * アーカイブの中身はごみ箱へ移動し、ごみ箱の中身は完全に削除する。
+ * アカウント利用中は操作前に同期し、ごみ箱を完全削除する場合はサーバー側を削除してから端末側を削除する。
+ * 同期オフ・端末内のみのときは端末内だけを変更する。
  */
 export async function clearBucket(kind: ClearKind, projectId?: string): Promise<ClearResult> {
   const store = useDataStore.getState();
-  const targets = purgeTargets(store.snapshot(), kind, projectId);
-  const count = countTargets(targets);
+  let targets = purgeTargets(store.snapshot(), kind, projectId);
+  let count = countTargets(targets);
   if (count === 0) return { ok: true, count: 0 };
 
   const identity = useAuthStore.getState().identity;
   const syncs =
     !!identity && !identity.local && useSettingsStore.getState().settings.syncMode !== 'off';
+  let client: ReturnType<typeof getSupabase> = null;
   if (syncs) {
-    const client = getSupabase();
+    client = getSupabase();
     if (!client) return { ok: false, message: t('auth.notConfigured') };
     try {
       // 同期中に呼ばれた場合、syncNow は false を返して次回同期をキューに積む。
-      // サーバー削除の前提となる同期が実行されていない場合は、削除を続行しない。
+      // 操作前の同期が実行されなかった場合は、変更・削除を続行しない。
       const synced = await syncNow({ throwOnError: true });
       if (!synced) return { ok: false, message: t('board.clearSyncNotStarted') };
-      const order: [TableName, string[]][] = [
-        ['tasks', targets.tasks],
-        ['kanban_columns', targets.columns],
-        ['projects', targets.projects],
-      ];
+    } catch {
+      return { ok: false, message: t('board.clearNeedsSync') };
+    }
+    // 同期後の最新状態から対象を再取得し、確認時点以降の状態変化を反映する。
+    targets = purgeTargets(useDataStore.getState().snapshot(), kind, projectId);
+    count = countTargets(targets);
+    if (count === 0) return { ok: true, count: 0 };
+  }
+
+  if (kind === 'archive') {
+    // アーカイブのクリアは完全削除ではなく、ごみ箱へ移動する。
+    // archivedAt を解除して deletedAt を設定するため、ごみ箱から復元可能になる。
+    const movedCount = await useDataStore
+      .getState()
+      .moveArchivedTasksToTrash(targets.tasks, nowMs());
+    return { ok: true, count: movedCount };
+  }
+
+  if (syncs && client) {
+    const order: [TableName, string[]][] = [
+      ['tasks', targets.tasks],
+      ['kanban_columns', targets.columns],
+      ['projects', targets.projects],
+    ];
+    try {
       for (const [table, ids] of order) {
         for (let i = 0; i < ids.length; i += SYNC.maxIdsPerQuery) {
           const { error } = await client

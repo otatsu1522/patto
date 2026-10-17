@@ -150,6 +150,8 @@ interface DataState extends Snapshot {
   duplicateTask: (id: string) => Promise<boolean>;
   archiveTask: (id: string, archived: boolean) => Promise<void>;
   archiveDoneTasks: (projectId: string) => Promise<number>;
+  /** アーカイブ済みタスクを、ごみ箱へ一括移動する。 */
+  moveArchivedTasksToTrash: (ids: string[], at: number) => Promise<number>;
 
   restoreItem: (kind: 'project' | 'column' | 'task', id: string) => Promise<void>;
   /** 指定IDを端末から完全に削除する（サーバー側の削除は呼び出し側で先に行う） */
@@ -837,6 +839,17 @@ export const useDataStore = create<DataState>((set, get) => {
       if (targets.length === 0) return 0;
       await commit({ tasks: targets.map((x) => patchRecord(x, { archivedAt: ts }, ts)) });
       return targets.length;
+    },
+
+    async moveArchivedTasksToTrash(ids, at) {
+      if (ids.length === 0) return 0;
+      const wanted = new Set(ids);
+      const changed = get()
+        .tasks.filter((x) => wanted.has(x.id) && isActive(x) && x.archivedAt !== null)
+        .map((x) => patchRecord(x, { archivedAt: null, deletedAt: at }, at));
+      if (changed.length === 0) return 0;
+      await commit({ tasks: changed });
+      return changed.length;
     },
 
     // ---- ごみ箱 ----

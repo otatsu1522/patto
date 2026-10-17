@@ -1,5 +1,5 @@
 /**
- * タスク・カンバン・プロジェクトの色パレット（15色）。
+ * タスク・カンバン・プロジェクトの色定義。選択肢は TASK_COLOR_PICKER_KEYS で管理する。
  * ライトテーマは濃いめ、ダークテーマは明るめにして、どちらの背景でも見えるようにしている。
  * キーの一部は Trello のラベル色名と同じ（インポート/エクスポート用）。
  */
@@ -19,6 +19,9 @@ export const TASK_COLORS = {
   rose: '#E11D48',
   brown: '#8D6E63',
   slate: '#37474F',
+  navy: '#17365D',
+  gray: '#9E9E9E',
+  darkGray: '#4A4A4A',
 } as const;
 
 export const TASK_COLOR_FALLBACK = '#888888';
@@ -47,8 +50,32 @@ export const TASK_COLORS_DARK: Record<TaskColorKey, string> = {
   rose: '#FF8FA8',
   brown: '#BCAAA4',
   slate: '#CFD8DC',
+  navy: '#8FAFD5',
+  gray: '#BDBDBD',
+  darkGray: '#757575',
 };
 
+/**
+ * 表示する色選択肢（「未選択」は ColorPicker 内の独立した選択肢）。
+ * 既存データやTrello互換の旧カラーキーは TASK_COLORS に残し、選択肢には出さない。
+ */
+export const TASK_COLOR_PICKER_KEYS = [
+  'red',
+  'orange',
+  'yellow',
+  'lime',
+  'green',
+  'sky',
+  'blue',
+  'navy',
+  'purple',
+  'pink',
+  'brown',
+  'gray',
+  'darkGray',
+] as const satisfies readonly TaskColorKey[];
+
+/** 既存キーを含む全カラーキー。並び替えや保存データの互換性に使用する。 */
 export const TASK_COLOR_KEYS = Object.keys(TASK_COLORS) as TaskColorKey[];
 
 export const isTaskColorKey = (v: unknown): v is TaskColorKey =>

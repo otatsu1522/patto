@@ -151,3 +151,14 @@ git diff -- package.json pnpm-lock.yaml app.config.ts
 ```
 
 問題がなければ更新ブランチでコミットし、通常のレビュー・公開手順に進みます。問題があれば差分を確認して修正します。更新を取り消す場合は、更新前のコミットや Git の差分を使って `package.json`、`pnpm-lock.yaml`、`app.config.ts` などを復元し、その後 `pnpm install` を実行します。未コミットの作業を失わないよう、復元前に `git status --short` で確認してください。
+
+## 8. アイコン一覧と変更方法
+
+アイコンを選ぶときは、次の一覧を参照してください。
+
+- [Expo Vector Icons（アイコン一覧）](https://icons.expo.fyi/Index) — このプロジェクトで使用している `@expo/vector-icons` のアイコンを探す。
+- [Ionicons](https://ionic.io/ionicons) — `src/config/icons.ts` で利用している標準アイコンの一覧。
+- [Google Material Symbols](https://fonts.google.com/icons) — `src/config/svgIcons.ts` にSVGパスを置いているアイコンの参照元。
+- [Lucide Icons](https://lucide.dev/icons/) — 別の形状も比較したい場合の参考一覧。Lucide自体は現在の実装に追加されていないため、アイコン名をそのまま指定しても利用できるとは限らない。
+
+既存の Ionicons を変更する場合は `src/config/icons.ts` の対応表を編集します。Material Symbols のカスタム描画は `src/config/svgIcons.ts` にパスを追加し、必要に応じて `src/config/icons.ts` にキーを登録します。描画処理は `src/components/ui/Icon.tsx` に集約されています。画面側へ直接SVGやアイコンライブラリを追加する前に、この共通の仕組みを利用してください。

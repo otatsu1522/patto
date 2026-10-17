@@ -47,6 +47,8 @@ export const GESTURE = {
   webDragDistance: 6,
   /** Webのタッチ移動方向を判定する最小距離(px) */
   webScrollAxisThresholdPx: 6,
+  /** スマホWebのメニューを開く横移動距離(px) */
+  drawerOpenDistancePx: 40,
   /** スマホWebのメニューを閉じる横移動距離(px) */
   drawerCloseDistancePx: 40,
   /** 横移動と縦移動のどちらかを判定する比率 */
@@ -165,7 +167,9 @@ export const UI_METRICS = {
     navigationButtonInset: 2,
     taskContentPaddingAdjustment: 2,
     taskContentGapAdjustment: 2,
-    sidebarItemRightPadding: 2,
+    sidebarItemRightPadding: 8,
+    /** ピン留め項目と通常項目の間に表示する共通区切り線の長さ(px) */
+    pinnedDividerWidth: 238,
     dueButtonBaselineAdjustment: 2,
     /** ドラッグ中に表示するカードの既定幅 */
     dragPreviewWidth: 140,

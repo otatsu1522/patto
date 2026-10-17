@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Keyboard,
   KeyboardAvoidingView,
@@ -8,6 +8,7 @@ import {
   ScrollView,
   StyleSheet,
   View,
+  type TextInput,
 } from 'react-native';
 import { BOARD, UI_METRICS } from '@/config/layout';
 import { TIMING } from '@/config/timing';
@@ -65,12 +66,75 @@ export function Dialog({
   const pop = useUiStore((s) => s.popDialog);
   const bodyScrollRef = useRef<ScrollView>(null);
   const { revealFocusedInput, onScroll } = useInputFocusScroller(bodyScrollRef, visible);
-  const [{ keyboardVisible, webKeyboardHeight }, setKeyboardState] = useState({
+  const [keyboardState, setKeyboardState] = useState({
+    visibleFor: visible,
     keyboardVisible: false,
     webKeyboardHeight: 0,
   });
+  // 入力がフォーカスされた段階で KAV の振る舞いを準備しておき、
+  // Keyboard show 後に behavior を切り替えてダイアログが後追いで跳ねるのを防ぐ。
+  const [dialogInputFocused, setDialogInputFocused] = useState(false);
+  const dialogInputFocusedRef = useRef(false);
+  const nativeKeyboardSessionRef = useRef(false);
+
+  const updateKeyboardState = useCallback(
+    (nextKeyboardVisible: boolean, nextWebKeyboardHeight = 0) => {
+      setKeyboardState((previous) =>
+        previous.visibleFor === visible &&
+        previous.keyboardVisible === nextKeyboardVisible &&
+        previous.webKeyboardHeight === nextWebKeyboardHeight
+          ? previous
+          : {
+              visibleFor: visible,
+              keyboardVisible: nextKeyboardVisible,
+              webKeyboardHeight: nextWebKeyboardHeight,
+            },
+      );
+    },
+    [visible],
+  );
+
+  const handleDialogInputFocus = useCallback(
+    (input?: TextInput | null) => {
+      if (input === null) {
+        dialogInputFocusedRef.current = false;
+        // キーボードが表示中なら、hide イベントまで KAV を有効のままにする。
+        if (!nativeKeyboardSessionRef.current) setDialogInputFocused(false);
+      } else if (input) {
+        // フォーカスと、ソフトウェアキーボードが実際に表示された状態を分けて管理する。
+        dialogInputFocusedRef.current = true;
+        setDialogInputFocused(true);
+      }
+      revealFocusedInput(input);
+    },
+    [revealFocusedInput],
+  );
+  // Modalを閉じてから再表示するまでの間に残ったキーボード状態は、同じ描画に使わない。
+  // レイアウトeffectより前のレンダーでも、開閉直後は中央配置の状態として扱う。
+  const keyboardStateMatchesVisibility = keyboardState.visibleFor === visible;
+  const keyboardVisible = keyboardStateMatchesVisibility && keyboardState.keyboardVisible;
+  const webKeyboardHeight = keyboardStateMatchesVisibility ? keyboardState.webKeyboardHeight : 0;
   const wasVisibleRef = useRef(visible);
   const onDismissRef = useRef(onDismiss);
+
+  // 開閉時に前回のキーボード寸法を次の表示へ持ち越さない。
+  // layout effect で描画前に戻し、最初のフレームだけ位置が変わるちらつきを避ける。
+  useLayoutEffect(() => {
+    dialogInputFocusedRef.current = false;
+    nativeKeyboardSessionRef.current = false;
+    // 開くときは keyboardStateMatchesVisibility によって前回値を描画へ使わないため、
+    // 表示開始直後に状態を更新して余計なレイアウト再計算を起こさない。
+    if (visible) return;
+    // 閉じたダイアログでは KAV の keyboard behavior も無効化する。
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 非表示時に入力セッションを初期化する。
+    setDialogInputFocused(false);
+    // 閉じた時点でだけ前回の状態を破棄し、次回表示へ持ち越さない。
+    setKeyboardState((previous) =>
+      previous.visibleFor === false && !previous.keyboardVisible && previous.webKeyboardHeight === 0
+        ? previous
+        : { visibleFor: false, keyboardVisible: false, webKeyboardHeight: 0 },
+    );
+  }, [visible]);
 
   useEffect(() => {
     onDismissRef.current = onDismiss;
@@ -96,85 +160,102 @@ export function Dialog({
   }, [visible]);
 
   useEffect(() => {
-    // 非表示のダイアログがキーボード状態を保持しないよう、表示中だけ監視する。
-    if (!visible) {
-      const frame = requestAnimationFrame(() => {
-        setKeyboardState((previous) =>
-          previous.keyboardVisible || previous.webKeyboardHeight > 0
-            ? { keyboardVisible: false, webKeyboardHeight: 0 }
-            : previous,
-        );
-      });
-      return () => cancelAnimationFrame(frame);
-    }
+    // 非表示のダイアログはキーボードを監視しない。前回値は layout effect で初期化する。
+    if (!visible) return;
 
     if (Platform.OS === 'web') {
-      if (!isTouchWeb || typeof window === 'undefined') return;
+      if (!isTouchWeb || typeof window === 'undefined' || typeof document === 'undefined') return;
       const viewport = window.visualViewport;
       if (!viewport) return;
       let frame = 0;
       const update = () => {
         if (frame) cancelAnimationFrame(frame);
         frame = requestAnimationFrame(() => {
-          // visual viewport の下端からレイアウトビューポート下端までの差を使う。
-          // offsetTop を含め、入力欄へスクロールした状態でも実際の下端に合わせる。
+          // ブラウザーのアドレスバーによる visualViewport の変化をキーボードと誤認しない。
+          // 実際に入力要素へフォーカスがある場合に限り、表示領域の下端との差を採用する。
+          const active = document.activeElement;
+          const focusedInput =
+            active instanceof HTMLElement &&
+            active.matches('input, textarea, [contenteditable="true"]');
           const visibleBottom = viewport.offsetTop + viewport.height;
           const measuredHeight = Math.max(0, window.innerHeight - visibleBottom);
-          const keyboardVisible = measuredHeight > UI_METRICS.keyboard.dialogVisibleHeightPx;
-          // キーボード未検出時は余白も位置調整も入れず、アドレスバーの変化で動かさない。
+          const keyboardVisible =
+            focusedInput && measuredHeight > UI_METRICS.keyboard.dialogVisibleHeightPx;
           const webKeyboardHeight = keyboardVisible ? measuredHeight : 0;
-          setKeyboardState((previous) =>
-            previous.keyboardVisible === keyboardVisible &&
-            previous.webKeyboardHeight === webKeyboardHeight
-              ? previous
-              : { keyboardVisible, webKeyboardHeight },
-          );
+          updateKeyboardState(keyboardVisible, webKeyboardHeight);
         });
       };
       update();
       viewport.addEventListener('resize', update);
       viewport.addEventListener('scroll', update);
+      document.addEventListener('focusin', update);
+      document.addEventListener('focusout', update);
       return () => {
         if (frame) cancelAnimationFrame(frame);
         viewport.removeEventListener('resize', update);
         viewport.removeEventListener('scroll', update);
+        document.removeEventListener('focusin', update);
+        document.removeEventListener('focusout', update);
       };
     }
 
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
     const show = Keyboard.addListener(showEvent, (event) => {
+      // Keyboard イベントはアプリ全体へ届くため、入力欄を持たないダイアログでは無視する。
+      // 直前の別ダイアログの遅延イベントで、非入力ダイアログの位置が動くのを防ぐ。
+      // 実際にこのダイアログの入力欄がフォーカス中の場合に限って、
+      // キーボード表示イベントを位置調整へ反映する。
+      if (!dialogInputFocusedRef.current) return;
+      nativeKeyboardSessionRef.current = true;
       if (Platform.OS === 'ios') Keyboard.scheduleLayoutAnimation(event);
-      setKeyboardState({ keyboardVisible: true, webKeyboardHeight: 0 });
+      updateKeyboardState(true);
     });
     const hide = Keyboard.addListener(hideEvent, (event) => {
+      // blur が Keyboard hide より先に届いても、表示済みセッションの終了だけは処理する。
+      if (!nativeKeyboardSessionRef.current) return;
+      nativeKeyboardSessionRef.current = false;
       if (Platform.OS === 'ios') Keyboard.scheduleLayoutAnimation(event);
-      setKeyboardState({ keyboardVisible: false, webKeyboardHeight: 0 });
+      updateKeyboardState(false);
+      // iOS の WillHide はアニメーション開始時。入力フォーカスを外すのは DidHide まで待ち、
+      // キーボードがまだ表示中なのに KAV の behavior が解除される段差を防ぐ。
+      if (Platform.OS !== 'ios' && !dialogInputFocusedRef.current) {
+        setDialogInputFocused(false);
+      }
     });
+    const didHide =
+      Platform.OS === 'ios'
+        ? Keyboard.addListener('keyboardDidHide', () => {
+            if (!dialogInputFocusedRef.current) setDialogInputFocused(false);
+          })
+        : null;
     return () => {
       show.remove();
       hide.remove();
+      didHide?.remove();
     };
-  }, [visible]);
+  }, [visible, updateKeyboardState]);
 
   const handleShow = () => {
-    // 以前の表示の状態を持ち越さず、既に開いているキーボードはその場で認識する。
+    // Web は現在の visualViewport とフォーカス状態から計測する。
+    // ネイティブはこの Modal の keyboard show イベントから位置を更新し、前のModalの状態を使わない。
     if (Platform.OS === 'web') {
       const viewport = typeof window !== 'undefined' ? window.visualViewport : undefined;
-      if (isTouchWeb && viewport) {
+      const active = typeof document !== 'undefined' ? document.activeElement : null;
+      const focusedInput =
+        active instanceof HTMLElement &&
+        active.matches('input, textarea, [contenteditable="true"]');
+      if (isTouchWeb && viewport && focusedInput) {
         const visibleBottom = viewport.offsetTop + viewport.height;
         const keyboardHeight = Math.max(0, window.innerHeight - visibleBottom);
         const keyboardVisible = keyboardHeight > UI_METRICS.keyboard.dialogVisibleHeightPx;
-        setKeyboardState({
-          keyboardVisible,
-          webKeyboardHeight: keyboardVisible ? keyboardHeight : 0,
-        });
+        updateKeyboardState(keyboardVisible, keyboardVisible ? keyboardHeight : 0);
       } else {
-        setKeyboardState({ keyboardVisible: false, webKeyboardHeight: 0 });
+        updateKeyboardState(false);
       }
-    } else {
-      setKeyboardState({ keyboardVisible: Keyboard.isVisible(), webKeyboardHeight: 0 });
     }
+    // ネイティブは onShow で位置を更新しない。
+    // 現在のダイアログの入力欄がフォーカスされ、Keyboard show が届いたときだけ位置を調整する。
     onShow?.();
   };
 
@@ -221,7 +302,7 @@ export function Dialog({
       navigationBarTranslucent
     >
       <View style={styles.modalRoot}>
-        <SystemBars />
+        {visible ? <SystemBars manageSystemUi={false} /> : null}
         {/* 背景は全画面に固定する。キーボード表示時もメニューや画面本体を移動させない。 */}
         <Pressable
           style={[
@@ -235,18 +316,23 @@ export function Dialog({
         {/* キーボード回避はダイアログ本体の位置決めだけに適用する。 */}
         <KeyboardAvoidingView
           behavior={
-            Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined
+            !dialogInputFocused
+              ? undefined
+              : Platform.OS === 'ios'
+                ? 'padding'
+                : Platform.OS === 'android'
+                  ? 'height'
+                  : undefined
           }
           style={[
             styles.dialogPositioner,
             {
               paddingTop: insets.top + SPACING.lg,
-              paddingBottom:
-                Platform.OS === 'web' && webKeyboardHeight > 0
+              paddingBottom: keyboardVisible
+                ? Platform.OS === 'web'
                   ? webKeyboardHeight
-                  : keyboardVisible && Platform.OS !== 'web'
-                    ? 0
-                    : insets.bottom + SPACING.lg,
+                  : 0
+                : insets.bottom + SPACING.lg,
               // キーボード表示時は表示領域の最下端へ寄せ、ダイアログ下端と
               // キーボード上端の間に余白を作らない。
               justifyContent: keyboardVisible ? 'flex-end' : 'center',
@@ -271,7 +357,7 @@ export function Dialog({
               },
             ]}
           >
-            <AuthInputFocusProvider value={revealFocusedInput}>
+            <AuthInputFocusProvider value={handleDialogInputFocus}>
               <View style={styles.header}>
                 <AppText
                   variant="title"

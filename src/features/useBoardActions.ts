@@ -6,20 +6,21 @@ import type { KanbanColumn, Task } from '@/domain/types';
 import { t } from '@/i18n';
 import { useDataStore } from '@/store/dataStore';
 import { useFeedback } from '@/components/ui/FeedbackProvider';
+import type { ToastCategory } from '@/config/defaults';
 
 /**
  * ボード画面の操作（確認ダイアログ・元に戻す通知つき）。
  * 画面のコンポーネントからデータ操作の詳細を切り離して、読みやすく・テストしやすくする。
  */
 export function useBoardActions(projectId: string) {
-  const { confirm, toast } = useFeedback();
+  const { confirm, toast, alert } = useFeedback();
 
   return useMemo(() => {
     const store = () => useDataStore.getState();
 
-    const withUndo = (message: string, undo: () => Promise<void>) => {
+    const withUndo = (message: string, undo: () => Promise<void>, category: ToastCategory) => {
       const fn = pushUndo(undo);
-      toast(message, { label: t('common.undo'), onPress: () => void fn() });
+      toast(message, { label: t('common.undo'), onPress: () => void fn() }, { category });
     };
 
     return {
@@ -27,7 +28,7 @@ export function useBoardActions(projectId: string) {
         if (task.columnId === target.id) return;
         const from = task.columnId;
         await store().moveTask(task.id, target.id);
-        withUndo(t('board.undoMoved'), () => store().moveTask(task.id, from));
+        withUndo(t('board.undoMoved'), () => store().moveTask(task.id, from), 'movement');
       },
 
       /** 次（右）のカンバンへ。いちばん右のときは最初のカンバンへ戻す。 */
@@ -49,14 +50,16 @@ export function useBoardActions(projectId: string) {
           if (r !== 'confirm') return false;
         }
         await store().deleteTask(task.id);
-        withUndo(t('board.undoDeleted'), () => store().restoreItem('task', task.id));
+        withUndo(t('board.undoDeleted'), () => store().restoreItem('task', task.id), 'other');
         return true;
       },
 
       async archiveTask(task: Task) {
         await store().archiveTask(task.id, true);
-        withUndo(t('board.archiveDoneResult', { count: 1 }), () =>
-          store().archiveTask(task.id, false),
+        withUndo(
+          t('board.archiveDoneResult', { count: 1 }),
+          () => store().archiveTask(task.id, false),
+          'other',
         );
       },
 
@@ -65,13 +68,17 @@ export function useBoardActions(projectId: string) {
           .filter((c) => c.isDoneColumn)
           .flatMap((c) => tasksOf(store().tasks, c.id, c.sortMode));
         if (before.length === 0) {
-          toast(t('board.archiveDoneNone'));
+          toast(t('board.archiveDoneNone'), undefined, { category: 'other' });
           return;
         }
         const count = await store().archiveDoneTasks(projectId);
-        withUndo(t('board.archiveDoneResult', { count }), async () => {
-          for (const task of before) await store().archiveTask(task.id, false);
-        });
+        withUndo(
+          t('board.archiveDoneResult', { count }),
+          async () => {
+            for (const task of before) await store().archiveTask(task.id, false);
+          },
+          'other',
+        );
       },
 
       async deleteColumn(column: KanbanColumn) {
@@ -88,13 +95,13 @@ export function useBoardActions(projectId: string) {
         let moveTo: string | null = null;
         if (r === 'extra') moveTo = others[0]!.id;
         await store().deleteColumn(column.id, moveTo);
-        withUndo(t('board.undoDeleted'), () => store().restoreItem('column', column.id));
+        withUndo(t('board.undoDeleted'), () => store().restoreItem('column', column.id), 'other');
       },
 
       async clear(kind: ClearKind) {
         const count = previewClear(kind, projectId);
         if (count === 0) {
-          toast(t('board.clearNothing'));
+          toast(t('board.clearNothing'), undefined, { category: 'other' });
           return;
         }
         const r = await confirm({
@@ -103,15 +110,18 @@ export function useBoardActions(projectId: string) {
             kind === 'trash'
               ? t('board.clearTrashMessage', { count })
               : t('board.clearArchiveMessage', { count }),
-          confirmLabel: t('common.delete'),
+          confirmLabel:
+            kind === 'trash' ? t('settings.clearPermanently') : t('board.moveArchiveToTrash'),
           destructive: true,
         });
         if (r !== 'confirm') return;
         const res = await clearBucket(kind, projectId);
-        toast(res.ok ? t('board.clearDone', { count: res.count }) : res.message, undefined, {
-          force: !res.ok,
-        });
+        if (res.ok) {
+          toast(t('board.clearDone', { count: res.count }), undefined, { category: 'other' });
+        } else {
+          alert(t('common.error'), res.message);
+        }
       },
     };
-  }, [projectId, confirm, toast]);
+  }, [projectId, confirm, toast, alert]);
 }

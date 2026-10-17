@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { BOARD, UI_METRICS } from '@/config/layout';
 import { t } from '@/i18n';
 import { BORDER_WIDTH_EMPHASIS, RADIUS, SPACING, useTheme, ICON_SIZE, LAYER } from '@/theme';
-import { TASK_COLOR_KEYS, type TaskColorKey } from '@/theme/taskColors';
+import { TASK_COLOR_PICKER_KEYS, type TaskColorKey } from '@/theme/taskColors';
 import { BRAND } from '@/theme/palette';
 import { AppText } from './AppText';
 import { Icon } from './Icon';
@@ -24,7 +24,7 @@ export function ColorPicker({ label, value, onChange }: Props) {
       <View style={styles.row}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={t('common.none')}
+          accessibilityLabel={t('color.none')}
           onPress={() => onChange(null)}
           style={[
             styles.swatch,
@@ -41,11 +41,11 @@ export function ColorPicker({ label, value, onChange }: Props) {
             </View>
           ) : null}
         </Pressable>
-        {TASK_COLOR_KEYS.map((key) => (
+        {TASK_COLOR_PICKER_KEYS.map((key) => (
           <Pressable
             key={key}
             accessibilityRole="button"
-            accessibilityLabel={key}
+            accessibilityLabel={t(`color.${key}`)}
             onPress={() => onChange(key)}
             style={[
               styles.swatch,

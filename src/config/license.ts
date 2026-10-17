@@ -1,29 +1,11 @@
-import { APP_COPYRIGHT } from './app';
+/** 設定 > ライセンスに表示する MIT ライセンス本文の日本語参考訳。
+ * リポジトリの LICENSE ファイルには正式な英語原文を保持する。
+ */
+export const LICENSE_TRANSLATION_NOTE =
+  '以下は MIT ライセンスの参考訳です。正式なライセンス本文はリポジトリの LICENSE ファイルに記載された英語原文です。';
 
-/** 設定 > ライセンス に表示する本文（MIT）。LICENSE ファイルと同じ内容。 */
-export const LICENSE_TEXT = `MIT License
+export const LICENSE_BODY = `本ソフトウェアおよび関連する文書ファイル（以下「ソフトウェア」）の複製を取得するすべての人に対し、ソフトウェアを無償で取り扱うことを許可します。これには、使用、複製、変更、結合、公開、配布、サブライセンス、およびソフトウェアの複製を販売する権利、ならびにソフトウェアを提供された人に同様の行為を許可する権利が含まれます。ただし、以下の条件に従うものとします。
 
-${APP_COPYRIGHT}
+上記の著作権表示および本許諾表示は、ソフトウェアのすべての複製または重要な部分に含めなければなりません。
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.`;
-
-/** ライセンス画面で見出し・著作権表示を分けて描画するための本文。 */
-export const LICENSE_BODY = LICENSE_TEXT.slice(
-  LICENSE_TEXT.indexOf('Permission is hereby granted'),
-);
+本ソフトウェアは「現状有姿」で提供され、商品性、特定目的への適合性、および権利非侵害を含み、これらに限定されない、明示または黙示のいかなる保証もありません。作者または著作権者は、契約行為、不法行為その他を問わず、ソフトウェアまたはソフトウェアの使用その他の取扱いに起因または関連して発生した請求、損害その他の責任について、一切責任を負いません。`;

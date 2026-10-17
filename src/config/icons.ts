@@ -5,8 +5,9 @@ export type IconName = ComponentProps<typeof Ionicons>['name'];
 
 /** アプリ内で使うアイコンの対応表（アイコンを変えるときはここだけ編集）。 */
 export const ICONS = {
-  menu: 'menu',
-  menuOpen: 'menu',
+  menu: 'menu-outline',
+  menuOpen: 'menu-outline',
+  panelLeft: 'grid-outline',
   more: 'ellipsis-horizontal',
   moreHorizontal: 'ellipsis-horizontal',
   add: 'add',
@@ -26,6 +27,7 @@ export const ICONS = {
   eye: 'eye-outline',
   eyeOff: 'eye-off-outline',
   trash: 'trash-outline',
+  deleteForever: 'trash-outline',
   archive: 'archive-outline',
   restore: 'arrow-undo-outline',
   edit: 'create-outline',
@@ -38,6 +40,8 @@ export const ICONS = {
   document: 'document-text-outline',
   download: 'download-outline',
   upload: 'cloud-upload-outline',
+  cloudUpload: 'cloud-upload-outline',
+  delete: 'trash-outline',
   moon: 'moon-outline',
   logout: 'log-out-outline',
   folder: 'folder-outline',

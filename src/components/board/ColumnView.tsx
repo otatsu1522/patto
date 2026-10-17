@@ -352,12 +352,13 @@ const styles = StyleSheet.create({
   } as never,
   listContent: { padding: SPACING.sm, gap: SPACING.sm },
   divider: {
+    width: UI_METRICS.board.pinnedDividerWidth,
+    alignSelf: 'center',
     height: SEPARATOR_WIDTH,
     minHeight: SEPARATOR_WIDTH,
     maxHeight: SEPARATOR_WIDTH,
     flexShrink: 0,
     marginVertical: SPACING.xs,
-    marginHorizontal: SPACING.sm,
   },
   add: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, padding: SPACING.md },
 });

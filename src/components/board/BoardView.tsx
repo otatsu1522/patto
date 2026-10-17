@@ -20,10 +20,20 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BOARD, GESTURE, UI_METRICS } from '@/config/layout';
 import { TIMING } from '@/config/timing';
 import type { KanbanColumn, Task } from '@/domain/types';
-import { registerBoardMenu, closeBoardMenu } from '@/hooks/boardMenu';
+import {
+  registerBoardMenu,
+  closeBoardMenu,
+  consumeBoardMenuCloseAfterProjectRender,
+} from '@/hooks/boardMenu';
+import {
+  cancelDrawerCloseTransition,
+  finishDrawerCloseAfterRender,
+  scheduleDrawerCloseAfterRender,
+} from '@/hooks/drawerTransition';
 import { isTouchWeb } from '@/lib/hover';
 import { useUiStore } from '@/store/uiStore';
 import {
@@ -88,6 +98,8 @@ interface Props {
    * PCでは、ボードの上にそのまま表示する。
    */
   header?: (active: boolean) => ReactNode;
+  /** カンバンが0件のとき、通常の「カンバンなし」案内を表示するか */
+  showEmptyState?: boolean;
   /** この値が変わったら（プロジェクトの切り替えなど）、スクロールを最初の位置に戻す */
   resetKey?: string;
 }
@@ -113,15 +125,21 @@ interface ScrollUiSnapshot {
 export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(props, ref) {
   const { columns, tasksOf, cursor, header } = props;
   const { colors, isDark } = useTheme();
-  const { mode, width: windowWidth } = useLayoutMode();
-  const [size, setSize] = useState({ width: 0, height: 0 });
+  const { mode, width: windowWidth, height: windowHeight } = useLayoutMode();
+  const insets = useSafeAreaInsets();
+  // 画面切替直後に width=0 のため ScrollView 自体が描画されず、1フレーム白くなるのを防ぐ。
+  // 初期値はウィンドウ寸法から安全領域を差し引いて見積もり、実際のレイアウト値は onLayout で同期する。
+  const [size, setSize] = useState(() => ({
+    width: windowWidth,
+    height: Math.max(1, windowHeight - insets.top - insets.bottom),
+  }));
   const [scrollX, setScrollX] = useState(0);
   const [activePageIndex, setActivePageIndex] = useState(0);
   const activePageIndexRef = useRef(0);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [dragInfo, setDragInfo] = useState<DragInfo | null>(null);
   const [blurSignal, setBlurSignal] = useState(0);
-  const [positioned, setPositioned] = useState(false);
+
   const scrollAnim = useRef(new Animated.Value(0)).current;
 
   const scrollRef = useRef<ScrollView>(null);
@@ -131,6 +149,12 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
   const scrollXRef = useRef(0);
   // プログラム操作中は、スクロール完了まで意図した開閉状態を優先する。
   const menuTargetRef = useRef<boolean | null>(null);
+  const pendingMenuCloseRef = useRef<(() => void) | null>(null);
+  const pendingMenuCloseFrameRef = useRef<number | null>(null);
+  const automaticMenuCloseTokenRef = useRef<number | null>(null);
+  const lastResetKeyRef = useRef(props.resetKey);
+  const didInitialPlacementRef = useRef(false);
+  const closeMenuImplRef = useRef<(() => void) | null>(null);
   // 手動スクロールでは、アニメーションの完了を待たずにメニューアイコンを切り替える。
   // 元の位置へ戻った場合は、開閉が成立しなかったものとしてアイコンも戻す。
   const menuGestureStartXRef = useRef<number | null>(null);
@@ -161,6 +185,12 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
   const snapOffsets = useMemo(() => (pane ? [0, ...offsets] : offsets), [pane, offsets]);
   const closedX = offsets[0] ?? 0;
   const maxOffset = offsets[offsets.length - 1] ?? 0;
+  // contentOffset is an initial value, not a live menu-state binding. Keeping it stable
+  // prevents React Native from resetting the native scroll position during an animation.
+  const [initialContentOffset] = useState(() => ({
+    x: pane ? (useUiStore.getState().menuVisible ? 0 : closedX) : 0,
+    y: 0,
+  }));
   const updateActivePage = useCallback(
     (x: number) => {
       const nextPage = nearestOffsetIndex(offsets, x);
@@ -189,6 +219,28 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
   );
   const closedXRef = useRef(closedX);
   closedXRef.current = closedX;
+  const finishPendingMenuClose = useCallback((x: number) => {
+    if (
+      !pendingMenuCloseRef.current ||
+      x < closedXRef.current - GESTURE.menuEdgeTolerancePx ||
+      pendingMenuCloseFrameRef.current !== null
+    ) {
+      return;
+    }
+    // 閉じ位置に着いた次のフレームで遷移する。操作が入ったら、このフレームも取消可能にする。
+    pendingMenuCloseFrameRef.current = requestAnimationFrame(() => {
+      pendingMenuCloseFrameRef.current = null;
+      if (
+        !pendingMenuCloseRef.current ||
+        scrollXRef.current < closedXRef.current - GESTURE.menuEdgeTolerancePx
+      ) {
+        return;
+      }
+      const afterClose = pendingMenuCloseRef.current;
+      pendingMenuCloseRef.current = null;
+      afterClose();
+    });
+  }, []);
   const scrollUiSnapshotRef = useRef<ScrollUiSnapshot | null>(null);
   // メニューとカンバンの境界線をつなぐ幅。Web では sticky レイヤー内の線に使う。
   const menuEdgeWidth = Math.max(0, closedX - menuWidth);
@@ -210,6 +262,68 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
     scrollRef.current?.scrollTo({ x: target, animated });
   }, []);
 
+  // 描画後に開始した自動クローズ中にユーザーが操作したら、現在位置で止めて操作を優先する。
+  const interruptAutomaticMenuClose = useCallback(() => {
+    if (automaticMenuCloseTokenRef.current === null) return;
+    const x = Math.max(0, scrollXRef.current);
+    scrollRef.current?.scrollTo({ x, y: 0, animated: false });
+    scrollXRef.current = x;
+    setScrollX(x);
+    if (pendingMenuCloseFrameRef.current !== null) {
+      cancelAnimationFrame(pendingMenuCloseFrameRef.current);
+      pendingMenuCloseFrameRef.current = null;
+    }
+    pendingMenuCloseRef.current = null;
+    menuTargetRef.current = null;
+    menuGestureStartXRef.current = null;
+    menuIconTransitionRef.current = null;
+    automaticMenuCloseTokenRef.current = null;
+    const opened = pane && x < closedXRef.current - GESTURE.menuEdgeTolerancePx;
+    useUiStore.setState({ menuVisible: opened, menuIconOpen: opened });
+  }, [pane]);
+
+  const scheduleAutomaticMenuClose = useCallback(
+    (token: number) => {
+      scheduleDrawerCloseAfterRender(
+        token,
+        () => scrollXRef.current >= closedXRef.current - GESTURE.menuEdgeTolerancePx,
+        () => {
+          automaticMenuCloseTokenRef.current = token;
+          closeMenuImplRef.current?.();
+        },
+        interruptAutomaticMenuClose,
+      );
+    },
+    [interruptAutomaticMenuClose],
+  );
+
+  // ユーザーのタッチ／ドラッグは、進行中の自動クローズや古い遷移要求より優先する。
+  const cancelMenuControlForUser = useCallback(() => {
+    const shouldStopNativeMotion =
+      menuTargetRef.current !== null ||
+      automaticMenuCloseTokenRef.current !== null ||
+      pendingMenuCloseRef.current !== null ||
+      pendingMenuCloseFrameRef.current !== null;
+    cancelDrawerCloseTransition();
+    if (pendingMenuCloseFrameRef.current !== null) {
+      cancelAnimationFrame(pendingMenuCloseFrameRef.current);
+      pendingMenuCloseFrameRef.current = null;
+    }
+    pendingMenuCloseRef.current = null;
+    automaticMenuCloseTokenRef.current = null;
+    if (!shouldStopNativeMotion) return;
+
+    const x = Math.max(0, Math.min(closedXRef.current, scrollXRef.current));
+    scrollRef.current?.scrollTo({ x, y: 0, animated: false });
+    scrollXRef.current = x;
+    setScrollX(x);
+    menuTargetRef.current = null;
+    menuGestureStartXRef.current = null;
+    menuIconTransitionRef.current = null;
+    const opened = pane && x < closedXRef.current - GESTURE.menuEdgeTolerancePx;
+    useUiStore.setState({ menuVisible: opened, menuIconOpen: opened });
+  }, [pane]);
+
   /** 指定のカンバンが見える位置までスクロールする */
   const scrollToColumn = useCallback(
     (index: number) => {
@@ -228,23 +342,66 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
   useEffect(() => {
     if (!pane) return;
 
+    const clearPendingCloseCallback = () => {
+      if (pendingMenuCloseFrameRef.current !== null) {
+        cancelAnimationFrame(pendingMenuCloseFrameRef.current);
+        pendingMenuCloseFrameRef.current = null;
+      }
+      pendingMenuCloseRef.current = null;
+    };
+
     const open = () => {
+      // 手動の開閉要求は、描画後に予定されている自動クローズより優先する。
+      cancelDrawerCloseTransition();
+      clearPendingCloseCallback();
+      menuGestureStartXRef.current = null;
+      menuIconTransitionRef.current = null;
       menuTargetRef.current = true;
       useUiStore.setState({ menuVisible: true, menuIconOpen: true });
       scrollToX(0);
     };
 
-    const close = () => {
+    const applyClose = () => {
+      clearPendingCloseCallback();
+      menuGestureStartXRef.current = null;
+      menuIconTransitionRef.current = null;
       menuTargetRef.current = false;
       useUiStore.setState({ menuVisible: false, menuIconOpen: false });
       scrollToX(closedXRef.current);
     };
 
-    return registerBoardMenu({
+    const close = () => {
+      // 明示的な閉じる操作は、古い自動クローズをキャンセルしてから開始する。
+      cancelDrawerCloseTransition();
+      applyClose();
+    };
+
+    const closeAfterRender = () => {
+      // 共通スケジューラ自身が起動したクローズでは、active transition を再キャンセルしない。
+      applyClose();
+    };
+
+    const closeAndThen = (afterClose: () => void) => {
+      close();
+      pendingMenuCloseRef.current = afterClose;
+      // すでに閉じ位置にある場合は scroll イベントを待たずに続行する。
+      if (scrollXRef.current >= closedXRef.current - GESTURE.menuEdgeTolerancePx) {
+        pendingMenuCloseRef.current = null;
+        afterClose();
+      }
+    };
+
+    closeMenuImplRef.current = closeAfterRender;
+    const unregister = registerBoardMenu({
       open,
       close,
+      closeAndThen,
       toggle: () => (useUiStore.getState().menuIconOpen ? close() : open()),
     });
+    return () => {
+      if (closeMenuImplRef.current === close) closeMenuImplRef.current = null;
+      unregister();
+    };
   }, [pane, menuWidth, scrollToX]);
 
   useEffect(() => {
@@ -255,14 +412,26 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
     }
   }, [pane]);
 
-  // 最初の配置やカンバン数の変更後、メニューを開いた状態ならその位置を維持する。
+  // 初回表示と同一プロジェクト内のレイアウト変更を処理する。
+  // プロジェクトID変更は下の専用effectだけに任せ、同時に2回スクロールを指示しない。
   useEffect(() => {
-    if (!pane) return setPositioned(true);
-    if (size.width === 0) return;
-    const keepMenuOpen = useUiStore.getState().menuVisible;
-    const initialX = keepMenuOpen ? 0 : closedXRef.current;
-    const id = requestAnimationFrame(() => {
-      scrollRef.current?.scrollTo({ x: initialX, animated: false });
+    if (!pane || size.width === 0 || lastResetKeyRef.current !== props.resetKey) return;
+    if (menuTargetRef.current !== null || menuGestureStartXRef.current !== null) return;
+
+    const isInitialPlacement = !didInitialPlacementRef.current;
+    const resetKey = props.resetKey;
+    const frame = requestAnimationFrame(() => {
+      // 描画待ちの間にプロジェクトやユーザー操作が変わった場合、古い初期化を適用しない。
+      if (
+        lastResetKeyRef.current !== resetKey ||
+        menuTargetRef.current !== null ||
+        menuGestureStartXRef.current !== null
+      ) {
+        return;
+      }
+      const keepMenuOpen = useUiStore.getState().menuVisible;
+      const initialX = keepMenuOpen ? 0 : closedXRef.current;
+      scrollRef.current?.scrollTo({ x: initialX, y: 0, animated: false });
       scrollXRef.current = initialX;
       setScrollX(initialX);
       const initialPage = nearestOffsetIndex(offsets, initialX);
@@ -275,21 +444,48 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
         canScrollRight: initialX < maxOffset - UI_METRICS.scroll.positionTolerancePx,
       };
       scrollAnim.setValue(initialX);
-      menuTargetRef.current = null;
       useUiStore.setState({ menuVisible: keepMenuOpen, menuIconOpen: keepMenuOpen });
-      setPositioned(true);
+      didInitialPlacementRef.current = true;
+      if (isInitialPlacement) {
+        const closeToken = consumeBoardMenuCloseAfterProjectRender(props.resetKey);
+        if (closeToken !== null) scheduleAutomaticMenuClose(closeToken);
+      }
     });
-    return () => cancelAnimationFrame(id);
-  }, [pane, size.width, menuWidth, offsets, maxOffset, scrollAnim]);
+    return () => cancelAnimationFrame(frame);
+  }, [
+    pane,
+    size.width,
+    menuWidth,
+    offsets,
+    maxOffset,
+    scrollAnim,
+    props.resetKey,
+    scheduleAutomaticMenuClose,
+  ]);
 
-  // プロジェクトが切り替わったら表示位置を先頭へ戻す。スマホでメニューを開いていた場合は開いたまま保つ。
+  // プロジェクトID変更時の位置更新はここだけで行う。
+  // メニューが開いている場合、ネイティブスクロールを0へ再指示せず、現在の開いた位置と
+  // 進行中の指操作を維持する。閉じている場合だけ新プロジェクトの最初のカンバン位置へ合わせる。
   useEffect(() => {
-    if (!positioned) return;
+    if (lastResetKeyRef.current === props.resetKey) return;
+    lastResetKeyRef.current = props.resetKey;
+    didInitialPlacementRef.current = true;
+
     const keepMenuOpen = pane && useUiStore.getState().menuVisible;
-    const resetX = pane ? (keepMenuOpen ? 0 : closedXRef.current) : 0;
-    scrollRef.current?.scrollTo({ x: resetX, animated: false });
-    scrollXRef.current = resetX;
-    setScrollX(resetX);
+    let resetX = pane ? (keepMenuOpen ? scrollXRef.current : closedXRef.current) : 0;
+    resetX = Math.max(0, Math.min(maxOffset, resetX));
+
+    if (!keepMenuOpen) {
+      menuTargetRef.current = null;
+      menuGestureStartXRef.current = null;
+      menuIconTransitionRef.current = null;
+      automaticMenuCloseTokenRef.current = null;
+      scrollRef.current?.scrollTo({ x: resetX, y: 0, animated: false });
+      scrollXRef.current = resetX;
+      setScrollX(resetX);
+      scrollAnim.setValue(resetX);
+    }
+
     const resetPage = nearestOffsetIndex(offsets, resetX);
     activePageIndexRef.current = resetPage;
     setActivePageIndex(resetPage);
@@ -299,10 +495,11 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
       canScrollLeft: resetX > (offsets[0] ?? 0) + UI_METRICS.scroll.positionTolerancePx,
       canScrollRight: resetX < maxOffset - UI_METRICS.scroll.positionTolerancePx,
     };
-    menuTargetRef.current = null;
     useUiStore.setState({ menuVisible: keepMenuOpen, menuIconOpen: keepMenuOpen });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.resetKey, pane, offsets, maxOffset]);
+
+    const closeToken = consumeBoardMenuCloseAfterProjectRender(props.resetKey);
+    if (closeToken !== null) scheduleAutomaticMenuClose(closeToken);
+  }, [props.resetKey, pane, offsets, maxOffset, scrollAnim, scheduleAutomaticMenuClose]);
 
   // キーボードのカーソルが画面外のカンバンに移ったら、そこまでスクロールする
   useEffect(() => {
@@ -318,6 +515,19 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
   const onScrollEvent = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const x = e.nativeEvent.contentOffset.x;
     const previousX = scrollXRef.current;
+    const target = menuTargetRef.current;
+
+    // 反対方向の古いスクロール通知が新しい開閉指示の状態を上書きしないようにする。
+    // プログラムで開くときはxが減り、閉じるときはxが増えるイベントだけを受け付ける。
+    if (
+      target !== null &&
+      (target
+        ? x > previousX + UI_METRICS.scroll.positionTolerancePx
+        : x < previousX - UI_METRICS.scroll.positionTolerancePx)
+    ) {
+      return;
+    }
+    if (Platform.OS === 'web') scrollAnim.setValue(x);
 
     if (pane && menuGestureStartXRef.current !== null) {
       const startX = menuGestureStartXRef.current;
@@ -342,6 +552,7 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
     }
 
     scrollXRef.current = x;
+    finishPendingMenuClose(x);
     // ページ番号はスクロール中に独立して更新し、フッター表示をカンバン移動に即時追従させる。
     const nextPage = updateActivePage(x);
 
@@ -364,14 +575,18 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
     scrollUiSnapshotRef.current = nextSnapshot;
     if (uiChanged) setScrollX(x);
 
-    const target = menuTargetRef.current;
     const reachedTarget =
       target === true
         ? x <= GESTURE.menuEdgeTolerancePx
         : target === false
           ? x >= closedXRef.current - GESTURE.menuEdgeTolerancePx
           : false;
-    if (reachedTarget) menuTargetRef.current = null;
+    // 到達しただけでは target を消さない。古い onScrollEnd が残っている可能性があるため、
+    // 対象位置でスクロール終了イベントも確認してからプログラム操作を確定する。
+    if (target === false && reachedTarget && automaticMenuCloseTokenRef.current !== null) {
+      finishDrawerCloseAfterRender(automaticMenuCloseTokenRef.current);
+      automaticMenuCloseTokenRef.current = null;
+    }
     if (menuTargetRef.current === null && useUiStore.getState().menuVisible !== nextMenuVisible) {
       useUiStore.setState({ menuVisible: nextMenuVisible });
     }
@@ -382,7 +597,6 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
   const onScroll =
     Platform.OS === 'web'
       ? (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-          scrollAnim.setValue(event.nativeEvent.contentOffset.x);
           onScrollEvent(event);
         }
       : Animated.event([{ nativeEvent: { contentOffset: { x: scrollAnim } } }], {
@@ -394,7 +608,25 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
     finalizeMenuGesture: boolean,
   ) => {
     const x = e.nativeEvent.contentOffset.x;
+    // 直前のスクロールの終了通知が遅れて届いても、現在の開閉指示を上書きしない。
+    const target = menuTargetRef.current;
+    const reachedTarget =
+      target === true
+        ? x <= GESTURE.menuEdgeTolerancePx
+        : target === false
+          ? x >= closedXRef.current - GESTURE.menuEdgeTolerancePx
+          : false;
+    if (target !== null && !reachedTarget) return;
+    if (reachedTarget) menuTargetRef.current = null;
     scrollXRef.current = x;
+    finishPendingMenuClose(x);
+    if (
+      x >= closedXRef.current - GESTURE.menuEdgeTolerancePx &&
+      automaticMenuCloseTokenRef.current !== null
+    ) {
+      finishDrawerCloseAfterRender(automaticMenuCloseTokenRef.current);
+      automaticMenuCloseTokenRef.current = null;
+    }
     const nextPage = updateActivePage(x);
     const nextMenuVisible = pane && x < closedXRef.current - GESTURE.menuEdgeTolerancePx;
     // スクロール終了時にも snapshot を同期し、次のドラッグで誤って再描画が止まらないようにする。
@@ -405,7 +637,7 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
       canScrollRight: x < maxOffset - UI_METRICS.scroll.positionTolerancePx,
     };
     setScrollX(x);
-    if (useUiStore.getState().menuVisible !== nextMenuVisible) {
+    if (menuTargetRef.current === null && useUiStore.getState().menuVisible !== nextMenuVisible) {
       useUiStore.setState({ menuVisible: nextMenuVisible });
     }
     // スナップ位置に到達した時点で、アイコンを最終状態へ同期する。
@@ -413,6 +645,7 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
     const snapIndex = nearestOffsetIndex(snapOffsets, x);
     const snapX = snapOffsets[snapIndex] ?? x;
     if (
+      menuTargetRef.current === null &&
       (finalizeMenuGesture || menuIconTransitionRef.current === null) &&
       Math.abs(snapX - x) <= GESTURE.menuSnapSettleTolerancePx
     ) {
@@ -423,10 +656,10 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
       menuGestureStartXRef.current = null;
       menuIconTransitionRef.current = null;
     }
-    menuTargetRef.current = null;
   };
 
   const onScrollBeginDrag = () => {
+    cancelMenuControlForUser();
     menuGestureStartXRef.current = scrollXRef.current;
     menuIconTransitionRef.current = null;
     blurInputs();
@@ -572,12 +805,14 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
     <View style={styles.fill}>
       {!pane ? (header?.(true) ?? null) : null}
       <View ref={containerRef} style={styles.fill} onLayout={onLayout} collapsable={false}>
-        {columns.length === 0 && !pane ? (
+        {columns.length === 0 && props.showEmptyState !== false && !pane ? (
           <EmptyState title={t('column.empty')} hint={t('column.emptyHint')} />
         ) : size.width > 0 ? (
           <>
             <Animated.ScrollView
               ref={scrollRef}
+              onTouchStart={cancelMenuControlForUser}
+              contentOffset={initialContentOffset}
               horizontal
               snapToOffsets={
                 Platform.OS === 'web' ? undefined : snapOffsets.length > 1 ? snapOffsets : undefined
@@ -594,7 +829,6 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
               scrollEventThrottle={TIMING.scrollEventThrottleMs}
               scrollEnabled={!dragInfo}
               style={[
-                { opacity: positioned ? 1 : 0 },
                 Platform.OS === 'web'
                   ? ({
                       touchAction: 'pan-x pan-y',
@@ -606,7 +840,12 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                   : undefined,
               ]}
               contentContainerStyle={{
-                paddingTop: webInlineChrome ? 0 : headerOffset,
+                // 横スクロールの内容領域を viewport の高さに固定し、ルート切替直後の
+                // size.height 再計測でメニューのフッターが上下するのを防ぐ。
+                height: '100%',
+                // ヘッダー分の縦位置は各カンバンのページ側で確保する。
+                // コンテナーに paddingTop を置くと、100% 高さのメニュー領域がその分縮む。
+                paddingTop: 0,
                 paddingBottom: 0,
                 paddingHorizontal: geo.padding,
                 gap: BOARD.columnGap,
@@ -618,10 +857,10 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                     styles.menuPane,
                     {
                       width: menuWidth,
-                      height: size.height,
+                      height: '100%',
                       marginLeft: -geo.padding,
                       marginRight: Platform.OS === 'web' ? -BOARD.columnGap / 2 : undefined,
-                      marginTop: webInlineChrome ? 0 : -headerOffset,
+                      marginTop: 0,
                     },
                     Platform.OS === 'web' && geo.compact
                       ? ({ scrollSnapAlign: 'start', scrollSnapStop: 'always' } as never)
@@ -635,6 +874,15 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                     onSwipeClose={closeBoardMenu}
                   />
                 </View>
+              ) : null}
+              {pane && columns.length === 0 && props.showEmptyState === false ? (
+                // 削除済みプロジェクトでは右側を空にするが、横スクロールのページ幅は
+                // 保持し、メニューを開閉できるようにする。
+                <View
+                  key="empty-deleted-project-page"
+                  pointerEvents="none"
+                  style={{ width: geo.columnWidth, height: size.height, flexShrink: 0 }}
+                />
               ) : null}
               {Platform.OS === 'web' && webInlineChrome && header ? (
                 <View
@@ -748,7 +996,7 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                   ) : null}
                 </View>
               ) : null}
-              {columns.length === 0 ? (
+              {columns.length === 0 && props.showEmptyState !== false ? (
                 webInlineChrome ? (
                   <View
                     key="web-empty-page"
@@ -777,7 +1025,9 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                     style={{
                       width: geo.columnWidth,
                       height: columnHeight,
+                      marginTop: pane ? headerOffset : 0,
                       justifyContent: 'center',
+                      flexShrink: 0,
                     }}
                   >
                     <EmptyState title={t('column.empty')} hint={t('column.emptyHint')} />
@@ -835,7 +1085,24 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                   />
                 );
 
-                if (!webInlineChrome) return columnView;
+                if (!webInlineChrome) {
+                  if (!pane || headerOffset === 0) return columnView;
+                  // native / medium web ではコンテンツだけをヘッダーの下へ置き、
+                  // ScrollView 全体の高さや左の Sidebar の高さは変えない。
+                  return (
+                    <View
+                      key={`column-page-${column.id}`}
+                      style={{
+                        width: geo.columnWidth,
+                        height: columnHeight,
+                        marginTop: headerOffset,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {columnView}
+                    </View>
+                  );
+                }
 
                 return (
                   <View

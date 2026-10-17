@@ -71,7 +71,7 @@ const estimatedComboWidth = (shortcut: string) => {
 
 /** キーボードショートカットの確認・変更（Web版）。 */
 export default function ShortcutSettings() {
-  const scrollRef = useWebWheelScroll();
+  const scrollRef = useWebWheelScroll({ touchAction: 'pan-x pan-y' });
   const { width: windowWidth } = useWindowDimensions();
   const { colors } = useTheme();
   const settings = useSettingsStore((s) => s.settings);
@@ -418,7 +418,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
     overflowY: 'auto',
-    touchAction: 'pan-y',
+    touchAction: 'pan-x pan-y',
     overscrollBehaviorY: 'auto',
   } as never,
   content: { padding: SPACING.lg, alignItems: 'center', flexGrow: 1 },

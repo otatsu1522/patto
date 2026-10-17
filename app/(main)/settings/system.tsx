@@ -8,7 +8,7 @@ import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { AppText } from '@/components/ui/AppText';
 import { Button } from '@/components/ui/Button';
 import { isSupabaseConfigured } from '@/config/env';
-import type { CardDensity, SyncMode, ThemeMode } from '@/config/defaults';
+import type { CardDensity, SyncMode, ThemeMode, ToastCategory } from '@/config/defaults';
 import { BOARD, UI_METRICS, type FontScaleKey } from '@/config/layout';
 import { exportProjects, importProjects } from '@/features/importExport';
 import { UserActionError } from '@/domain/operationError';
@@ -29,12 +29,20 @@ export default function SystemSettings() {
   const [syncRequested, setSyncRequested] = useState(false);
   const settings = useSettingsStore((s) => s.settings);
   const update = useSettingsStore((s) => s.update);
+  const setToastCategory = (category: ToastCategory, enabled: boolean) => {
+    const current = useSettingsStore.getState().settings.toastCategories;
+    update({
+      toastCategories: enabled
+        ? [...new Set([...current, category])]
+        : current.filter((item) => item !== category),
+    });
+  };
   const identity = useAuthStore((s) => s.identity);
   const lastSyncedAt = useSyncStore((s) => s.lastSyncedAt);
   const syncStatus = useSyncStore((s) => s.status);
   const syncInProgress = syncStatus === 'syncing' || syncRequested;
   const syncAvailable = !!identity && !identity.local && isSupabaseConfigured;
-  const scrollRef = useWebWheelScroll();
+  const scrollRef = useWebWheelScroll({ touchAction: 'pan-x pan-y' });
 
   const runManualSync = async () => {
     if (syncInProgress) return;
@@ -56,15 +64,17 @@ export default function SystemSettings() {
     if (answer !== 'confirm') return;
     const s = useDataStore.getState();
     const ids = [...visibleProjects(s.projects), ...archivedProjects(s.projects)].map((p) => p.id);
-    if (ids.length === 0) return toast(t('settings.exportEmpty'));
+    if (ids.length === 0) return toast(t('settings.exportEmpty'), undefined, { category: 'other' });
     await exportProjects(ids);
-    toast(t('settings.exportDone'));
+    toast(t('settings.exportDone'), undefined, { category: 'other' });
   };
 
   const doImport = async () => {
     try {
       const count = await importProjects();
-      if (count !== null) toast(t('settings.importDone', { count }));
+      if (count !== null) {
+        toast(t('settings.importDone', { count }), undefined, { category: 'other' });
+      }
     } catch (error) {
       alert(
         t('common.error'),
@@ -75,21 +85,24 @@ export default function SystemSettings() {
 
   const clearAll = async (kind: 'trash' | 'archive') => {
     const count = previewClear(kind);
-    if (count === 0) return toast(t('board.clearNothing'));
+    if (count === 0) return toast(t('board.clearNothing'), undefined, { category: 'other' });
     const r = await confirm({
       title: kind === 'trash' ? t('settings.trashClearAll') : t('settings.archiveClearAll'),
       message: t(
         kind === 'trash' ? 'settings.trashClearAllMessage' : 'settings.archiveClearAllMessage',
         { count },
       ),
-      confirmLabel: t('settings.clearPermanently'),
+      confirmLabel:
+        kind === 'trash' ? t('settings.clearPermanently') : t('board.moveArchiveToTrash'),
       destructive: true,
     });
     if (r !== 'confirm') return;
     const res = await clearBucket(kind);
-    toast(res.ok ? t('board.clearDone', { count: res.count }) : res.message, undefined, {
-      force: !res.ok,
-    });
+    if (res.ok) {
+      toast(t('board.clearDone', { count: res.count }), undefined, { category: 'other' });
+    } else {
+      alert(t('common.error'), res.message);
+    }
   };
 
   const reset = async () => {
@@ -101,7 +114,11 @@ export default function SystemSettings() {
     });
     if (result !== 'confirm') return;
     const res = await resetAllData();
-    toast(res.ok ? t('settings.resetAllDone') : res.message, undefined, { force: !res.ok });
+    if (res.ok) {
+      toast(t('settings.resetAllDone'), undefined, { category: 'other' });
+    } else {
+      alert(t('common.error'), res.message);
+    }
   };
 
   const category = (label: string) => (
@@ -184,6 +201,31 @@ export default function SystemSettings() {
               value={settings.toastEnabled}
               onChange={(v) => update({ toastEnabled: v })}
             />
+            {settings.toastEnabled ? (
+              <View style={styles.toastCategories}>
+                <AppText variant="caption" muted style={styles.toastCategoriesHint}>
+                  {t('settings.toastCategoriesHint')}
+                </AppText>
+                <SwitchRow
+                  label={t('settings.toastCategory.movement')}
+                  hint={t('settings.toastCategory.movementHint')}
+                  value={settings.toastCategories.includes('movement')}
+                  onChange={(v) => setToastCategory('movement', v)}
+                />
+                <SwitchRow
+                  label={t('settings.toastCategory.creation')}
+                  hint={t('settings.toastCategory.creationHint')}
+                  value={settings.toastCategories.includes('creation')}
+                  onChange={(v) => setToastCategory('creation', v)}
+                />
+                <SwitchRow
+                  label={t('settings.toastCategory.other')}
+                  hint={t('settings.toastCategory.otherHint')}
+                  value={settings.toastCategories.includes('other')}
+                  onChange={(v) => setToastCategory('other', v)}
+                />
+              </View>
+            ) : null}
           </Section>
           <Section title={t('settings.syncSection')}>
             {hint(syncAvailable ? t('settings.syncHint') : t('settings.syncLocalOnly'))}
@@ -214,7 +256,7 @@ export default function SystemSettings() {
                   <Button
                     label={syncInProgress ? t('sync.syncing') : t('settings.syncNow')}
                     variant="outline"
-                    icon="upload"
+                    icon="cloudUpload"
                     loading={syncInProgress}
                     disabled={settings.syncMode === 'off' || syncInProgress}
                     textColor={syncInProgress ? colors.accent : undefined}
@@ -238,12 +280,14 @@ export default function SystemSettings() {
               <Button
                 label={t('settings.import')}
                 variant="outline"
+                icon="download"
                 onPress={() => void doImport()}
                 fullWidth
               />
               <Button
                 label={t('settings.export')}
                 variant="outline"
+                icon="upload"
                 onPress={() => void doExport()}
                 fullWidth
               />
@@ -261,12 +305,14 @@ export default function SystemSettings() {
               <Button
                 label={t('settings.archiveClearAll')}
                 variant="outlineDanger"
+                icon="delete"
                 onPress={() => void clearAll('archive')}
                 fullWidth
               />
               <Button
                 label={t('settings.trashClearAll')}
                 variant="outlineDanger"
+                icon="deleteForever"
                 onPress={() => void clearAll('trash')}
                 fullWidth
               />
@@ -278,7 +324,6 @@ export default function SystemSettings() {
               <Button
                 label={t('settings.resetAll')}
                 variant="danger"
-                icon="trash"
                 onPress={() => void reset()}
                 fullWidth
               />
@@ -296,7 +341,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
     overflowY: 'auto',
-    touchAction: 'pan-y',
+    touchAction: 'pan-x pan-y',
     overscrollBehaviorY: 'auto',
   } as never,
   content: { padding: SPACING.lg, alignItems: 'center', flexGrow: 1 },
@@ -310,6 +355,8 @@ const styles = StyleSheet.create({
   syncDescs: { gap: SPACING.xs, paddingHorizontal: SPACING.lg, paddingBottom: SPACING.sm },
   syncAction: { padding: SPACING.lg, paddingTop: SPACING.sm, gap: SPACING.sm },
   syncLast: { textAlign: 'center' },
+  toastCategories: { paddingTop: SPACING.xs },
+  toastCategoriesHint: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.xs },
   actionButtons: { padding: SPACING.lg, paddingTop: SPACING.sm, gap: SPACING.sm },
   resetButton: { padding: SPACING.lg, paddingTop: SPACING.sm },
 });

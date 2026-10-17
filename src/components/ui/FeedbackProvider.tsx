@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -9,6 +10,7 @@ import {
 } from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { UI_METRICS } from '@/config/layout';
+import type { ToastCategory } from '@/config/defaults';
 import { TIMING } from '@/config/timing';
 import { t } from '@/i18n';
 import { useSettingsStore } from '@/store/settingsStore';
@@ -33,6 +35,7 @@ export type ConfirmResult = 'confirm' | 'extra' | 'cancel';
 
 interface Toast {
   message: string;
+  category: ToastCategory;
   actionLabel?: string;
   onAction?: () => void;
 }
@@ -41,11 +44,11 @@ interface Feedback {
   confirm: (o: ConfirmOptions) => Promise<ConfirmResult>;
   /** 理由を伝える単一ボタンのダイアログ。 */
   alert: (title: string, message: string) => void;
-  /** force: true は、設定でトーストをOFFにしていても出す（失敗の知らせなど） */
+  /** カテゴリはシステム設定のトースト表示対象でフィルターする。失敗は呼び出し元でダイアログ表示する。 */
   toast: (
     message: string,
     action?: { label: string; onPress: () => void },
-    options?: { force?: boolean },
+    options?: { category: ToastCategory },
   ) => void;
 }
 
@@ -65,6 +68,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   const [dialogMode, setDialogMode] = useState<'confirm' | 'alert'>('confirm');
   const resolver = useRef<((r: ConfirmResult) => void) | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
+  const settings = useSettingsStore((s) => s.settings);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const confirm = useCallback((o: ConfirmOptions) => {
@@ -93,22 +97,46 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     (
       message: string,
       action?: { label: string; onPress: () => void },
-      options?: { force?: boolean },
+      options?: { category: ToastCategory },
     ) => {
-      if (!options?.force && !useSettingsStore.getState().settings.toastEnabled) return;
+      const settings = useSettingsStore.getState().settings;
+      if (!settings.toastEnabled) return;
+      if (!options?.category || !settings.toastCategories.includes(options.category)) return;
       if (timer.current) clearTimeout(timer.current);
-      setToast({ message, actionLabel: action?.label, onAction: action?.onPress });
+      setToast({
+        message,
+        category: options.category,
+        actionLabel: action?.label,
+        onAction: action?.onPress,
+      });
       timer.current = setTimeout(() => setToast(null), TIMING.toastDurationMs);
     },
     [],
   );
+
+  useEffect(() => {
+    if (!toast) return;
+
+    // 設定ストアの変更通知内で既存トーストを破棄する。
+    // effect の実行中に setState を同期実行せず、React の cascade-render 警告を避ける。
+    const unsubscribe = useSettingsStore.subscribe((state) => {
+      if (state.settings.toastEnabled && state.settings.toastCategories.includes(toast.category)) {
+        return;
+      }
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = null;
+      setToast(null);
+    });
+
+    return unsubscribe;
+  }, [toast]);
 
   const value = useMemo(() => ({ confirm, alert, toast: showToast }), [confirm, alert, showToast]);
 
   return (
     <Ctx.Provider value={value}>
       {children}
-      {toast ? (
+      {toast && settings.toastEnabled && settings.toastCategories.includes(toast.category) ? (
         <View
           pointerEvents="box-none"
           style={[styles.toastWrap, { bottom: insets.bottom + SPACING.lg }]}
@@ -142,7 +170,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
         navigationBarTranslucent
       >
         <View style={styles.modalRoot}>
-          <SystemBars />
+          {dialog !== null ? <SystemBars manageSystemUi={false} /> : null}
           <View
             style={[
               styles.backdrop,

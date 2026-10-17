@@ -14,7 +14,7 @@ import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
 
 /** 設定のトップ: プロフィール編集 / システム設定 / ショートカット / アプリについて / ライセンス。 */
 export default function SettingsIndex() {
-  const scrollRef = useWebWheelScroll();
+  const scrollRef = useWebWheelScroll({ touchAction: 'pan-x pan-y' });
   const router = useRouter();
   const { confirm } = useFeedback();
   const identity = useAuthStore((s) => s.identity);
@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
     overflowY: 'auto',
-    touchAction: 'pan-y',
+    touchAction: 'pan-x pan-y',
     overscrollBehaviorY: 'auto',
   } as never,
   content: { padding: SPACING.lg, alignItems: 'center', flexGrow: 1 },

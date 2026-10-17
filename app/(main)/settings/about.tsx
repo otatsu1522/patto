@@ -18,7 +18,7 @@ import { t, type StringKey } from '@/i18n';
 import { BORDER_WIDTH, RADIUS, SPACING, useTheme } from '@/theme';
 
 export default function AboutScreen() {
-  const scrollRef = useWebWheelScroll();
+  const scrollRef = useWebWheelScroll({ touchAction: 'pan-x pan-y' });
   const router = useRouter();
   const { colors } = useTheme();
   const links = [
@@ -39,7 +39,7 @@ export default function AboutScreen() {
             ]}
           >
             <View style={styles.brand}>
-              <Logo size={UI_METRICS.brand.aboutLogoSize} />
+              <Logo size={UI_METRICS.brand.aboutLogoSize} framed={false} />
               <AppText variant="headline">{APP_NAME}</AppText>
               <AppText muted>
                 {t('about.version')} {APP_VERSION}
@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
     overflowY: 'auto',
-    touchAction: 'pan-y',
+    touchAction: 'pan-x pan-y',
     overscrollBehaviorY: 'auto',
   } as never,
   content: { padding: SPACING.lg, alignItems: 'center', flexGrow: 1 },

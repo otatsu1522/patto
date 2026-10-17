@@ -10,12 +10,14 @@ import type { Project } from '@/domain/types';
 import { UserActionError } from '@/domain/operationError';
 import { pushUndo } from '@/features/undo';
 import { useProjectNavigation } from '@/hooks/useProjectNavigation';
+import { useLayoutMode } from '@/hooks/useLayout';
+import { closeSettingsMenu, requestSettingsMenuCloseAfterRender } from '@/hooks/settingsMenu';
 import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
 import { t } from '@/i18n';
 import { useDataStore } from '@/store/dataStore';
 import { useUiStore } from '@/store/uiStore';
 import { syncNow } from '@/sync/controller';
-import { SPACING, useTheme, ICON_SIZE, ICON_BUTTON_BOX, LAYER, OPACITY } from '@/theme';
+import { FONT, SPACING, useTheme, ICON_SIZE, ICON_BUTTON_BOX, LAYER, OPACITY } from '@/theme';
 import { ProjectDialog } from '../board/NameDialogs';
 import { AppText } from '../ui/AppText';
 import { DropdownMenu } from '../ui/DropdownMenu';
@@ -38,9 +40,10 @@ interface Props {
 
 /** 左のメニュー: メニューアイコン+アプリ名、プロジェクト一覧、新規作成、検索、設定、同期状態。 */
 export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) {
-  const { colors, taskColor } = useTheme();
+  const { colors, taskColor, fs } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
+  const { mode } = useLayoutMode();
   const { confirm, toast, alert } = useFeedback();
   const sync = useSyncLabel();
   const identity = useAuthStore((s) => s.identity);
@@ -128,6 +131,7 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
     return counts;
   }, [columns, tasks]);
   const currentId = pathname.startsWith('/project/') ? pathname.split('/')[2] : null;
+  const settingsSelected = pathname.startsWith('/settings');
 
   const open = useProjectNavigation();
 
@@ -136,7 +140,9 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
   const duplicateProject = async (p: Project) => {
     try {
       const copied = await store.duplicateProject(p.id);
-      if (copied) toast(t('toast.duplicated'));
+      if (copied) {
+        toast(t('toast.duplicated'), undefined, { category: 'creation' });
+      }
     } catch (error) {
       alert(
         t('common.error'),
@@ -155,8 +161,13 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
     if (r !== 'confirm') return;
     await store.deleteProject(p.id);
     const undo = pushUndo(() => store.restoreItem('project', p.id));
-    toast(t('board.undoDeleted'), { label: t('common.undo'), onPress: () => void undo() });
-    if (currentId === p.id) router.replace('/home');
+    toast(
+      t('board.undoDeleted'),
+      { label: t('common.undo'), onPress: () => void undo() },
+      { category: 'other' },
+    );
+    // 選択中のプロジェクトを削除してもルートを変えない。BoardViewを維持し、
+    // メニューは開いたまま、右側の内容だけを空にする。
   };
 
   const row = (p: Project) => {
@@ -168,11 +179,7 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
         key={p.id}
         style={[styles.item, { backgroundColor: selected ? colors.primary : 'transparent' }]}
       >
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => open(p.id, { keepMenuOpen: true })}
-          style={styles.itemMain}
-        >
+        <Pressable accessibilityRole="button" onPress={() => open(p.id)} style={styles.itemMain}>
           <View
             style={[
               styles.dot,
@@ -203,7 +210,9 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
               icon: p.isFavorite ? 'unpin' : 'pin',
               onPress: () => {
                 void store.updateProject(p.id, { isFavorite: !p.isFavorite });
-                toast(t(p.isFavorite ? 'toast.unpinned' : 'toast.pinned'));
+                toast(t(p.isFavorite ? 'toast.unpinned' : 'toast.pinned'), undefined, {
+                  category: 'other',
+                });
               },
             },
             {
@@ -256,15 +265,22 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
       {/* 画面上部のバーと同じ位置にメニューアイコンを置く（押すと閉じる） */}
       <View style={styles.brand}>
         {showMenuIcon ? (
-          <IconButton icon="menu" label={t('menu.toggle')} onPress={onToggle} />
+          <IconButton icon="panelLeft" label={t('menu.toggle')} onPress={onToggle} />
         ) : null}
         <AppText
           variant="title"
           numberOfLines={UI_METRICS.text.singleLineMax}
-          style={[styles.flex, !showMenuIcon && styles.brandName]}
+          style={[styles.flex, { fontSize: fs(FONT.headline) }, !showMenuIcon && styles.brandName]}
         >
           {APP_NAME}
         </AppText>
+        <IconButton
+          icon="search"
+          label={t('menu.search')}
+          onPress={() => useUiStore.getState().setGlobalSearchOpen(true)}
+          box={ICON_BUTTON_BOX.large}
+          size={ICON_SIZE.xl}
+        />
       </View>
 
       <ScrollView
@@ -336,22 +352,40 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
       <View style={styles.footer}>
         <Pressable
           accessibilityRole="button"
-          onPress={() => useUiStore.getState().setGlobalSearchOpen(true)}
-          style={styles.footerRow}
-        >
-          <Icon name="search" size={ICON_SIZE.xl} color={colors.text} />
-          <AppText color={colors.text}>{t('menu.search')}</AppText>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
           onPress={() => {
-            // メニューは閉じない（戻ったときも開いたままの状態を保つ）
-            router.navigate('/settings');
+            if (mode === 'expanded') {
+              router.navigate('/settings');
+              return;
+            }
+
+            if (pathname.startsWith('/settings')) {
+              if (pathname === '/settings') {
+                // すでに設定トップなら内容は変わらないため、メニューだけを閉じる。
+                closeSettingsMenu();
+                return;
+              }
+              // 設定内の下層画面からトップへ戻す場合も、トップ表示後にメニューを閉じる。
+              requestSettingsMenuCloseAfterRender('/settings');
+              router.replace('/settings');
+              return;
+            }
+            // プロジェクトを履歴に残さず、設定内容を表示してからメニューを閉じる。
+            requestSettingsMenuCloseAfterRender('/settings');
+            router.replace('/settings');
           }}
-          style={styles.footerRow}
+          style={[
+            styles.footerRow,
+            { backgroundColor: settingsSelected ? colors.primary : 'transparent' },
+          ]}
         >
-          <Icon name="settings" size={ICON_SIZE.xl} color={colors.text} />
-          <AppText color={colors.text}>{t('menu.settings')}</AppText>
+          <Icon
+            name="settings"
+            size={ICON_SIZE.xl}
+            color={settingsSelected ? colors.onPrimary : colors.text}
+          />
+          <AppText color={settingsSelected ? colors.onPrimary : colors.text}>
+            {t('menu.settings')}
+          </AppText>
         </Pressable>
         <Pressable
           accessibilityRole="button"
@@ -381,7 +415,7 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
           setEditing(null);
           if (target) {
             await store.updateProject(target.id, v);
-            toast(t('toast.projectUpdated'));
+            toast(t('toast.projectUpdated'), undefined, { category: 'other' });
           }
         }}
       />
@@ -440,12 +474,13 @@ const styles = StyleSheet.create({
     borderWidth: BORDER_WIDTH,
   },
   divider: {
+    width: UI_METRICS.board.pinnedDividerWidth,
+    alignSelf: 'center',
     height: SEPARATOR_WIDTH,
     minHeight: SEPARATOR_WIDTH,
     maxHeight: SEPARATOR_WIDTH,
     flexShrink: 0,
     marginVertical: SPACING.xs,
-    marginHorizontal: SPACING.lg,
   },
   // プロジェクト内の区切り線と同じ太さ・左右の余白に揃える。
   rule: { height: SEPARATOR_WIDTH, marginVertical: SPACING.xs, marginHorizontal: 0 },
