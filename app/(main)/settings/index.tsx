@@ -80,6 +80,11 @@ export default function SettingsIndex() {
               />
             ) : null}
             <LinkRow
+              icon="help"
+              label={t('settings.qa')}
+              onPress={() => router.navigate('/settings/qa')}
+            />
+            <LinkRow
               icon="info"
               label={t('settings.about')}
               onPress={() => router.navigate('/settings/about')}

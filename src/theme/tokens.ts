@@ -64,8 +64,11 @@ export const SHADOW = {
 /** 枠線を表示しない箇所で使う値。数値の直書きを避ける。 */
 export const BORDER_WIDTH_NONE = 0;
 
-/** 通常の枠線・区切り線の太さ（Web・ネイティブ共通）。 */
-export const BORDER_WIDTH = 2;
+/** 通常の画面枠線・区切り線の既定値（実際の表示値はテーマ設定で変更する）。 */
+export const BORDER_WIDTH = 1;
+
+/** フォームやボタンなど、太さをユーザー設定に連動させないコントロール用の枠線。 */
+export const CONTROL_BORDER_WIDTH = 2;
 
 /** 選択・フォーカス・色スウォッチなど、強調表示に使う太い線の太さ。 */
 export const BORDER_WIDTH_EMPHASIS = 2;

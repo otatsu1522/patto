@@ -18,8 +18,15 @@ export async function exportProjects(projectIds: string[]): Promise<void> {
     const a = document.createElement('a');
     a.href = url;
     a.download = fileName;
-    a.click();
-    URL.revokeObjectURL(url);
+    a.style.display = 'none';
+    try {
+      document.body.appendChild(a);
+      a.click();
+    } finally {
+      a.remove();
+      // ブラウザーがダウンロードを開始する時間を確保してから Blob URL を解放する。
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
     return;
   }
   const file = new File(Paths.cache, fileName);

@@ -34,7 +34,11 @@ export function Icon({ name, size = ICON_SIZE.xxl, color }: Props) {
   const path = SVG_ICONS[name];
   if (path) {
     return (
-      <Svg width={px} height={px} viewBox="0 -960 960 960">
+      <Svg
+        width={px}
+        height={px}
+        viewBox={name === 'keyboard' || name === 'deleteSweep' ? '0 0 24 24' : '0 -960 960 960'}
+      >
         <Path d={path} fill={tint} />
       </Svg>
     );

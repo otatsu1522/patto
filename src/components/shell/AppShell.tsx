@@ -481,8 +481,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       else toggleBoardMenu();
     },
     search: () => {
-      if (pathname.startsWith('/project/')) return useUiStore.getState().focusBoardSearch();
-      setGlobalSearchOpen(true);
+      const projectId = pathname.startsWith('/project/') ? (pathname.split('/')[2] ?? null) : null;
+      setGlobalSearchOpen(true, projectId);
     },
     openSettings: () => router.navigate('/settings'),
     nextProject: () => stepProject(1),

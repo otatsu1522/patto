@@ -6,10 +6,10 @@ export const ja = {
   // 起動
   'app.pressBackAgain': 'もう一度戻るとアプリを終了します。',
   'app.startupErrorTitle': 'アプリを起動できませんでした',
-  'app.startupErrorMessage':
-    '起動処理が完了しませんでした。ほかの Patto のタブを閉じてから、再試行してください。',
-  'app.startupTimeout':
-    '起動処理が時間内に完了しませんでした。ほかの Patto のタブを閉じて再試行してください。',
+  'app.startupErrorMessage': '起動処理が完了しませんでした。再試行してください。',
+  'app.startupTimeout': '起動処理が時間内に完了しませんでした。再試行してください。',
+  'app.startupWebHint':
+    'ブラウザ版で「再試行」しても起動しない場合は、一度このタブを閉じて開き直してください。複数の Patto タブを開いている場合は、ほかのタブを閉じてからお試しください。',
   'app.webNotIsolated':
     'この環境では Web 版を動かせません。ページに COOP / COEP ヘッダーが付いていません（docs/DEPLOY.md の「HTTPヘッダーとWASM」を確認してください）。',
 
@@ -336,6 +336,20 @@ export const ja = {
   'settings.showUpdatedAt': '最後の更新日時を表示',
   'settings.notification': '通知',
   'settings.notificationHint': '操作結果などのアプリ内通知の表示を設定します。',
+  'settings.toastDuration': '表示時間',
+  'settings.toastDurationHint': 'トーストが自動で消えるまでの時間を設定します。',
+  'settings.toastDurationSeconds': '{seconds} 秒',
+  'settings.borderWidth': '線の太さ',
+  'settings.borderWidthHint':
+    '画面の枠線・区切り線の太さを設定します。フォームやボタンには適用されません。',
+  'settings.borderColor': '線の色',
+  'settings.borderColorHint':
+    '「テーマ標準」は、ライトでは明るいグレー、ダークでは暗いグレーになります。',
+  'settings.borderColorDefault': 'テーマ標準',
+  'settings.qa': 'よくある質問',
+  'settings.qaHint': '操作方法や独自の機能、データの扱いについて説明します。',
+  'settings.qaQuestionPrefix': 'Q{number}.',
+  'settings.qaAnswerPrefix': 'A.',
   'settings.resetAll': '初期化',
   'settings.resetAllHint':
     'プロジェクト、カンバン、タスクと、このアプリの設定をすべて初期状態に戻します。アカウントは削除されません。',

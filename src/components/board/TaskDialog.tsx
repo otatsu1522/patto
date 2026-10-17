@@ -7,7 +7,7 @@ import type { Task } from '@/domain/types';
 import { firstError, validateMaxLength, validateTitle } from '@/domain/validation';
 import { t } from '@/i18n';
 import { formatDateTime } from '@/lib/dates';
-import { BORDER_WIDTH, SPACING, useTheme, ICON_SIZE } from '@/theme';
+import { CONTROL_BORDER_WIDTH, SPACING, useTheme, ICON_SIZE } from '@/theme';
 import type { TaskColorKey } from '@/theme/taskColors';
 import { AppText } from '../ui/AppText';
 import { Button } from '../ui/Button';
@@ -307,11 +307,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
-    borderWidth: BORDER_WIDTH,
+    borderWidth: CONTROL_BORDER_WIDTH,
     paddingHorizontal: SPACING.md,
     minHeight: BOARD.touchTarget,
   },
-  list: { borderWidth: BORDER_WIDTH },
+  list: { borderWidth: CONTROL_BORDER_WIDTH },
   option: {
     flexDirection: 'row',
     alignItems: 'center',

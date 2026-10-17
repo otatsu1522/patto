@@ -15,7 +15,7 @@ export function ScreenHeader({ title, onBack }: { title: string; onBack?: () => 
   const router = useRouter();
   const pathname = usePathname();
   const { mode } = useLayoutMode();
-  const { colors } = useTheme();
+  const { colors, lineWidth, lineColor } = useTheme();
   const useMenuToggle = pathname.startsWith('/settings');
   const toggleMenu = () => {
     if (mode === 'expanded') useUiStore.getState().toggleSidebarCollapsed();
@@ -23,7 +23,14 @@ export function ScreenHeader({ title, onBack }: { title: string; onBack?: () => 
   };
   return (
     <View
-      style={[styles.bar, { borderBottomColor: colors.border, backgroundColor: colors.surface }]}
+      style={[
+        styles.bar,
+        {
+          borderBottomColor: lineColor,
+          borderBottomWidth: lineWidth,
+          backgroundColor: colors.surface,
+        },
+      ]}
     >
       <IconButton
         icon={useMenuToggle ? 'panelLeft' : 'back'}

@@ -4,7 +4,7 @@ import type { IconKey } from '@/config/icons';
 import { RADIUS, SPACING, useTheme, ICON_SIZE, OPACITY } from '@/theme';
 import { AppText } from './AppText';
 import { Icon } from './Icon';
-import { BORDER_WIDTH } from '@/theme/tokens';
+import { CONTROL_BORDER_WIDTH } from '@/theme/tokens';
 import { canHover } from '@/lib/hover';
 
 type Variant =
@@ -86,7 +86,7 @@ const styles = StyleSheet.create({
     minHeight: BOARD.touchTarget,
     paddingHorizontal: SPACING.lg,
     borderRadius: RADIUS.md,
-    borderWidth: BORDER_WIDTH,
+    borderWidth: CONTROL_BORDER_WIDTH,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

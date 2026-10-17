@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import { create } from 'zustand';
-import { defaultSettings, type AppSettings } from '@/config/defaults';
+import { defaultSettings, TOAST_DURATION_SECONDS, type AppSettings } from '@/config/defaults';
 import { TRASH } from '@/config/limits';
 import { kv } from '@/lib/kv';
 
@@ -27,7 +27,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     } catch {
       stored = {};
     }
-    set({ settings: { ...defaultSettings(isWeb, TRASH.retentionDays), ...stored }, loaded: true });
+    const settings = { ...defaultSettings(isWeb, TRASH.retentionDays), ...stored };
+    if (!TOAST_DURATION_SECONDS.some((seconds) => seconds === settings.toastDurationSeconds)) {
+      settings.toastDurationSeconds = Number.isFinite(settings.toastDurationSeconds)
+        ? Math.min(3, Math.max(1, Math.round(settings.toastDurationSeconds)))
+        : 2;
+      void kv.set(STORAGE_KEY, JSON.stringify(settings));
+    }
+    set({ settings, loaded: true });
   },
   update(patch) {
     const next = { ...get().settings, ...patch };

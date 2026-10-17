@@ -40,7 +40,7 @@ interface Props {
 
 /** 左のメニュー: メニューアイコン+アプリ名、プロジェクト一覧、新規作成、検索、設定、同期状態。 */
 export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) {
-  const { colors, taskColor, fs } = useTheme();
+  const { colors, taskColor, fs, lineWidth, lineColor } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
   const { mode } = useLayoutMode();
@@ -185,7 +185,8 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
               styles.dot,
               {
                 backgroundColor: p.color ? taskColor(p.color) : 'transparent',
-                borderColor: p.color ? 'transparent' : selected ? colors.onPrimary : colors.border,
+                borderColor: p.color ? 'transparent' : selected ? colors.onPrimary : lineColor,
+                borderWidth: lineWidth,
               },
             ]}
           />
@@ -258,7 +259,7 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
         { width, backgroundColor: colors.surface },
         // ネイティブは初期 ZIP の右境界線を使用する。独立線は Web のみ。
         Platform.OS !== 'web'
-          ? { borderRightColor: colors.border, borderRightWidth: BORDER_WIDTH }
+          ? { borderRightColor: lineColor, borderRightWidth: lineWidth }
           : undefined,
       ]}
     >
@@ -304,7 +305,17 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
           ) : null}
           {favorites.map(row)}
           {favorites.length > 0 && normals.length > 0 ? (
-            <View style={[styles.divider, { backgroundColor: colors.divider }]} />
+            <View
+              style={[
+                styles.divider,
+                {
+                  backgroundColor: lineColor,
+                  height: lineWidth,
+                  minHeight: lineWidth,
+                  maxHeight: lineWidth,
+                },
+              ]}
+            />
           ) : null}
           {normals.map(row)}
 
@@ -348,7 +359,7 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
         </View>
       </ScrollView>
 
-      <View style={[styles.rule, { backgroundColor: colors.divider }]} />
+      <View style={[styles.rule, { backgroundColor: lineColor, height: lineWidth }]} />
       <View style={styles.footer}>
         <Pressable
           accessibilityRole="button"
@@ -420,7 +431,10 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
         }}
       />
       {Platform.OS === 'web' ? (
-        <View pointerEvents="none" style={[styles.rightEdge, { backgroundColor: colors.border }]} />
+        <View
+          pointerEvents="none"
+          style={[styles.rightEdge, { backgroundColor: lineColor, width: lineWidth }]}
+        />
       ) : null}
     </View>
   );

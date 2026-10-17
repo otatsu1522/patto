@@ -33,7 +33,7 @@ export function RecordDetailsDialog({
   projectName,
   columnName,
 }: Props) {
-  const { colors, taskColor } = useTheme();
+  const { colors, taskColor, lineWidth, lineColor } = useTheme();
   if (!record) return null;
 
   const task = record;
@@ -122,7 +122,7 @@ export function RecordDetailsDialog({
         ? detail(t('common.deletedAt'), formatDateTime(task.deletedAt))
         : null}
 
-      <View style={[styles.dateRow, { borderTopColor: colors.divider }]}>
+      <View style={[styles.dateRow, { borderTopColor: lineColor, borderTopWidth: lineWidth }]}>
         <View style={styles.dateCell}>
           <View style={styles.dateLabel}>
             <Icon name="edit" size={ICON_SIZE.md} color={colors.textMuted} />

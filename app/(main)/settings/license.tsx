@@ -10,20 +10,23 @@ import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
 
 export default function LicenseScreen() {
   const scrollRef = useWebWheelScroll({ touchAction: 'pan-x pan-y' });
-  const { colors } = useTheme();
+  const { colors, lineWidth, lineColor } = useTheme();
 
   return (
     <View style={styles.fill}>
       <ScreenHeader title={t('settings.license')} />
       <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.content}>
         <View
-          style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          style={[
+            styles.card,
+            { backgroundColor: colors.surface, borderColor: lineColor, borderWidth: lineWidth },
+          ]}
         >
           <AppText variant="headline">{t('about.mitLicense')}</AppText>
           <AppText variant="caption" muted style={styles.copyright}>
             {APP_DISPLAY_COPYRIGHT}
           </AppText>
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          <View style={[styles.divider, { backgroundColor: lineColor, height: lineWidth }]} />
           <AppText variant="caption" muted>
             {LICENSE_TRANSLATION_NOTE}
           </AppText>

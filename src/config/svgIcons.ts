@@ -3,6 +3,14 @@
  * 標準のアイコン集にないものや、見た目を指定したいものをここに置く（キーは icons.ts の IconKey）。
  */
 export const SVG_ICONS: Record<string, string> = {
+  // Google Material Symbols: help (Apache License 2.0)
+  help: 'M480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm-40-200h80v-40q0-26 11-47.5t33-38.5q23-20 43.5-45t20.5-59q0-54-38-88t-99-34q-56 0-95.5 30T340-600l72 28q9-28 26-44t42-16q30 0 48 16t18 42q0 23-15.5 42.5T495-491q-29 27-42 53t-13 58v20Zm40 160q17 0 28.5-11.5T520-240q0-17-11.5-28.5T480-280q-17 0-28.5 11.5T440-240q0 17 11.5 28.5T480-200Z',
+  // Google Material Icons: keyboard (24x24 viewBox; rendered with its own viewBox in Icon.tsx).
+  keyboard:
+    'M20 5H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-11 3h2v2H9V8zm0 3h2v2H9v-2zm-3-3h2v2H6V8zm0 3h2v2H6v-2zm11 5H7v-2h10v2zm0-3h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z',
+  // Google Material Symbols Outlined: delete_sweep (Apache License 2.0; 24x24 viewBox).
+  deleteSweep:
+    'M15 18.25v-1.5h3.625v1.5H15Zm0-9.2v-1.5h7v1.5H15Zm0 4.6v-1.5h5.875v1.5H15ZM3.125 7.125H2v-1.5h4.25v-1.125h3.375v1.125h4.25v1.5h-1.125v10.375q0 .6-.45 1.05t-1.05.45H4.625q-.6 0-1.05-.45t-.45-1.05V7.125Zm1.5 0v10.375h6.625V7.125H4.625Zm0 0v10.375-10.375Z',
   // ピン留め（keep）
   pin: 'm634-448 86 77v60H510v241l-30 30-30-30v-241H240v-60l80-77v-332h-50v-60h414v60h-50v332Zm-313 77h312l-59-55v-354H380v354l-59 55Zm156 0Z',
   // ピン解除（keep_off）

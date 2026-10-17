@@ -15,7 +15,7 @@ import { t } from '@/i18n';
 import { FONT, RADIUS, SPACING, useTheme, ICON_SIZE, ICON_BUTTON_BOX } from '@/theme';
 import { AppText } from './AppText';
 import { IconButton } from './IconButton';
-import { BORDER_WIDTH } from '@/theme/tokens';
+import { CONTROL_BORDER_WIDTH } from '@/theme/tokens';
 import { useAuthInputFocus } from '../auth/AuthInputFocusContext';
 
 interface Props extends Omit<TextInputProps, 'style'> {
@@ -167,8 +167,8 @@ export const TextField = forwardRef<TextInput, Props>(function TextField(
           // Textarea のブラウザー既定サイズで外枠が押し広げられないよう、外枠側で高さを管理する。
           autoGrow
             ? {
-                height: autoGrowHeight + BORDER_WIDTH * 2,
-                maxHeight: autoGrowMaxHeight + BORDER_WIDTH * 2,
+                height: autoGrowHeight + CONTROL_BORDER_WIDTH * 2,
+                maxHeight: autoGrowMaxHeight + CONTROL_BORDER_WIDTH * 2,
                 alignItems: 'stretch',
                 overflow: 'hidden',
               }
@@ -302,7 +302,7 @@ const styles = StyleSheet.create({
   box: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: BORDER_WIDTH,
+    borderWidth: CONTROL_BORDER_WIDTH,
     borderRadius: RADIUS.md,
     paddingHorizontal: SPACING.md,
   },

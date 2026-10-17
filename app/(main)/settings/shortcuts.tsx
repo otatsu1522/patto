@@ -30,7 +30,7 @@ import {
 import { useSettingsStore } from '@/store/settingsStore';
 import { useUiStore } from '@/store/uiStore';
 import {
-  BORDER_WIDTH,
+  CONTROL_BORDER_WIDTH,
   RADIUS,
   SPACING,
   useTheme,
@@ -73,7 +73,7 @@ const estimatedComboWidth = (shortcut: string) => {
 export default function ShortcutSettings() {
   const scrollRef = useWebWheelScroll({ touchAction: 'pan-x pan-y' });
   const { width: windowWidth } = useWindowDimensions();
-  const { colors } = useTheme();
+  const { colors, lineWidth, lineColor } = useTheme();
   const settings = useSettingsStore((s) => s.settings);
   const update = useSettingsStore((s) => s.update);
   const bindings = resolveBindings(settings.shortcutOverrides);
@@ -162,7 +162,7 @@ export default function ShortcutSettings() {
       capturing === id
         ? measuredSlotWidths.capture || UI_METRICS.shortcuts.captureActionSlotWidth
         : measuredSlotWidths.add || UI_METRICS.shortcuts.addActionSlotWidth;
-    const fieldChrome = BORDER_WIDTH * 2 + SPACING.sm * 2;
+    const fieldChrome = CONTROL_BORDER_WIDTH * 2 + SPACING.sm * 2;
     // キー欄の後ろに「追加」枠が来る。gap は各キーと追加枠の間だけ必要。
     const desiredWidth = fieldChrome + keyWidths + keys.length * SPACING.xs + slotWidth;
     // 行幅からリセットボタン・余白・タイトル用の幅を差し引き、タイトルと重ならない最大幅を求める。
@@ -215,7 +215,9 @@ export default function ShortcutSettings() {
     );
   };
 
-  const separator = <View style={[styles.separator, { backgroundColor: colors.border }]} />;
+  const separator = (
+    <View style={[styles.separator, { backgroundColor: lineColor, height: lineWidth }]} />
+  );
 
   const renderComboParts = (shortcut: string) =>
     displayKeyParts(shortcut).map((part, index) => (
@@ -443,7 +445,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     minWidth: 0,
     minHeight: UI_METRICS.shortcuts.keyFieldMinHeight,
-    borderWidth: BORDER_WIDTH,
+    borderWidth: CONTROL_BORDER_WIDTH,
     borderRadius: RADIUS.md,
     paddingHorizontal: SPACING.sm,
     paddingVertical: SPACING.xs,
@@ -458,7 +460,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: UI_METRICS.shortcuts.comboGap,
-    borderWidth: BORDER_WIDTH,
+    borderWidth: CONTROL_BORDER_WIDTH,
     borderRadius: RADIUS.sm,
     paddingHorizontal: UI_METRICS.shortcuts.comboPaddingHorizontal,
     paddingVertical: UI_METRICS.shortcuts.comboPaddingVertical,
@@ -478,7 +480,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
     minHeight: UI_METRICS.shortcuts.comboMinHeight,
     paddingHorizontal: SPACING.sm,
-    borderWidth: BORDER_WIDTH,
+    borderWidth: CONTROL_BORDER_WIDTH,
     borderStyle: 'dashed',
     borderRadius: RADIUS.sm,
     alignItems: 'center',
@@ -486,12 +488,12 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   addHint: { textAlign: 'center' },
-  separator: { height: BORDER_WIDTH, alignSelf: 'stretch', flexShrink: 0 },
+  separator: { height: 1, alignSelf: 'stretch', flexShrink: 0 },
   captureSlot: {
     minHeight: UI_METRICS.shortcuts.comboMinHeight,
     minWidth: 0,
     paddingHorizontal: SPACING.sm,
-    borderWidth: BORDER_WIDTH,
+    borderWidth: CONTROL_BORDER_WIDTH,
     borderStyle: 'dashed',
     borderRadius: RADIUS.sm,
     alignItems: 'center',

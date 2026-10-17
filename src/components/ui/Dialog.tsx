@@ -59,7 +59,7 @@ export function Dialog({
   onShow,
   onDismiss,
 }: Props) {
-  const { colors } = useTheme();
+  const { colors, lineWidth, lineColor } = useTheme();
   const insets = getSystemBarInsets(useSafeAreaInsets());
   const { mode } = useLayoutMode();
   const push = useUiStore((s) => s.pushDialog);
@@ -171,6 +171,7 @@ export function Dialog({
     // 表示開始直後に状態を更新して余計なレイアウト再計算を起こさない。
     if (visible) return;
     // 閉じた時点でだけ前回の状態を破棄し、次回表示へ持ち越さない。
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 閉じる段階でキーボード寸法を同期リセットし、次回表示のちらつきを防ぐ。
     setKeyboardState((previous) =>
       previous.visibleFor === false &&
       !previous.keyboardVisible &&
@@ -402,7 +403,8 @@ export function Dialog({
               SHADOW.float,
               {
                 backgroundColor: colors.surface,
-                borderColor: colors.border,
+                borderColor: lineColor,
+                borderWidth: lineWidth,
                 // 作成・編集・検索・詳細など、すべてのダイアログ幅を大きい側へ統一する。
                 maxWidth: compact
                   ? ('100%' as never)

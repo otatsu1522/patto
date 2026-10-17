@@ -188,6 +188,9 @@ function Boot() {
         <View style={[styles.center, { gap: SPACING.lg }]}>
           <AppText variant="title">{t('app.startupErrorTitle')}</AppText>
           <AppText style={styles.notice}>{bootstrapError ?? t('app.startupErrorMessage')}</AppText>
+          {Platform.OS === 'web' ? (
+            <AppText style={styles.notice}>{t('app.startupWebHint')}</AppText>
+          ) : null}
           <Button label={t('common.retry')} onPress={() => void retryStartup()} />
         </View>
       </View>

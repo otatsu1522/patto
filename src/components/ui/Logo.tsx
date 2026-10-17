@@ -4,6 +4,7 @@ import { VIEW_KANBAN_PATH } from '@/config/logo';
 import { UI_METRICS } from '@/config/layout';
 import { BRAND } from '@/theme/palette';
 import { BORDER_WIDTH } from '@/theme/tokens';
+import { useTheme } from '@/theme';
 
 /** Patto のロゴ: Google の Material Symbols「view_kanban」。必要に応じて白い枠を付ける。 */
 export function Logo({
@@ -13,11 +14,14 @@ export function Logo({
   size?: number;
   framed?: boolean;
 }) {
+  const { lineWidth, lineColor } = useTheme();
   return (
     <View
       style={[
         { width: size, height: size, padding: size * 0.12 },
-        framed ? styles.framed : styles.unframed,
+        framed
+          ? [styles.framed, { borderWidth: lineWidth, borderColor: lineColor }]
+          : styles.unframed,
       ]}
     >
       <Svg width="100%" height="100%" viewBox="0 -960 960 960">

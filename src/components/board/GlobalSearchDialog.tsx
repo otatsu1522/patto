@@ -6,7 +6,7 @@ import type { Task } from '@/domain/types';
 import { t } from '@/i18n';
 import { useDataStore } from '@/store/dataStore';
 import { RADIUS, SPACING, useTheme, ICON_SIZE, ICON_BUTTON_BOX, LAYER } from '@/theme';
-import { BORDER_WIDTH, FONT } from '@/theme/tokens';
+import { CONTROL_BORDER_WIDTH, FONT } from '@/theme/tokens';
 import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
 import { Dialog } from '../ui/Dialog';
 import { AppText } from '../ui/AppText';
@@ -193,7 +193,7 @@ export function GlobalSearchDialog({ visible, initialProjectId = null, onClose, 
 const styles = StyleSheet.create({
   searchField: {
     minHeight: BOARD.touchTarget,
-    borderWidth: BORDER_WIDTH,
+    borderWidth: CONTROL_BORDER_WIDTH,
     borderRadius: RADIUS.md,
     flexDirection: 'row',
     alignItems: 'center',
@@ -231,7 +231,7 @@ const styles = StyleSheet.create({
     minHeight: UI_METRICS.search.filterChipMinHeight,
     maxWidth: UI_METRICS.search.filterChipMaxWidth,
     justifyContent: 'center',
-    borderWidth: BORDER_WIDTH,
+    borderWidth: CONTROL_BORDER_WIDTH,
     borderRadius: RADIUS.sm,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.xs,

@@ -158,7 +158,27 @@ git diff -- package.json pnpm-lock.yaml app.config.ts
 
 - [Expo Vector Icons（アイコン一覧）](https://icons.expo.fyi/Index) — このプロジェクトで使用している `@expo/vector-icons` のアイコンを探す。
 - [Ionicons](https://ionic.io/ionicons) — `src/config/icons.ts` で利用している標準アイコンの一覧。
-- [Google Material Symbols](https://fonts.google.com/icons) — `src/config/svgIcons.ts` にSVGパスを置いているアイコンの参照元。
+- [Google Material Symbols](https://fonts.google.com/icons) — `src/config/svgIcons.ts` にSVGパスを置いているアイコンの参照元。Ionicons と混在しているため、既存の共通 `Icon` を使い、画面ごとに別のアイコンライブラリを直接追加しない。
 - [Lucide Icons](https://lucide.dev/icons/) — 別の形状も比較したい場合の参考一覧。Lucide自体は現在の実装に追加されていないため、アイコン名をそのまま指定しても利用できるとは限らない。
 
-既存の Ionicons を変更する場合は `src/config/icons.ts` の対応表を編集します。Material Symbols のカスタム描画は `src/config/svgIcons.ts` にパスを追加し、必要に応じて `src/config/icons.ts` にキーを登録します。描画処理は `src/components/ui/Icon.tsx` に集約されています。画面側へ直接SVGやアイコンライブラリを追加する前に、この共通の仕組みを利用してください。
+既存の Ionicons を変更する場合は `src/config/icons.ts` の対応表を編集します。Material Symbols のカスタム描画は `src/config/svgIcons.ts` にパスを追加し、必要に応じて `src/config/icons.ts` にキーを登録します。描画処理は `src/components/ui/Icon.tsx` に集約されています。質問・回答文は `src/config/qa.ts`、システム設定の初期値（トースト時間、線の設定など）は `src/config/defaults.ts` に置いています。画面側へ文言を直書きしたり、直接SVGやアイコンライブラリを追加したりする前に、この共通の仕組みを利用してください。
+
+## 9. 自動検証の現状と変更時の確認
+
+`package.json` には `typecheck`、`lint`、`format:check`、`export:web` のスクリプトがありますが、現在、専用の自動テスト用スクリプトや `*.test.*` / `*.spec.*` のテストファイルはありません。修正時は少なくとも次を実行し、Web 版のビルドも確認してください。
+
+```powershell
+pnpm typecheck
+pnpm lint
+pnpm format:check
+pnpm export:web
+```
+
+データモデル、並び順、競合マージ、Trello JSON の変換、設定値の正規化を変更した場合は、これらのコマンドだけでは動作の正しさを十分に検証できません。今後、純粋関数を中心に自動テストを追加する余地があります。実機確認ではブラウザーとネイティブの両方で主要操作を確認してください。
+
+### Web 版の SQLite 同期 API に関する注意
+
+このプロジェクトの `src/db/sqliteDb.ts` は SQLite の非同期 API（`getAllAsync`、`getFirstAsync`、`runAsync`、`withTransactionAsync` など）を使用しています。現在の依存関係は Expo SDK 57 系です。Expo SQLite には Web の同期 API で、結果データが255バイトを超える場合に JSON の結果が壊れる既知の問題が報告され、Expo SQLite 58.0.12 の変更履歴には修正が記載されています。現状、Patto の直接の DB 呼び出しは非同期 API のため、この同期 API の問題がそのまま該当するとは確認されていません。今後 Web で `*Sync` API を追加・使用する前に、使用中のバージョンで修正が入っているか確認してください。
+
+- [Expo SQLite の既知問題（Issue #45186）](https://github.com/expo/expo/issues/45186)
+- [Expo SQLite の変更履歴](https://github.com/expo/expo/blob/main/packages/expo-sqlite/CHANGELOG.md)

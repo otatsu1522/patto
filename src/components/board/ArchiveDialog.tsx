@@ -33,7 +33,7 @@ interface Row {
 
 /** アーカイブ済みタスク / ごみ箱の中身を一覧し、復元やクリアができるダイアログ。 */
 export function ArchiveDialog({ kind, projectId, onClose, onClear, onDismiss }: Props) {
-  const { colors } = useTheme();
+  const { colors, lineWidth, lineColor } = useTheme();
   const projects = useDataStore((s) => s.projects);
   const columns = useDataStore((s) => s.columns);
   const tasks = useDataStore((s) => s.tasks);
@@ -130,7 +130,10 @@ export function ArchiveDialog({ kind, projectId, onClose, onClear, onDismiss }: 
         <EmptyState title={t('board.listEmpty')} />
       ) : (
         rows.map((r) => (
-          <View key={r.key} style={[styles.row, { borderColor: colors.border }]}>
+          <View
+            key={r.key}
+            style={[styles.row, { borderColor: lineColor, borderWidth: lineWidth }]}
+          >
             <View style={styles.texts}>
               <AppText numberOfLines={UI_METRICS.text.previewLines}>{r.title}</AppText>
               <AppText variant="caption" muted>

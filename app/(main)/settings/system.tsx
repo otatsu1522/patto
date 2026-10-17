@@ -6,9 +6,16 @@ import { useFeedback } from '@/components/ui/FeedbackProvider';
 import { ChoiceRow, Section, SwitchRow } from '@/components/ui/Rows';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { AppText } from '@/components/ui/AppText';
+import { ColorPicker } from '@/components/ui/ColorPicker';
 import { Button } from '@/components/ui/Button';
 import { isSupabaseConfigured } from '@/config/env';
-import type { CardDensity, SyncMode, ThemeMode, ToastCategory } from '@/config/defaults';
+import {
+  TOAST_DURATION_SECONDS,
+  type CardDensity,
+  type SyncMode,
+  type ThemeMode,
+  type ToastCategory,
+} from '@/config/defaults';
 import { BOARD, UI_METRICS, type FontScaleKey } from '@/config/layout';
 import { exportProjects, importProjects } from '@/features/importExport';
 import { UserActionError } from '@/domain/operationError';
@@ -149,6 +156,31 @@ export default function SystemSettings() {
                 { value: 'system', label: t('settings.theme.system') },
               ]}
             />
+            {hint(t('settings.borderWidthHint'))}
+            <ChoiceRow<'1' | '2' | '3'>
+              label={t('settings.borderWidth')}
+              value={String(settings.borderWidth) as '1' | '2' | '3'}
+              onChange={(v) => update({ borderWidth: Number(v) as 1 | 2 | 3 })}
+              options={[
+                { value: '1', label: '1' },
+                { value: '2', label: '2' },
+                { value: '3', label: '3' },
+              ]}
+            />
+            <View style={styles.borderColorPicker}>
+              <AppText variant="caption" muted>
+                {t('settings.borderColorHint')}
+              </AppText>
+              <ColorPicker
+                label={t('settings.borderColor')}
+                value={settings.borderColor}
+                onChange={(v) => update({ borderColor: v })}
+                noneColor={colors.border}
+                noneLabel={t('settings.borderColorDefault')}
+                labelVariant="body"
+                labelMuted={false}
+              />
+            </View>
           </Section>
           <Section title={t('settings.fontSize')}>
             {hint(t('settings.fontSizeHint'))}
@@ -203,6 +235,20 @@ export default function SystemSettings() {
             />
             {settings.toastEnabled ? (
               <View style={styles.toastCategories}>
+                <View style={styles.toastDuration}>
+                  <AppText style={styles.toastDurationText}>{t('settings.toastDuration')}</AppText>
+                  <AppText variant="caption" muted style={styles.toastDurationText}>
+                    {t('settings.toastDurationHint')}
+                  </AppText>
+                  <ChoiceRow<string>
+                    value={String(settings.toastDurationSeconds)}
+                    onChange={(v) => update({ toastDurationSeconds: Number(v) })}
+                    options={TOAST_DURATION_SECONDS.map((seconds) => ({
+                      value: String(seconds),
+                      label: t('settings.toastDurationSeconds', { seconds }),
+                    }))}
+                  />
+                </View>
                 <AppText variant="caption" muted style={styles.toastCategoriesHint}>
                   {t('settings.toastCategoriesHint')}
                 </AppText>
@@ -305,7 +351,7 @@ export default function SystemSettings() {
               <Button
                 label={t('settings.archiveClearAll')}
                 variant="outlineDanger"
-                icon="delete"
+                icon="deleteSweep"
                 onPress={() => void clearAll('archive')}
                 fullWidth
               />
@@ -356,6 +402,13 @@ const styles = StyleSheet.create({
   syncAction: { padding: SPACING.lg, paddingTop: SPACING.sm, gap: SPACING.sm },
   syncLast: { textAlign: 'center' },
   toastCategories: { paddingTop: SPACING.xs },
+  toastDuration: { paddingVertical: SPACING.sm, gap: SPACING.sm },
+  toastDurationText: { paddingHorizontal: SPACING.lg },
+  borderColorPicker: {
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    gap: SPACING.sm,
+  },
   toastCategoriesHint: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.xs },
   actionButtons: { padding: SPACING.lg, paddingTop: SPACING.sm, gap: SPACING.sm },
   resetButton: { padding: SPACING.lg, paddingTop: SPACING.sm },

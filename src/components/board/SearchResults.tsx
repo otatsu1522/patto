@@ -18,7 +18,7 @@ interface Props {
  * 検索結果の一覧。1件ごとに、上に薄く「プロジェクト名 › カンバン名」、続けてタスクのタイトルと説明を表示する。
  */
 export function SearchResults({ results, projects, columns, onPress }: Props) {
-  const { colors } = useTheme();
+  const { colors, lineWidth, lineColor } = useTheme();
   if (results.length === 0) {
     return (
       <AppText muted style={styles.empty}>
@@ -39,7 +39,8 @@ export function SearchResults({ results, projects, columns, onPress }: Props) {
             style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
               styles.item,
               {
-                borderBottomColor: colors.divider,
+                borderBottomColor: lineColor,
+                borderBottomWidth: lineWidth,
                 backgroundColor: pressed || (hovered && canHover) ? colors.hover : 'transparent',
               },
             ]}

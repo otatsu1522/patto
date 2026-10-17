@@ -68,25 +68,23 @@ export function exportBoards(
           idBoard: p.id,
           pos: (i + 1) * TRELLO_FORMAT.positionStep,
         })),
-        cards: tasks
-          .sort((a, b) => (a.sortKey < b.sortKey ? -1 : 1))
-          .map((t, i) => ({
-            id: t.id,
-            name: t.title,
-            desc: t.description,
-            closed: t.archivedAt !== null,
-            idBoard: p.id,
-            idList: t.columnId,
-            idLabels: t.color ? [t.color] : [],
-            labels: t.color
-              ? [{ id: t.color, idBoard: p.id, name: TRELLO_FORMAT.emptyLabelName, color: t.color }]
-              : [],
-            due: t.dueAt !== null ? iso(t.dueAt) : null,
-            dueComplete: t.completedAt !== null,
-            pos: (i + 1) * TRELLO_FORMAT.positionStep,
-            dateLastActivity: iso(t.updatedAt),
-            pattoFavorite: t.isFavorite,
-          })),
+        cards: tasks.sort(compareBySortKey).map((t, i) => ({
+          id: t.id,
+          name: t.title,
+          desc: t.description,
+          closed: t.archivedAt !== null,
+          idBoard: p.id,
+          idList: t.columnId,
+          idLabels: t.color ? [t.color] : [],
+          labels: t.color
+            ? [{ id: t.color, idBoard: p.id, name: TRELLO_FORMAT.emptyLabelName, color: t.color }]
+            : [],
+          due: t.dueAt !== null ? iso(t.dueAt) : null,
+          dueComplete: t.completedAt !== null,
+          pos: (i + 1) * TRELLO_FORMAT.positionStep,
+          dateLastActivity: iso(t.updatedAt),
+          pattoFavorite: t.isFavorite,
+        })),
         actions: [],
         checklists: [],
         members: [],

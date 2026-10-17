@@ -47,8 +47,8 @@ import {
 import { t } from '@/i18n';
 import type { Cursor } from '@/shortcuts/cursor';
 import {
-  BORDER_WIDTH,
   BORDER_WIDTH_EMPHASIS,
+  CONTROL_BORDER_WIDTH,
   BORDER_WIDTH_NONE,
   RADIUS,
   SHADOW,
@@ -124,7 +124,7 @@ interface ScrollUiSnapshot {
  */
 export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(props, ref) {
   const { columns, tasksOf, cursor, header } = props;
-  const { colors, isDark } = useTheme();
+  const { colors, isDark, lineWidth, lineColor } = useTheme();
   const { mode, width: windowWidth, height: windowHeight } = useLayoutMode();
   const insets = useSafeAreaInsets();
   // 画面切替直後に width=0 のため ScrollView 自体が描画されず、1フレーム白くなるのを防ぐ。
@@ -919,9 +919,9 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                       {
                         left: menuWidth - closedX,
                         width: menuEdgeWidth,
-                        top: BOARD.headerHeight - BORDER_WIDTH,
-                        height: BORDER_WIDTH,
-                        backgroundColor: colors.border,
+                        top: BOARD.headerHeight - lineWidth,
+                        height: lineWidth,
+                        backgroundColor: lineColor,
                         opacity: menuBridgeOpacity,
                       },
                     ]}
@@ -972,9 +972,9 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                           {
                             left: 0,
                             right: 0,
-                            bottom: pagerHeight - BORDER_WIDTH,
-                            height: BORDER_WIDTH,
-                            backgroundColor: colors.divider,
+                            bottom: pagerHeight - lineWidth,
+                            height: lineWidth,
+                            backgroundColor: lineColor,
                           },
                         ]}
                       />
@@ -985,9 +985,9 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                           {
                             left: menuWidth - closedX,
                             width: menuEdgeWidth,
-                            bottom: pagerHeight - BORDER_WIDTH,
-                            height: BORDER_WIDTH,
-                            backgroundColor: colors.divider,
+                            bottom: pagerHeight - lineWidth,
+                            height: lineWidth,
+                            backgroundColor: lineColor,
                             opacity: menuBridgeOpacity,
                           },
                         ]}
@@ -1153,9 +1153,9 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                       {
                         left: menuWidth,
                         width: Math.max(0, closedX - menuWidth),
-                        top: BOARD.headerHeight - BORDER_WIDTH,
-                        height: BORDER_WIDTH,
-                        backgroundColor: colors.border,
+                        top: BOARD.headerHeight - lineWidth,
+                        height: lineWidth,
+                        backgroundColor: lineColor,
                       },
                     ]}
                   />
@@ -1172,8 +1172,8 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                       left: menuWidth,
                       width: Math.max(0, size.width + closedX - menuWidth),
                       backgroundColor: colors.bg,
-                      borderTopColor: colors.divider,
-                      borderTopWidth: BORDER_WIDTH,
+                      borderTopColor: lineColor,
+                      borderTopWidth: lineWidth,
                     },
                   ]}
                 >
@@ -1218,7 +1218,7 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                       }
                       style={{
                         backgroundColor: colors.surface,
-                        borderWidth: BORDER_WIDTH,
+                        borderWidth: CONTROL_BORDER_WIDTH,
                         borderColor: colors.border,
                       }}
                     />
@@ -1238,7 +1238,7 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                       }
                       style={{
                         backgroundColor: colors.surface,
-                        borderWidth: BORDER_WIDTH,
+                        borderWidth: CONTROL_BORDER_WIDTH,
                         borderColor: colors.border,
                       }}
                     />
@@ -1345,9 +1345,9 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                 {
                   left: menuWidth - closedX,
                   width: menuEdgeWidth,
-                  top: BOARD.headerHeight - BORDER_WIDTH,
-                  height: BORDER_WIDTH,
-                  backgroundColor: colors.border,
+                  top: BOARD.headerHeight - lineWidth,
+                  height: lineWidth,
+                  backgroundColor: lineColor,
                   transform: [{ translateX: headerShift }],
                 },
               ]}
@@ -1364,9 +1364,9 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                 {
                   left: 0,
                   right: 0,
-                  bottom: pagerHeight - BORDER_WIDTH,
-                  height: BORDER_WIDTH,
-                  backgroundColor: colors.divider,
+                  bottom: pagerHeight - lineWidth,
+                  height: lineWidth,
+                  backgroundColor: lineColor,
                   transform: [{ translateX: headerShift }],
                 },
               ]}
@@ -1378,9 +1378,9 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                 {
                   left: menuWidth - closedX,
                   width: menuEdgeWidth,
-                  bottom: pagerHeight - BORDER_WIDTH,
-                  height: BORDER_WIDTH,
-                  backgroundColor: colors.divider,
+                  bottom: pagerHeight - lineWidth,
+                  height: lineWidth,
+                  backgroundColor: lineColor,
                   transform: [{ translateX: headerShift }],
                 },
               ]}

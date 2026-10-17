@@ -32,12 +32,17 @@ export function compareTasks(mode: ColumnSortMode) {
     } else {
       diff = b.updatedAt - a.updatedAt;
     }
-    return diff !== 0 ? diff : a.id < b.id ? -1 : 1;
+    if (diff !== 0) return diff;
+    if (a.id === b.id) return 0;
+    return a.id < b.id ? -1 : 1;
   };
 }
 
-export const compareBySortKey = <T extends { sortKey: string; id: string }>(a: T, b: T): number =>
-  a.sortKey < b.sortKey ? -1 : a.sortKey > b.sortKey ? 1 : a.id < b.id ? -1 : 1;
+export const compareBySortKey = <T extends { sortKey: string; id: string }>(a: T, b: T): number => {
+  if (a.sortKey !== b.sortKey) return a.sortKey < b.sortKey ? -1 : 1;
+  if (a.id === b.id) return 0;
+  return a.id < b.id ? -1 : 1;
+};
 
 /** 2つのキーの間に入るキーを返す（衝突時は末尾扱いにフォールバック）。 */
 export function keyBetween(before: string | null, after: string | null): string {

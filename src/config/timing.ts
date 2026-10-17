@@ -2,8 +2,6 @@
 export const TIMING = {
   /** ボード以外の画面でメニューを開閉するアニメーション */
   drawerAnimationMs: 200,
-  /** 通知（トースト）の表示時間 */
-  toastDurationMs: 1000,
   /** アプリ起動処理のタイムアウト */
   startupTimeoutMs: 25_000,
   /** 認証情報の初期化タイムアウト */

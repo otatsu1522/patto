@@ -73,7 +73,7 @@ git check-ignore .env.local
 
 Publishable Key はアプリのビルド成果物から参照できるため、秘密情報として扱うものではない。データの保護には RLS が必要。`Secret Key` や `service_role` キーはアプリに含めない。
 
-Cloudflare Pages で Web を公開する際は、ビルド用の環境変数も Cloudflare の設定画面に登録する。登録する項目と操作手順は、別ドキュメントの [Cloudflare Pages Free で Web 版を公開する](./patto-cloudflare-pages.md) を参照する。
+Cloudflare Pages で Web を公開する際は、ビルド用の環境変数も Cloudflare の設定画面に登録する。登録する項目と操作手順は、別ドキュメントの [Cloudflare Pages で Web 版を公開する](./DEPLOY.md) を参照する。
 
 ## 2. 認証の設定（ダッシュボード）
 

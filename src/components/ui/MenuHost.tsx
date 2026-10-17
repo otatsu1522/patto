@@ -40,7 +40,7 @@ const MENU_SEPARATOR_INSET = SPACING.sm;
  * 項目のどれかにアイコン（チェックなど）があるときは、ない項目にも同じ幅の空きを作って文字の位置をそろえる。
  */
 export function MenuProvider({ children }: { children: ReactNode }) {
-  const { colors } = useTheme();
+  const { colors, lineWidth, lineColor } = useTheme();
   const win = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [menu, setMenu] = useState<{ anchor: Rect; items: MenuItem[] } | null>(null);
@@ -62,15 +62,12 @@ export function MenuProvider({ children }: { children: ReactNode }) {
   if (menu) {
     const separatorCount = menu.items.filter((item) => item.separator).length;
     const desiredHeight =
-      menu.items.length * ITEM_HEIGHT +
-      separatorCount * MENU_SEPARATOR_HEIGHT +
-      SPACING.sm +
-      BORDER_WIDTH * 2;
+      menu.items.length * ITEM_HEIGHT + separatorCount * lineWidth + SPACING.sm + lineWidth * 2;
     // Safe-area の内側にメニューを収め、Android の下部ナビゲーション領域や
     // ステータスバー領域にメニュー項目が重ならないようにする。
     const safeTop = Math.max(insets.top, 0) + SPACING.sm;
     const safeBottom = win.height - Math.max(insets.bottom, 0) - SPACING.sm;
-    const safeHeight = Math.max(ITEM_HEIGHT + BORDER_WIDTH * 2, safeBottom - safeTop);
+    const safeHeight = Math.max(ITEM_HEIGHT + lineWidth * 2, safeBottom - safeTop);
     const height = Math.min(desiredHeight, safeHeight);
     const below = menu.anchor.y + menu.anchor.h + UI_METRICS.menu.anchorGap;
     const above = menu.anchor.y - height - UI_METRICS.menu.anchorGap;
@@ -115,7 +112,12 @@ export function MenuProvider({ children }: { children: ReactNode }) {
               style={[
                 styles.menu,
                 SHADOW.float,
-                { ...menuLayout, backgroundColor: colors.surface, borderColor: colors.border },
+                {
+                  ...menuLayout,
+                  backgroundColor: colors.surface,
+                  borderColor: lineColor,
+                  borderWidth: lineWidth,
+                },
               ]}
             >
               <ScrollView
@@ -127,7 +129,9 @@ export function MenuProvider({ children }: { children: ReactNode }) {
                 {menu.items.map((item, i) => (
                   <View key={`${item.label}-${i}`}>
                     {item.separator ? (
-                      <View style={[styles.sep, { backgroundColor: colors.divider }]} />
+                      <View
+                        style={[styles.sep, { backgroundColor: lineColor, height: lineWidth }]}
+                      />
                     ) : null}
                     <Pressable
                       accessibilityRole="menuitem"

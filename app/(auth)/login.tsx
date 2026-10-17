@@ -11,11 +11,10 @@ import { isSupabaseConfigured } from '@/config/env';
 import { firstError, validateEmail } from '@/domain/validation';
 import { t } from '@/i18n';
 import { SPACING, useTheme } from '@/theme';
-import { BORDER_WIDTH } from '@/theme/tokens';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { colors } = useTheme();
+  const { colors, lineWidth, lineColor } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -90,11 +89,11 @@ export default function LoginScreen() {
         />
       </View>
       <View style={styles.divider}>
-        <View style={[styles.line, { backgroundColor: colors.border }]} />
+        <View style={[styles.line, { backgroundColor: lineColor, height: lineWidth }]} />
         <AppText variant="caption" muted>
           {t('common.or')}
         </AppText>
-        <View style={[styles.line, { backgroundColor: colors.border }]} />
+        <View style={[styles.line, { backgroundColor: lineColor, height: lineWidth }]} />
       </View>
       <Button
         label={t('auth.guest')}
@@ -116,6 +115,6 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   links: { alignItems: 'center' },
   divider: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
-  line: { flex: 1, height: BORDER_WIDTH },
+  line: { flex: 1, height: 1 },
   note: { textAlign: 'center' },
 });

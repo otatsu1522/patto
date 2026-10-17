@@ -8,7 +8,7 @@ import { useUiStore } from '@/store/uiStore';
 import { RADIUS, SPACING, useTheme, OPACITY } from '@/theme';
 import { AppText } from '../ui/AppText';
 import { Dialog } from '../ui/Dialog';
-import { BORDER_WIDTH } from '@/theme/tokens';
+import { CONTROL_BORDER_WIDTH } from '@/theme/tokens';
 
 /** ショートカット一覧（? キーで表示）。 */
 export function ShortcutHelp() {
@@ -90,7 +90,7 @@ const styles = StyleSheet.create({
   keyField: {
     flex: 1,
     minWidth: 0,
-    borderWidth: BORDER_WIDTH,
+    borderWidth: CONTROL_BORDER_WIDTH,
     borderRadius: RADIUS.md,
     padding: SPACING.xs,
     flexDirection: 'row',
@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: UI_METRICS.shortcuts.comboGap,
-    borderWidth: BORDER_WIDTH,
+    borderWidth: CONTROL_BORDER_WIDTH,
     borderRadius: RADIUS.sm,
     paddingHorizontal: UI_METRICS.shortcuts.comboPaddingHorizontal,
     paddingVertical: UI_METRICS.shortcuts.comboPaddingVertical,

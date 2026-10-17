@@ -11,30 +11,47 @@ interface Props {
   label: string;
   value: TaskColorKey | null;
   onChange: (v: TaskColorKey | null) => void;
+  /** null の選択肢に表示する色。指定時は「色なし」の斜線を表示しない。 */
+  noneColor?: string;
+  /** null の選択肢のアクセシビリティ名。 */
+  noneLabel?: string;
+  /** ラベルの表示スタイル。 */
+  labelVariant?: 'body' | 'label';
+  labelMuted?: boolean;
 }
 
-/** パレットから色を選ぶ。先頭は「なし」。 */
-export function ColorPicker({ label, value, onChange }: Props) {
+/** パレットから色を選ぶ。先頭の null 選択肢は通常「色なし」として斜線表示する。 */
+export function ColorPicker({
+  label,
+  value,
+  onChange,
+  noneColor,
+  noneLabel = t('color.none'),
+  labelVariant = 'label',
+  labelMuted = true,
+}: Props) {
   const { colors, taskColor, isDark } = useTheme();
   return (
     <View style={styles.wrap}>
-      <AppText variant="label" muted>
+      <AppText variant={labelVariant} muted={labelMuted}>
         {label}
       </AppText>
       <View style={styles.row}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={t('color.none')}
+          accessibilityLabel={noneLabel}
           onPress={() => onChange(null)}
           style={[
             styles.swatch,
             {
               borderColor: colors.border,
-              backgroundColor: colors.surface,
+              backgroundColor: noneColor ?? colors.surface,
             },
           ]}
         >
-          <View style={[styles.slash, { backgroundColor: colors.border }]} />
+          {noneColor === undefined ? (
+            <View style={[styles.slash, { backgroundColor: colors.border }]} />
+          ) : null}
           {value === null ? (
             <View style={styles.checkBadge}>
               <Icon name="check" size={ICON_SIZE.xs} color={colors.text} />
@@ -51,7 +68,7 @@ export function ColorPicker({ label, value, onChange }: Props) {
               styles.swatch,
               {
                 backgroundColor: taskColor(key),
-                borderColor: colors.border,
+                borderWidth: 0,
               },
             ]}
           >

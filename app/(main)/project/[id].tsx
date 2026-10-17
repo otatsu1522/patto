@@ -1,27 +1,24 @@
 import { Redirect, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useAuthStore } from '@/auth/authStore';
 import { ArchiveDialog } from '@/components/board/ArchiveDialog';
 import { BoardHeader } from '@/components/board/BoardHeader';
 import { BoardView, type BoardViewHandle } from '@/components/board/BoardView';
 import { ColumnDialog } from '@/components/board/NameDialogs';
 import { RecordDetailsDialog } from '@/components/board/RecordDetailsDialog';
-import { SearchResults } from '@/components/board/SearchResults';
 import { TaskDialog, type TaskFormValues } from '@/components/board/TaskDialog';
 import { AppText } from '@/components/ui/AppText';
 import { useFeedback } from '@/components/ui/FeedbackProvider';
 import { DropdownMenu, type MenuItem } from '@/components/ui/DropdownMenu';
 import { IconButton } from '@/components/ui/IconButton';
 import { isSupabaseConfigured } from '@/config/env';
-import { BOARD } from '@/config/layout';
 import { LIMITS } from '@/config/limits';
-import { columnsOf, isActive, searchTasks, tasksOf } from '@/domain/selectors';
+import { columnsOf, isActive, tasksOf } from '@/domain/selectors';
 import type { ColumnSortMode, KanbanColumn, Task } from '@/domain/types';
 import { UserActionError } from '@/domain/operationError';
 import { useBoardActions } from '@/features/useBoardActions';
 import { popUndo } from '@/features/undo';
-import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
 import { t } from '@/i18n';
 import {
   clampCursor,
@@ -56,7 +53,6 @@ export default function ProjectScreen() {
   const showTaskUpdatedAt = useSettingsStore((s) => s.settings.showTaskUpdatedAt);
   const syncMode = useSettingsStore((s) => s.settings.syncMode);
   const identity = useAuthStore((s) => s.identity);
-  const searchTick = useUiStore((s) => s.boardSearchFocusTick);
   const pendingTaskDetail = useUiStore((s) => s.pendingTaskDetail);
 
   const project = projects.find((p) => p.id === id);
@@ -80,9 +76,6 @@ export default function ProjectScreen() {
   const [archiveKind, setArchiveKind] = useState<'archive' | 'trash' | null>(null);
   const pendingArchiveClearRef = useRef<(() => void) | null>(null);
   const [cursor, setCursor] = useState<Cursor | null>(null);
-  const [query, setQuery] = useState('');
-  const searchResultsScrollRef = useWebWheelScroll({ touchScroll: true, touchAction: 'pan-y' });
-  const [searching, setSearching] = useState(false);
   const follow = useRef<string | null>(null);
 
   const duplicateFailed = (error: unknown) =>
@@ -116,12 +109,10 @@ export default function ProjectScreen() {
       useSettingsStore.getState().update({ lastProjectId: id });
   }, [project, id]);
 
-  // プロジェクトが切り替わったら、操作中の状態（カーソル・検索・ダイアログ）をリセットする
+  // プロジェクトが切り替わったら、操作中の状態（カーソル・ダイアログ）をリセットする
   /* eslint-disable react-hooks/set-state-in-effect -- 画面（BoardView）を作り直さずに中身だけ入れ替えるため、状態は手で戻す */
   useEffect(() => {
     setCursor(null);
-    setQuery('');
-    setSearching(false);
     setTaskDialog(null);
     setColumnDialog(null);
     setTaskDetails(null);
@@ -139,19 +130,11 @@ export default function ProjectScreen() {
     if (!taskId) return;
     const selected = tasks.find((task) => task.id === taskId && task.projectId === id);
     if (selected) {
-      setQuery('');
-      setSearching(false);
       setTaskDetails(selected);
       setTaskDetailsVisible(true);
     }
   }, [ready, id, pendingTaskDetail, tasks]);
   /* eslint-enable react-hooks/set-state-in-effect */
-
-  // 検索ショートカット（/）で検索を開く
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- ショートカットの合図を受けて検索を開く
-    if (searchTick > 0) setSearching(true);
-  }, [searchTick]);
 
   // つかんで動かしたタスクにキーボードのカーソルを追従させる
   useEffect(() => {
@@ -164,12 +147,6 @@ export default function ProjectScreen() {
         setCursor((prev) => ({ ...(prev ?? initialCursor()), columnIndex, taskIndex }));
     });
   }, [tasksByColumn, cols]);
-
-  const results = useMemo(
-    () =>
-      id && searching && query.trim() ? searchTasks({ projects, columns, tasks }, query, id) : [],
-    [projects, columns, tasks, query, id, searching],
-  );
 
   const syncEnabled = !!identity && !identity.local && isSupabaseConfigured && syncMode !== 'off';
 
@@ -225,11 +202,6 @@ export default function ProjectScreen() {
     update((x) => ({ ...x, columnIndex: x.columnIndex + step }));
   }
 
-  function closeSearch() {
-    setQuery('');
-    setSearching(false);
-  }
-
   useShortcuts({
     cursorLeft: () => void navigate('left'),
     cursorRight: () => void navigate('right'),
@@ -268,8 +240,7 @@ export default function ProjectScreen() {
   });
 
   useEscape(() => {
-    if (searching) closeSearch();
-    else if (cursor?.grabbed) update((c) => ({ ...c, grabbed: false }));
+    if (cursor?.grabbed) update((c) => ({ ...c, grabbed: false }));
     else if (cursor) setCursor(null);
   });
 
@@ -518,12 +489,10 @@ export default function ProjectScreen() {
     }
   };
 
-  const header = (active: boolean) =>
+  const header = () =>
     projectActive ? (
       <BoardHeader
-        active={active}
         title={project.title}
-        search={searching ? { value: query, onChange: setQuery, onClose: closeSearch } : null}
         right={
           <DropdownMenu
             items={boardMenu}
@@ -573,39 +542,6 @@ export default function ProjectScreen() {
             <AppText bold color={colors.onPrimary}>
               {t('task.grabbed')}
             </AppText>
-          </View>
-        ) : null}
-
-        {searching && query.trim() ? (
-          <View
-            style={[
-              StyleSheet.absoluteFill,
-              { top: BOARD.headerHeight, backgroundColor: colors.surface },
-            ]}
-          >
-            <ScrollView
-              ref={searchResultsScrollRef}
-              style={[
-                styles.searchResultsScroll,
-                Platform.OS === 'web'
-                  ? ({ overflowY: 'auto', overscrollBehaviorY: 'contain' } as never)
-                  : undefined,
-              ]}
-              contentContainerStyle={styles.searchResultsContent}
-              keyboardShouldPersistTaps="handled"
-              persistentScrollbar
-            >
-              <SearchResults
-                results={results}
-                projects={projects}
-                columns={columns}
-                onPress={(task) => {
-                  closeSearch();
-                  setTaskDetails(task);
-                  setTaskDetailsVisible(true);
-                }}
-              />
-            </ScrollView>
           </View>
         ) : null}
       </View>
@@ -677,8 +613,6 @@ export default function ProjectScreen() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  searchResultsScroll: { flex: 1, minHeight: 0 },
-  searchResultsContent: { flexGrow: 1 },
   banner: {
     position: 'absolute',
     top: SPACING.md,

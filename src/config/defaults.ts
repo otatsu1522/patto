@@ -13,6 +13,7 @@ export type SyncMode = 'off' | 'manual' | 'auto';
 export type CardDensity = 'compact' | 'normal' | 'detailed';
 export const TOAST_CATEGORIES = ['movement', 'creation', 'other'] as const;
 export type ToastCategory = (typeof TOAST_CATEGORIES)[number];
+export const TOAST_DURATION_SECONDS = [1, 2, 3] as const;
 
 export interface AppSettings {
   themeMode: ThemeMode;
@@ -25,6 +26,12 @@ export interface AppSettings {
   syncMode: SyncMode;
   /** 操作結果のトースト（画面下の短い通知）を出すか */
   toastEnabled: boolean;
+  /** トースト表示時間（秒） */
+  toastDurationSeconds: number;
+  /** 画面の通常枠線の太さ */
+  borderWidth: 1 | 2 | 3;
+  /** 画面の通常枠線色（null はテーマ既定色） */
+  borderColor: TaskColorKey | null;
   /** トースト表示がONのときに表示する操作分類 */
   toastCategories: ToastCategory[];
   trashAutoDelete: boolean;
@@ -45,6 +52,9 @@ export const defaultSettings = (isWeb: boolean, retentionDays: number): AppSetti
   showTaskUpdatedAt: false,
   syncMode: isWeb ? 'auto' : 'manual',
   toastEnabled: true,
+  toastDurationSeconds: 2,
+  borderWidth: 1,
+  borderColor: null,
   toastCategories: [...TOAST_CATEGORIES],
   trashAutoDelete: true,
   trashRetentionDays: retentionDays,

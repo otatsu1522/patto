@@ -20,7 +20,7 @@ import { BORDER_WIDTH, RADIUS, SPACING, useTheme } from '@/theme';
 export default function AboutScreen() {
   const scrollRef = useWebWheelScroll({ touchAction: 'pan-x pan-y' });
   const router = useRouter();
-  const { colors } = useTheme();
+  const { colors, lineWidth, lineColor } = useTheme();
   const links = [
     { label: t('about.terms'), url: APP_LINKS.terms },
     { label: t('about.privacy'), url: APP_LINKS.privacy },
@@ -35,7 +35,7 @@ export default function AboutScreen() {
           <View
             style={[
               styles.introCard,
-              { backgroundColor: colors.surface, borderColor: colors.border },
+              { backgroundColor: colors.surface, borderColor: lineColor, borderWidth: lineWidth },
             ]}
           >
             <View style={styles.brand}>

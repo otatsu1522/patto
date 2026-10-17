@@ -4,7 +4,7 @@ import { BOARD, UI_METRICS } from '@/config/layout';
 import { RADIUS, SPACING, useTheme, ICON_SIZE, OPACITY } from '@/theme';
 import { AppText } from './AppText';
 import { Icon } from './Icon';
-import { BORDER_WIDTH } from '@/theme/tokens';
+import { BORDER_WIDTH, CONTROL_BORDER_WIDTH } from '@/theme/tokens';
 import { canHover } from '@/lib/hover';
 
 export function Section({
@@ -16,7 +16,7 @@ export function Section({
   description?: string;
   children: React.ReactNode;
 }) {
-  const { colors } = useTheme();
+  const { colors, lineWidth, lineColor } = useTheme();
   return (
     <View style={styles.section}>
       {title ? (
@@ -29,7 +29,12 @@ export function Section({
           {description}
         </AppText>
       ) : null}
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: colors.surface, borderColor: lineColor, borderWidth: lineWidth },
+        ]}
+      >
         {children}
       </View>
     </View>
@@ -163,8 +168,8 @@ export function ChoiceRow<T extends string>({
 }
 
 export function Divider() {
-  const { colors } = useTheme();
-  return <View style={{ height: BORDER_WIDTH, backgroundColor: colors.border }} />;
+  const { lineWidth, lineColor } = useTheme();
+  return <View style={{ height: lineWidth, backgroundColor: lineColor }} />;
 }
 
 const styles = StyleSheet.create({
@@ -186,6 +191,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
     borderRadius: RADIUS.sm,
-    borderWidth: BORDER_WIDTH,
+    borderWidth: CONTROL_BORDER_WIDTH,
   },
 });

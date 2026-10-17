@@ -66,7 +66,7 @@ export interface ColumnViewProps {
 
 /** 1つのカンバン（列）: ヘッダー、縦スクロールのタスク一覧（お気に入りは上、横線で区切る）、末尾の「タスクを追加」。 */
 export function ColumnView(p: ColumnViewProps) {
-  const { colors, taskColor, isDark } = useTheme();
+  const { colors, taskColor, isDark, lineWidth, lineColor } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
   // Web ではカードの本文・更新日時などから始めたタッチでも縦スクロールできるよう補助する。
   // 縦方向だけ一覧を動かし、横方向のスワイプは外側のカンバンに任せる。
@@ -228,7 +228,8 @@ export function ColumnView(p: ColumnViewProps) {
                   ? 0
                   : -BOARD.columnGap
                 : -(BOARD.columnGap / 2),
-              backgroundColor: colors.divider,
+              backgroundColor: lineColor,
+              height: lineWidth,
             },
           ]}
         />
@@ -264,7 +265,17 @@ export function ColumnView(p: ColumnViewProps) {
         >
           {favorites.map(card)}
           {showDivider ? (
-            <View style={[styles.divider, { backgroundColor: colors.divider }]} />
+            <View
+              style={[
+                styles.divider,
+                {
+                  backgroundColor: lineColor,
+                  height: lineWidth,
+                  minHeight: lineWidth,
+                  maxHeight: lineWidth,
+                },
+              ]}
+            />
           ) : null}
           {others.map(card)}
 
@@ -292,7 +303,7 @@ export function ColumnView(p: ColumnViewProps) {
           pointerEvents="none"
           style={[
             styles.columnDivider,
-            { right: -(BOARD.columnGap / 2), backgroundColor: colors.divider },
+            { right: -(BOARD.columnGap / 2), backgroundColor: lineColor, width: lineWidth },
           ]}
         />
       ) : null}

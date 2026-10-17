@@ -19,7 +19,7 @@ interface Props {
  * 二重の Native Modal とアニメーションが重ならないようにする。
  */
 export function DiscardChangesOverlay({ visible, onDiscard, onKeepEditing }: Props) {
-  const { colors } = useTheme();
+  const { colors, lineWidth, lineColor } = useTheme();
   const insets = getSystemBarInsets(useSafeAreaInsets());
 
   if (!visible) return null;
@@ -41,7 +41,10 @@ export function DiscardChangesOverlay({ visible, onDiscard, onKeepEditing }: Pro
         pointerEvents="box-none"
       >
         <Pressable
-          style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          style={[
+            styles.card,
+            { backgroundColor: colors.surface, borderColor: lineColor, borderWidth: lineWidth },
+          ]}
           onPress={(event) => event.stopPropagation()}
         >
           <AppText variant="title">{t('task.discardTitle')}</AppText>

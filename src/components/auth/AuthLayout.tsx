@@ -4,15 +4,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { APP_NAME } from '@/config/app';
 import { UI_METRICS } from '@/config/layout';
 import { TIMING } from '@/config/timing';
-import { RADIUS, SHADOW, SPACING, useTheme } from '@/theme';
+import { BORDER_WIDTH, RADIUS, SHADOW, SPACING, useTheme } from '@/theme';
 import { AppText } from '../ui/AppText';
 import { Logo } from '../ui/Logo';
-import { BORDER_WIDTH } from '@/theme/tokens';
 import { AuthInputFocusProvider, useInputFocusScroller } from './AuthInputFocusContext';
 
 /** ログイン・登録系の画面の共通枠（上にアプリ名、その下にフォーム）。 */
 export function AuthLayout({ children, subtitle }: { children: ReactNode; subtitle?: string }) {
-  const { colors } = useTheme();
+  const { colors, lineWidth, lineColor } = useTheme();
   const scrollRef = useRef<ScrollView>(null);
   const { revealFocusedInput, onScroll } = useInputFocusScroller(scrollRef);
 
@@ -46,7 +45,7 @@ export function AuthLayout({ children, subtitle }: { children: ReactNode; subtit
               style={[
                 styles.card,
                 SHADOW.card,
-                { backgroundColor: colors.surface, borderColor: colors.border },
+                { backgroundColor: colors.surface, borderColor: lineColor, borderWidth: lineWidth },
               ]}
             >
               {children}

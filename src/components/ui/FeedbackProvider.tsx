@@ -11,7 +11,6 @@ import {
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { UI_METRICS } from '@/config/layout';
 import type { ToastCategory } from '@/config/defaults';
-import { TIMING } from '@/config/timing';
 import { t } from '@/i18n';
 import { useSettingsStore } from '@/store/settingsStore';
 import { RADIUS, SHADOW, SPACING, useTheme } from '@/theme';
@@ -62,7 +61,7 @@ export const useFeedback = (): Feedback => {
 
 /** 確認ダイアログとスナックバー（「元に戻す」付き通知）を提供する。 */
 export function FeedbackProvider({ children }: { children: ReactNode }) {
-  const { colors } = useTheme();
+  const { colors, lineWidth, lineColor } = useTheme();
   const insets = getSystemBarInsets(useSafeAreaInsets());
   const [dialog, setDialog] = useState<ConfirmOptions | null>(null);
   const [dialogMode, setDialogMode] = useState<'confirm' | 'alert'>('confirm');
@@ -109,7 +108,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
         actionLabel: action?.label,
         onAction: action?.onPress,
       });
-      timer.current = setTimeout(() => setToast(null), TIMING.toastDurationMs);
+      timer.current = setTimeout(() => setToast(null), settings.toastDurationSeconds * 1000);
     },
     [],
   );
@@ -188,7 +187,11 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
                 style={[
                   styles.card,
                   SHADOW.float,
-                  { backgroundColor: colors.surface, borderColor: colors.border },
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: lineColor,
+                    borderWidth: lineWidth,
+                  },
                 ]}
               >
                 <AppText variant="title">{dialog.title}</AppText>

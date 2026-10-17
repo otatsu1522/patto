@@ -15,7 +15,7 @@ import { AppText } from '../ui/AppText';
 import { DropdownMenu, type MenuItem } from '../ui/DropdownMenu';
 import { Icon } from '../ui/Icon';
 import { useDragGesture, type DragHandlers } from './dragGesture';
-import { BORDER_WIDTH, BORDER_WIDTH_EMPHASIS } from '@/theme/tokens';
+import { BORDER_WIDTH_EMPHASIS } from '@/theme/tokens';
 import { canHover, isTouchWeb } from '@/lib/hover';
 
 interface Props {
@@ -58,7 +58,7 @@ export function TaskCard({
   onMeasure,
   drag,
 }: Props) {
-  const { colors, taskColor, isDark } = useTheme();
+  const { colors, taskColor, isDark, lineWidth, lineColor } = useTheme();
   const lastDragEnd = useRef(0);
   const cardRef = useRef<View>(null);
   const gesture = useDragGesture({
@@ -114,8 +114,8 @@ export function TaskCard({
         SHADOW.card,
         {
           backgroundColor: colors.surface,
-          borderColor: focused ? colors.focus : colors.border,
-          borderWidth: focused ? BORDER_WIDTH_EMPHASIS : BORDER_WIDTH,
+          borderColor: focused ? colors.focus : lineColor,
+          borderWidth: focused ? BORDER_WIDTH_EMPHASIS : lineWidth,
           opacity: dragging ? OPACITY.draggingTask : OPACITY.fullyVisible,
         },
         grabbed && { backgroundColor: colors.hover, borderStyle: 'dashed' },

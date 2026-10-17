@@ -16,7 +16,6 @@ interface UiState {
   globalSearchOpen: boolean;
   /** 全タスク検索を開く際、最初に選択するプロジェクト（null はすべて） */
   globalSearchProjectId: string | null;
-  boardSearchFocusTick: number;
   /** 全体検索から遷移した後に開くタスク詳細 */
   pendingTaskDetail: { projectId: string; taskId: string } | null;
   newProjectOpen: boolean;
@@ -26,7 +25,6 @@ interface UiState {
   toggleSidebarCollapsed: () => void;
   setHelpOpen: (v: boolean) => void;
   setGlobalSearchOpen: (v: boolean, projectId?: string | null) => void;
-  focusBoardSearch: () => void;
   requestTaskDetail: (projectId: string, taskId: string) => void;
   consumePendingTaskDetail: (projectId: string) => string | null;
   requestNewProject: () => void;
@@ -42,7 +40,6 @@ export const useUiStore = create<UiState>((set) => ({
   menuIconOpen: false,
   globalSearchOpen: false,
   globalSearchProjectId: null,
-  boardSearchFocusTick: 0,
   pendingTaskDetail: null,
   newProjectOpen: false,
   pushDialog: () => set((s) => ({ dialogCount: s.dialogCount + 1 })),
@@ -52,7 +49,6 @@ export const useUiStore = create<UiState>((set) => ({
   setHelpOpen: (v) => set({ helpOpen: v }),
   setGlobalSearchOpen: (v, projectId = null) =>
     set({ globalSearchOpen: v, globalSearchProjectId: v ? projectId : null }),
-  focusBoardSearch: () => set((s) => ({ boardSearchFocusTick: s.boardSearchFocusTick + 1 })),
   requestTaskDetail: (projectId, taskId) => set({ pendingTaskDetail: { projectId, taskId } }),
   consumePendingTaskDetail: (projectId) => {
     let taskId: string | null = null;
