@@ -13,4 +13,13 @@ config.server.enhanceMiddleware = (middleware) => (req, res, next) => {
   middleware(req, res, next);
 };
 
+// 本番ビルドの Web アセットだけ、公開パスの node_modules を置き換える。
+// 既存のアセットプラグインは維持する。
+if (process.env.NODE_ENV === 'production') {
+  config.transformer.assetPlugins = [
+    ...(config.transformer.assetPlugins ?? []),
+    require.resolve('./scripts/metro-asset-plugin.js'),
+  ];
+}
+
 module.exports = config;

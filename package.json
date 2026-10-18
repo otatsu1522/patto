@@ -54,7 +54,7 @@
     "ios": "expo start --ios",
     "web": "node scripts/fix-expo-vivaldi-cors.mjs && expo start --web",
     "typecheck": "tsc --noEmit",
-    "export:web": "expo export --platform web && node scripts/fix-web-assets.mjs",
+    "export:web": "expo export --platform web",
     "lint": "expo lint",
     "format": "prettier . --write",
     "format:check": "prettier . --check"
