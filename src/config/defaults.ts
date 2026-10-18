@@ -11,7 +11,7 @@ export const DEFAULT_COLUMNS = [
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type SyncMode = 'off' | 'manual' | 'auto';
 export type CardDensity = 'compact' | 'normal' | 'detailed';
-export const TOAST_CATEGORIES = ['movement', 'creation', 'other'] as const;
+export const TOAST_CATEGORIES = ['movement', 'editing', 'system'] as const;
 export type ToastCategory = (typeof TOAST_CATEGORIES)[number];
 export const TOAST_DURATION_SECONDS = [1, 2, 3] as const;
 

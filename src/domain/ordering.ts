@@ -1,24 +1,55 @@
 import { generateKeyBetween } from 'fractional-indexing';
 import { TASK_COLOR_PICKER_KEYS } from '@/theme/taskColors';
-import type { ColumnSortMode, Task } from './types';
+import type { ColumnSortBaseMode, ColumnSortMode, Task } from './types';
+
+export type SortDirection = 'asc' | 'desc';
+
+type AutomaticSortMode = Exclude<ColumnSortBaseMode, 'manual'>;
+
+/** 旧形式を含む保存値から、方向を除いた並び順を取得する。 */
+export function sortBaseMode(mode: ColumnSortMode): ColumnSortBaseMode {
+  if (mode === 'manual') return 'manual';
+  return mode.split(':', 1)[0] as AutomaticSortMode;
+}
+
+/** 各並び順の従来の向きを既定値にし、既定値以外のみ保存値に含める。 */
+export function sortDirection(mode: ColumnSortMode): SortDirection {
+  const base = sortBaseMode(mode);
+  if (base === 'manual') return 'asc';
+  const saved = mode.includes(':') ? mode.split(':')[1] : undefined;
+  if (saved === 'asc' || saved === 'desc') return saved;
+  return base === 'updated' || base === 'created' ? 'desc' : 'asc';
+}
+
+export function withSortDirection(
+  mode: AutomaticSortMode,
+  direction: SortDirection,
+): ColumnSortMode {
+  const defaultDirection: SortDirection = mode === 'updated' || mode === 'created' ? 'desc' : 'asc';
+  return direction === defaultDirection ? mode : `${mode}:${direction}`;
+}
 
 /** タスクの表示順: お気に入りが上 → 更新日順 / 作成日順 / 期限順 / 色順 / 手動 */
 export function compareTasks(mode: ColumnSortMode) {
+  const baseMode = sortBaseMode(mode);
+  const direction = sortDirection(mode);
+  const defaultDirection: SortDirection =
+    baseMode === 'updated' || baseMode === 'created' ? 'desc' : 'asc';
   return (a: Task, b: Task): number => {
     if (a.isFavorite !== b.isFavorite) return a.isFavorite ? -1 : 1;
     let diff = 0;
-    if (mode === 'manual') {
+    if (baseMode === 'manual') {
       diff = a.sortKey < b.sortKey ? -1 : a.sortKey > b.sortKey ? 1 : 0;
-    } else if (mode === 'created') {
+    } else if (baseMode === 'created') {
       diff = b.createdAt - a.createdAt;
       if (diff === 0) diff = b.updatedAt - a.updatedAt;
-    } else if (mode === 'due') {
+    } else if (baseMode === 'due') {
       // 期限が設定されたタスクを期限順にし、期限未設定同士は更新日順にする。
       const ad = a.dueAt ?? Number.POSITIVE_INFINITY;
       const bd = b.dueAt ?? Number.POSITIVE_INFINITY;
       diff = ad === bd ? 0 : ad < bd ? -1 : 1;
       if (diff === 0) diff = b.updatedAt - a.updatedAt;
-    } else if (mode === 'color') {
+    } else if (baseMode === 'color') {
       // 色設定画面の並びと同じ順序。「色なし」は先頭。同じ色は最終更新順。
       const colorOrder = (color: Task['color']) => {
         if (color === null) return 0;
@@ -32,7 +63,8 @@ export function compareTasks(mode: ColumnSortMode) {
     } else {
       diff = b.updatedAt - a.updatedAt;
     }
-    if (diff !== 0) return diff;
+    // お気に入りは常に上、IDは同値時の安定順を維持し、指定方向は主な比較結果に適用する。
+    if (diff !== 0) return direction === defaultDirection ? diff : -diff;
     if (a.id === b.id) return 0;
     return a.id < b.id ? -1 : 1;
   };

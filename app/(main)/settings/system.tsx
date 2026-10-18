@@ -71,16 +71,17 @@ export default function SystemSettings() {
     if (answer !== 'confirm') return;
     const s = useDataStore.getState();
     const ids = [...visibleProjects(s.projects), ...archivedProjects(s.projects)].map((p) => p.id);
-    if (ids.length === 0) return toast(t('settings.exportEmpty'), undefined, { category: 'other' });
+    if (ids.length === 0)
+      return toast(t('settings.exportEmpty'), undefined, { category: 'system' });
     await exportProjects(ids);
-    toast(t('settings.exportDone'), undefined, { category: 'other' });
+    toast(t('settings.exportDone'), undefined, { category: 'system' });
   };
 
   const doImport = async () => {
     try {
       const count = await importProjects();
       if (count !== null) {
-        toast(t('settings.importDone', { count }), undefined, { category: 'other' });
+        toast(t('settings.importDone', { count }), undefined, { category: 'system' });
       }
     } catch (error) {
       alert(
@@ -92,7 +93,7 @@ export default function SystemSettings() {
 
   const clearAll = async (kind: 'trash' | 'archive') => {
     const count = previewClear(kind);
-    if (count === 0) return toast(t('board.clearNothing'), undefined, { category: 'other' });
+    if (count === 0) return toast(t('board.clearNothing'), undefined, { category: 'system' });
     const r = await confirm({
       title: kind === 'trash' ? t('settings.trashClearAll') : t('settings.archiveClearAll'),
       message: t(
@@ -106,7 +107,7 @@ export default function SystemSettings() {
     if (r !== 'confirm') return;
     const res = await clearBucket(kind);
     if (res.ok) {
-      toast(t('board.clearDone', { count: res.count }), undefined, { category: 'other' });
+      toast(t('board.clearDone', { count: res.count }), undefined, { category: 'system' });
     } else {
       alert(t('common.error'), res.message);
     }
@@ -118,11 +119,12 @@ export default function SystemSettings() {
       message: t('settings.resetAllMessage'),
       confirmLabel: t('settings.resetAllConfirm'),
       destructive: true,
+      destructiveFilled: true,
     });
     if (result !== 'confirm') return;
     const res = await resetAllData();
     if (res.ok) {
-      toast(t('settings.resetAllDone'), undefined, { category: 'other' });
+      toast(t('settings.resetAllDone'), undefined, { category: 'system' });
     } else {
       alert(t('common.error'), res.message);
     }
@@ -288,16 +290,16 @@ export default function SystemSettings() {
                   onChange={(v) => setToastCategory('movement', v)}
                 />
                 <SwitchRow
-                  label={t('settings.toastCategory.creation')}
-                  hint={t('settings.toastCategory.creationHint')}
-                  value={settings.toastCategories.includes('creation')}
-                  onChange={(v) => setToastCategory('creation', v)}
+                  label={t('settings.toastCategory.editing')}
+                  hint={t('settings.toastCategory.editingHint')}
+                  value={settings.toastCategories.includes('editing')}
+                  onChange={(v) => setToastCategory('editing', v)}
                 />
                 <SwitchRow
-                  label={t('settings.toastCategory.other')}
-                  hint={t('settings.toastCategory.otherHint')}
-                  value={settings.toastCategories.includes('other')}
-                  onChange={(v) => setToastCategory('other', v)}
+                  label={t('settings.toastCategory.system')}
+                  hint={t('settings.toastCategory.systemHint')}
+                  value={settings.toastCategories.includes('system')}
+                  onChange={(v) => setToastCategory('system', v)}
                 />
               </View>
             ) : null}

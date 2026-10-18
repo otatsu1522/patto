@@ -24,6 +24,7 @@ import { TaskCard } from './TaskCard';
 import { BORDER_WIDTH_NONE } from '@/theme/tokens';
 import { canHover } from '@/lib/hover';
 import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
+import { useSettingsStore } from '@/store/settingsStore';
 
 export interface ColumnViewProps {
   column: KanbanColumn;
@@ -35,6 +36,8 @@ export interface ColumnViewProps {
   /** Web のスマホ表示で、この列を ScrollView のスナップ位置にする */
   webSnapAlign?: 'start' | 'center';
   webSnapPadding?: number;
+  /** ボード外周からカンバン列までのレイアウト余白 */
+  boardEdgePadding?: number;
   compactCards: boolean;
   detailedCards: boolean;
   showTaskDescription: boolean;
@@ -67,6 +70,14 @@ export interface ColumnViewProps {
 /** 1つのカンバン（列）: ヘッダー、縦スクロールのタスク一覧（お気に入りは上、横線で区切る）、末尾の「タスクを追加」。 */
 export function ColumnView(p: ColumnViewProps) {
   const { colors, taskColor, isDark, lineWidth, lineColor } = useTheme();
+  const customOuterBorder = useSettingsStore((s) => s.settings.borderColor !== null);
+  // カード端から基準線までを常に8pxにする。
+  // 画面端・メニュー境界側は、BoardView の外側余白を差し引く。
+  // カンバン間は、中央配置した区切り線の半幅を考慮する。
+  const edgeCardPadding = Math.max(0, SPACING.sm - (p.boardEdgePadding ?? BOARD.columnGap / 2));
+  const dividerCardPadding = Math.max(0, SPACING.sm - BOARD.columnGap / 2 + lineWidth / 2);
+  const listPaddingLeft = p.index === 0 ? edgeCardPadding : dividerCardPadding;
+  const listPaddingRight = p.index === p.count - 1 ? edgeCardPadding : dividerCardPadding;
   const [refreshing, setRefreshing] = useState(false);
   // Web ではカードの本文・更新日時などから始めたタッチでも縦スクロールできるよう補助する。
   // 縦方向だけ一覧を動かし、横方向のスワイプは外側のカンバンに任せる。
@@ -77,6 +88,33 @@ export function ColumnView(p: ColumnViewProps) {
   });
   const listViewportRef = useRef<View>(null);
   const listOffset = useRef(0);
+  const [listViewportHeight, setListViewportHeight] = useState(0);
+  const [listContentHeight, setListContentHeight] = useState(0);
+  // 一覧が縦方向へあふれる場合だけ、スクロールバー周辺の余白を調整する。
+  // あふれていない場合は従来の余白計算をそのまま使う。
+  const hasScrollableContent = listViewportHeight > 0 && listContentHeight > listViewportHeight + 1;
+  const hasWebScrollbar = Platform.OS === 'web' && hasScrollableContent;
+  // ScrollView 右端から、隣の区切り線または画面外周までの現状の間隔。
+  // スクロールバー表示中の Web ではこの分だけ ScrollView を右へ延ばし、
+  // スクロールバーと境界線の間の余白をなくす。
+  const scrollbarRightGap =
+    p.index < p.count - 1
+      ? Math.max(0, BOARD.columnGap / 2 - lineWidth / 2)
+      : Math.max(
+          0,
+          (p.boardEdgePadding ?? BOARD.columnGap / 2) - (customOuterBorder ? lineWidth : 0),
+        );
+  const scrollbarRightExpansion = hasWebScrollbar
+    ? canHover
+      ? scrollbarRightGap / 3
+      : scrollbarRightGap
+    : 0;
+  // スマホでは、境界線側から取り除いた分をカード一覧の内側右余白へ移す。
+  // ブラウザでは ScrollView の拡張と対応させ、ネイティブでも縦スクロール時に適用する。
+  const isSmartphone = Platform.OS !== 'web' || !canHover;
+  const scrollbarCardPaddingRight = hasScrollableContent
+    ? 2 + (isSmartphone ? scrollbarRightGap : 0)
+    : listPaddingRight;
   const taskRefs = useRef(new Map<string, View>());
   const headerGesture = useDragGesture({
     ...p.columnDrag,
@@ -223,9 +261,13 @@ export function ColumnView(p: ColumnViewProps) {
           style={[
             styles.headerUnderline,
             {
+              // カスタム外周線時も、先頭カンバンの横線はサイドバー境界から始める。
+              // 接続ブリッジは BoardView 直下のレイヤーで描画し、兄弟カンバンに覆われないようにする。
               left: p.connectHeaderLineToMenu
                 ? Platform.OS === 'web'
-                  ? 0
+                  ? customOuterBorder
+                    ? -(BOARD.columnGap / 2)
+                    : 0
                   : -BOARD.columnGap
                 : -(BOARD.columnGap / 2),
               backgroundColor: lineColor,
@@ -235,15 +277,33 @@ export function ColumnView(p: ColumnViewProps) {
         />
       </View>
 
-      <View ref={listViewportRef} collapsable={false} style={styles.listViewport}>
+      <View
+        ref={listViewportRef}
+        collapsable={false}
+        style={styles.listViewport}
+        onLayout={(event) => setListViewportHeight(event.nativeEvent.layout.height)}
+      >
         <ScrollView
           ref={listRef}
-          style={[styles.list, Platform.OS === 'web' ? styles.webList : undefined]}
+          style={[
+            styles.list,
+            Platform.OS === 'web' ? styles.webList : undefined,
+            scrollbarRightExpansion > 0 ? { marginRight: -scrollbarRightExpansion } : undefined,
+          ]}
           onScroll={(event) => {
             listOffset.current = event.nativeEvent.contentOffset.y;
           }}
+          onContentSizeChange={(_width, height) => setListContentHeight(height)}
           scrollEventThrottle={TIMING.scrollEventThrottleMs}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[
+            styles.listContent,
+            {
+              paddingLeft: listPaddingLeft,
+              // スクロールバー表示中は、PCブラウザは基準 2px、スマホは境界線側から
+              // 取り除いた分もカード側へ移す。表示されない場合は従来値を維持する。
+              paddingRight: scrollbarCardPaddingRight,
+            },
+          ]}
           keyboardShouldPersistTaps="handled"
           persistentScrollbar
           indicatorStyle={isDark ? 'white' : 'black'}
@@ -303,7 +363,12 @@ export function ColumnView(p: ColumnViewProps) {
           pointerEvents="none"
           style={[
             styles.columnDivider,
-            { right: -(BOARD.columnGap / 2), backgroundColor: lineColor, width: lineWidth },
+            {
+              // 線の中心をカンバン間の gap の中央に配置する。
+              right: -(BOARD.columnGap / 2 + lineWidth / 2),
+              backgroundColor: lineColor,
+              width: lineWidth,
+            },
           ]}
         />
       ) : null}

@@ -79,6 +79,12 @@ export const ja = {
   'auth.login': 'ログイン',
   'auth.signup': 'アカウント登録',
   'auth.guest': 'ゲストで使用',
+  'auth.guestConfirmTitle': 'ゲストで使用しますか？',
+  'auth.guestConfirmContinue': 'ゲストで続ける',
+  'auth.guestConfirmRemoteMessage':
+    'ゲストでは、メールアドレスやパスワードを登録せずに利用できます。開始時にはインターネット接続が必要で、匿名のゲストIDを作成します。以後はオフラインでも操作できます。同期モードが「オフ」でなければ、このゲストIDのデータをクラウドと同期できます。ただし、ゲストのままでは別端末から同じIDでログインできません。設定の「アカウント」からアカウントを作成すると、同じデータを引き継いで別端末でも利用できます。\n\nゲストを終了すると、端末内のデータは削除され、復元できません。オンラインの場合はサーバー側のゲストデータの削除も試みます。データを残したい場合はゲストを終了せず、アカウント作成へ切り替えてください。',
+  'auth.guestConfirmLocalMessage':
+    'この環境ではサーバー接続が設定されていないため、ゲストのデータはこの端末内だけに保存されます。クラウド同期、別端末への引き継ぎ、ゲストからアカウントへの切り替えは利用できません。必要なデータはシステム設定からエクスポートしてください。\n\nゲストを終了すると端末内のデータは削除され、復元できません。',
   'auth.signupSubmit': '登録する',
   'auth.backToLogin': 'ログイン画面に戻る',
   'auth.showPassword': 'パスワードを表示',
@@ -150,8 +156,8 @@ export const ja = {
   'settings.syncMode.auto': '自動',
   'settings.syncLocalOnly': 'Supabase が未設定のため、データはこの端末だけに保存されます。',
   'sync.synced': '同期済み',
-  'sync.syncedAt': '最終同期 {time}',
-  'sync.syncing': '同期中...',
+  'sync.syncedAt': '同期 {time}',
+  'sync.syncing': '同期中',
   'sync.pending': '未送信 {count} 件',
   'sync.offline': 'オフライン',
   'sync.error': '同期に失敗しました',
@@ -181,9 +187,14 @@ export const ja = {
   'column.doneColumn': '完了カンバン',
   'column.moveLeft': '左へ移動',
   'column.moveRight': '右へ移動',
+  'column.moveToFirst': '最初へ移動',
+  'column.moveToLast': '最後へ移動',
   'column.setDone': 'DONEモードにする',
   'column.unsetDone': 'DONEモードを解除',
   'column.sortMode': '並び順',
+  'column.sort.ascending': '昇順',
+  'column.sort.descending': '降順',
+  'column.sortDirectionAction': '{sort}を{direction}にする',
   'column.sort.updated': '更新日順',
   'column.sort.created': '作成日順',
   'column.sort.due': '期限順',
@@ -270,13 +281,15 @@ export const ja = {
   'board.archiveTitle': 'アーカイブ',
   'board.trashTitle': 'ごみ箱',
   'board.listEmpty': '何もありません',
+  'board.archiveEmpty': 'アーカイブは空です',
+  'board.trashEmpty': 'ごみ箱は空です',
   'board.kind.project': 'プロジェクト',
   'board.kind.column': 'カンバン',
   'board.kind.task': 'タスク',
   'board.pageIndicator': '{index} / {total}',
   'board.prev': '前のカンバンへ',
   'board.next': '次のカンバンへ',
-  'board.undoMoved': 'タスクを移動しました',
+  'board.taskMoved': 'タスクを移動しました',
   'board.undoDeleted': 'ごみ箱に移しました',
   'board.reorderHint': 'カンバンの並び替え中',
 
@@ -571,15 +584,17 @@ export const ja = {
   'settings.toastHint':
     '操作結果を画面の下に短く表示します。OFFにするとトーストは表示されません。ONの場合は、下から表示したい通知の種類を選べます。',
   'settings.toast': 'トーストを表示する',
-  'settings.toastCategoriesHint': '表示したい通知の種類を選択してください。',
-  'settings.toastCategory.movement': '移動',
-  'settings.toastCategory.movementHint': 'タスクを別のカンバンへ移動したときに表示します。',
-  'settings.toastCategory.creation': '作成・複製',
-  'settings.toastCategory.creationHint':
-    'タスク・カンバン・プロジェクトを新規作成または複製したときに表示します。',
-  'settings.toastCategory.other': '更新・削除など',
-  'settings.toastCategory.otherHint':
-    '編集、削除、アーカイブ、ピン留め、インポート・エクスポートなどの操作結果を表示します。',
+  'settings.toastCategoriesHint':
+    '表示したい通知の分類を選択してください。各分類に含まれる通知を下に列挙しています。',
+  'settings.toastCategory.movement': '移動系',
+  'settings.toastCategory.movementHint':
+    '含まれる通知：\n・タスクを別のカンバンへ移動\n・タスク編集で所属カンバンを変更',
+  'settings.toastCategory.editing': '編集系',
+  'settings.toastCategory.editingHint':
+    '含まれる通知：\n・タスクの作成／更新\n・カンバンの追加／更新\n・プロジェクトの追加／更新\n・タスク／カンバン／プロジェクトの複製\n・ピン留め／解除\n・タスクタイトルのコピー\n・タスク／カンバン／プロジェクトの削除（元に戻す付き）\n・タスクのアーカイブ／DONEタスクの一括アーカイブ（元に戻す付き）',
+  'settings.toastCategory.system': 'システム系',
+  'settings.toastCategory.systemHint':
+    '含まれる通知：\n・インポート／エクスポート（対象がない場合を含む）\n・アーカイブ／ごみ箱のクリア（対象がない場合を含む）\n・データ初期化／アカウント削除完了\n・戻る操作を2回行うとアプリを終了する案内\n・アーカイブするタスクがない場合の案内\n・カンバンがなく追加方法を案内する通知',
   'settings.dataHint':
     'Trello形式のファイルで、ほかのアプリとデータをやり取りします。アプリを移行するときに使います。エクスポートはすべてのプロジェクトを書き出し、インポートはファイルのプロジェクトを追加します（いまのデータは消えません）。',
   'settings.exportConfirmTitle': 'エクスポートしますか？',

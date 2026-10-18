@@ -26,9 +26,8 @@ export function useBoardActions(projectId: string) {
     return {
       async moveTask(task: Task, target: KanbanColumn) {
         if (task.columnId === target.id) return;
-        const from = task.columnId;
         await store().moveTask(task.id, target.id);
-        withUndo(t('board.undoMoved'), () => store().moveTask(task.id, from), 'movement');
+        toast(t('board.taskMoved'), undefined, { category: 'movement' });
       },
 
       /** 次（右）のカンバンへ。いちばん右のときは最初のカンバンへ戻す。 */
@@ -50,7 +49,7 @@ export function useBoardActions(projectId: string) {
           if (r !== 'confirm') return false;
         }
         await store().deleteTask(task.id);
-        withUndo(t('board.undoDeleted'), () => store().restoreItem('task', task.id), 'other');
+        withUndo(t('board.undoDeleted'), () => store().restoreItem('task', task.id), 'editing');
         return true;
       },
 
@@ -59,7 +58,7 @@ export function useBoardActions(projectId: string) {
         withUndo(
           t('board.archiveDoneResult', { count: 1 }),
           () => store().archiveTask(task.id, false),
-          'other',
+          'editing',
         );
       },
 
@@ -68,7 +67,7 @@ export function useBoardActions(projectId: string) {
           .filter((c) => c.isDoneColumn)
           .flatMap((c) => tasksOf(store().tasks, c.id, c.sortMode));
         if (before.length === 0) {
-          toast(t('board.archiveDoneNone'), undefined, { category: 'other' });
+          toast(t('board.archiveDoneNone'), undefined, { category: 'system' });
           return;
         }
         const count = await store().archiveDoneTasks(projectId);
@@ -77,7 +76,7 @@ export function useBoardActions(projectId: string) {
           async () => {
             for (const task of before) await store().archiveTask(task.id, false);
           },
-          'other',
+          'editing',
         );
       },
 
@@ -94,13 +93,13 @@ export function useBoardActions(projectId: string) {
         });
         if (r !== 'confirm') return;
         await store().deleteColumn(column.id);
-        withUndo(t('board.undoDeleted'), () => store().restoreItem('column', column.id), 'other');
+        withUndo(t('board.undoDeleted'), () => store().restoreItem('column', column.id), 'editing');
       },
 
       async clear(kind: ClearKind) {
         const count = previewClear(kind, projectId);
         if (count === 0) {
-          toast(t('board.clearNothing'), undefined, { category: 'other' });
+          toast(t('board.clearNothing'), undefined, { category: 'system' });
           return;
         }
         const r = await confirm({
@@ -116,7 +115,7 @@ export function useBoardActions(projectId: string) {
         if (r !== 'confirm') return;
         const res = await clearBucket(kind, projectId);
         if (res.ok) {
-          toast(t('board.clearDone', { count: res.count }), undefined, { category: 'other' });
+          toast(t('board.clearDone', { count: res.count }), undefined, { category: 'system' });
         } else {
           alert(t('common.error'), res.message);
         }

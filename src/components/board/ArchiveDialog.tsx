@@ -110,7 +110,7 @@ export function ArchiveDialog({ kind, projectId, onClose, onClear, onDismiss }: 
             />
             <Button
               label={kind === 'trash' ? t('board.clearTrash') : t('board.clearArchive')}
-              variant="danger"
+              variant="outlineDanger"
               icon={kind === 'trash' ? 'deleteForever' : 'delete'}
               disabled={restoringAll}
               onPress={() => {
@@ -126,7 +126,7 @@ export function ArchiveDialog({ kind, projectId, onClose, onClear, onDismiss }: 
     >
       {restoreError ? <AppText color={colors.danger}>{restoreError}</AppText> : null}
       {rows.length === 0 ? (
-        <EmptyState title={t('board.listEmpty')} />
+        <EmptyState title={t(kind === 'trash' ? 'board.trashEmpty' : 'board.archiveEmpty')} />
       ) : (
         rows.map((r) => (
           <View

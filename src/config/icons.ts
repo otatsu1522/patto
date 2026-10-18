@@ -54,6 +54,8 @@ export const ICONS = {
   forward: 'chevron-forward',
   down: 'chevron-down',
   up: 'chevron-up',
+  sortAsc: 'arrow-up-outline',
+  sortDesc: 'arrow-down-outline',
 } as const satisfies Record<string, IconName>;
 
 export type IconKey = keyof typeof ICONS;

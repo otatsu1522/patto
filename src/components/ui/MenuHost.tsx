@@ -131,28 +131,43 @@ export function MenuProvider({ children }: { children: ReactNode }) {
                         style={[styles.sep, { backgroundColor: lineColor, height: lineWidth }]}
                       />
                     ) : null}
-                    <Pressable
-                      accessibilityRole="menuitem"
-                      disabled={item.disabled}
-                      onPress={() => {
-                        hide();
-                        item.onPress();
-                      }}
-                      style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
-                        styles.item,
-                        {
-                          backgroundColor:
-                            pressed || (hovered && canHover) ? colors.hover : 'transparent',
-                          opacity: item.disabled ? OPACITY.disabled : OPACITY.fullyVisible,
-                        },
-                      ]}
-                    >
-                      {hasIcons ? (
-                        <View style={styles.iconSlot}>
-                          {item.icon ? (
-                            <Icon
-                              name={item.icon}
-                              size={ICON_SIZE.lg}
+                    <View style={styles.menuRow}>
+                      <Pressable
+                        accessibilityRole="menuitem"
+                        disabled={item.disabled}
+                        onPress={() => {
+                          hide();
+                          item.onPress();
+                        }}
+                        style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
+                          styles.item,
+                          {
+                            backgroundColor:
+                              pressed || (hovered && canHover) ? colors.hover : 'transparent',
+                            opacity: item.disabled ? OPACITY.disabled : OPACITY.fullyVisible,
+                          },
+                        ]}
+                      >
+                        {hasIcons ? (
+                          <View style={styles.iconSlot}>
+                            {item.icon ? (
+                              <Icon
+                                name={item.icon}
+                                size={ICON_SIZE.lg}
+                                color={
+                                  item.destructive
+                                    ? colors.danger
+                                    : item.mutedIcon
+                                      ? colors.textMuted
+                                      : colors.text
+                                }
+                              />
+                            ) : null}
+                          </View>
+                        ) : null}
+                        {item.inlineIcon ? (
+                          <View style={styles.labelWithInlineIcon}>
+                            <AppText
                               color={
                                 item.destructive
                                   ? colors.danger
@@ -160,24 +175,34 @@ export function MenuProvider({ children }: { children: ReactNode }) {
                                     ? colors.textMuted
                                     : colors.text
                               }
+                              numberOfLines={UI_METRICS.text.singleLineMax}
+                              style={styles.inlineLabel}
+                            >
+                              {item.label}
+                            </AppText>
+                            <Icon
+                              name={item.inlineIcon}
+                              size={ICON_SIZE.md}
+                              color={colors.textMuted}
                             />
-                          ) : null}
-                        </View>
-                      ) : null}
-                      <AppText
-                        color={
-                          item.destructive
-                            ? colors.danger
-                            : item.mutedIcon
-                              ? colors.textMuted
-                              : colors.text
-                        }
-                        numberOfLines={UI_METRICS.text.singleLineMax}
-                        style={styles.label}
-                      >
-                        {item.label}
-                      </AppText>
-                    </Pressable>
+                          </View>
+                        ) : (
+                          <AppText
+                            color={
+                              item.destructive
+                                ? colors.danger
+                                : item.mutedIcon
+                                  ? colors.textMuted
+                                  : colors.text
+                            }
+                            numberOfLines={UI_METRICS.text.singleLineMax}
+                            style={styles.label}
+                          >
+                            {item.label}
+                          </AppText>
+                        )}
+                      </Pressable>
+                    </View>
                   </View>
                 ))}
               </ScrollView>
@@ -199,13 +224,24 @@ const styles = StyleSheet.create({
   },
   menuScroll: { flex: 1, minHeight: 0 },
   menuItems: { paddingVertical: SPACING.xs },
+  menuRow: { height: ITEM_HEIGHT, flexDirection: 'row', alignItems: 'center' },
   item: {
+    flex: 1,
+    minWidth: 0,
     height: ITEM_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.md,
     paddingHorizontal: SPACING.lg,
   },
+  labelWithInlineIcon: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  inlineLabel: { flexShrink: 1 },
   iconSlot: { width: UI_METRICS.menu.iconSlotWidth, alignItems: 'center' },
   label: { flex: 1 },
   sep: {

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { Platform } from 'react-native';
 import { DEFAULT_COLUMNS } from '@/config/defaults';
 import {
   TUTORIAL_PREVIOUS_TASK_COUNTS,
@@ -9,7 +10,7 @@ import {
 } from '@/config/tutorial';
 import { LIMITS } from '@/config/limits';
 import { TIMING } from '@/config/timing';
-import { openLocalDb } from '@/db/sqliteDb';
+import { openLocalDb, webTabDatabaseScope } from '@/db/sqliteDb';
 import type { LocalDb } from '@/db/types';
 import {
   buildColumn,
@@ -48,15 +49,19 @@ export const onLocalChange = (fn: Listener): (() => void) => {
   return () => changeListeners.delete(fn);
 };
 
+class DbOpenTimeoutError extends Error {
+  constructor() {
+    super(t('app.startupTimeout'));
+    this.name = 'DbOpenTimeoutError';
+  }
+}
+
 /** DB オープンが停止した場合に、ログイン／起動を無期限に待たせない。 */
 async function openLocalDbWithTimeout(scope: string): Promise<LocalDb> {
   const opening = openLocalDb(scope);
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(
-      () => reject(new Error(t('app.startupTimeout'))),
-      TIMING.dbOpenTimeoutMs,
-    );
+    timeoutId = setTimeout(() => reject(new DbOpenTimeoutError()), TIMING.dbOpenTimeoutMs);
   });
   try {
     return await Promise.race([opening, timeout]);
@@ -66,6 +71,49 @@ async function openLocalDbWithTimeout(scope: string): Promise<LocalDb> {
     throw error;
   } finally {
     if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
+function isWebDatabaseContention(error: unknown): boolean {
+  if (error instanceof DbOpenTimeoutError) return true;
+  const detail = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  return /NoModificationAllowedError|createSyncAccessHandle|Access Handles cannot be created|database is locked|Sync operation timeout/i.test(
+    detail,
+  );
+}
+
+/** DBを開いて読み込む。Webで共有DBの排他ハンドルを取得できない場合のみ、タブ固有DBへ切り替える。 */
+async function openAndLoadDb(scope: string): Promise<{ db: LocalDb; snapshot: Snapshot }> {
+  const opened = await openLocalDbWithTimeout(scope);
+  try {
+    return { db: opened, snapshot: await loadDbWithTimeout(opened) };
+  } catch (error) {
+    void opened.close().catch(() => undefined);
+    throw error;
+  }
+}
+
+async function openAndLoadDbWithTabFallback(
+  scope: string,
+): Promise<{ db: LocalDb; snapshot: Snapshot }> {
+  try {
+    return await openAndLoadDb(scope);
+  } catch (error) {
+    if (Platform.OS !== 'web' || !isWebDatabaseContention(error)) throw error;
+    const fallbackScope = webTabDatabaseScope(scope);
+    if (!fallbackScope) throw error;
+    // Web の SQLite / OPFS は、同じDBファイルのアクセスハンドルを別タブで共有できない。
+    // 起動を止めないため、このタブだけ独立DBを使う。タブ間の同期・競合解決は行わない。
+    try {
+      return await openAndLoadDb(fallbackScope);
+    } catch (fallbackError) {
+      // ブラウザーでタブを複製すると sessionStorage も複製されることがある。
+      // フォールバックDBも使用中なら、このタブ専用の新しいIDで一度だけ再試行する。
+      if (!isWebDatabaseContention(fallbackError)) throw fallbackError;
+      const uniqueFallbackScope = webTabDatabaseScope(scope, true);
+      if (!uniqueFallbackScope || uniqueFallbackScope === fallbackScope) throw fallbackError;
+      return openAndLoadDb(uniqueFallbackScope);
+    }
   }
 }
 
@@ -424,11 +472,10 @@ export const useDataStore = create<DataState>((set, get) => {
           db = null;
           await previous.close();
         }
-        const opened = await openLocalDbWithTimeout(scope);
+        const { db: opened, snapshot } = await openAndLoadDbWithTabFallback(scope);
         try {
-          const snap = await loadDbWithTimeout(opened);
           db = opened;
-          set({ ...snap, scope, ownerId, ready: true });
+          set({ ...snapshot, scope, ownerId, ready: true });
           // 見本タスクの色補完は起動を妨げる必須処理ではないため、失敗しても起動は継続する。
           try {
             await migrateTutorialTasks();

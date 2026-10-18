@@ -13,7 +13,7 @@ import { UI_METRICS } from '@/config/layout';
 import type { ToastCategory } from '@/config/defaults';
 import { t } from '@/i18n';
 import { useSettingsStore } from '@/store/settingsStore';
-import { RADIUS, SHADOW, SPACING, useTheme } from '@/theme';
+import { FONT_WEIGHT, RADIUS, SHADOW, SPACING, useTheme } from '@/theme';
 import { AppText } from './AppText';
 import { Button } from './Button';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,6 +26,8 @@ export interface ConfirmOptions {
   message?: string;
   confirmLabel?: string;
   destructive?: boolean;
+  /** 初期化など、破壊的確認の中でも塗りつぶしを維持する場合のみ指定する。 */
+  destructiveFilled?: boolean;
 }
 export type ConfirmResult = 'confirm' | 'cancel';
 
@@ -138,7 +140,10 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
           style={[styles.toastWrap, { bottom: insets.bottom + SPACING.lg }]}
         >
           <View style={[styles.toast, SHADOW.float, { backgroundColor: colors.inverse }]}>
-            <AppText color={colors.onInverse} style={styles.toastText}>
+            <AppText
+              color={colors.onInverse}
+              style={[styles.toastText, { fontWeight: FONT_WEIGHT.medium }]}
+            >
               {toast.message}
             </AppText>
             {toast.onAction ? (
@@ -203,7 +208,13 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
                   ) : null}
                   <Button
                     label={dialog.confirmLabel ?? t('common.ok')}
-                    variant={dialogMode === 'confirm' && dialog.destructive ? 'danger' : 'primary'}
+                    variant={
+                      dialogMode === 'confirm' && dialog.destructive
+                        ? dialog.destructiveFilled
+                          ? 'danger'
+                          : 'outlineDanger'
+                        : 'primary'
+                    }
                     onPress={() => close('confirm')}
                   />
                 </View>

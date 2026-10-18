@@ -9,8 +9,8 @@ import { AppText } from '../ui/AppText';
 import { Logo } from '../ui/Logo';
 import { AuthInputFocusProvider, useInputFocusScroller } from './AuthInputFocusContext';
 
-/** ログイン・登録系の画面の共通枠（上にアプリ名、その下にフォーム）。 */
-export function AuthLayout({ children, subtitle }: { children: ReactNode; subtitle?: string }) {
+/** ログイン・登録系の共通カード。ロゴ・アプリ名・入力フォームを同じ枠内にまとめる。 */
+export function AuthLayout({ children }: { children: ReactNode }) {
   const { colors, lineWidth, lineColor } = useTheme();
   const scrollRef = useRef<ScrollView>(null);
   const { revealFocusedInput, onScroll } = useInputFocusScroller(scrollRef);
@@ -32,15 +32,6 @@ export function AuthLayout({ children, subtitle }: { children: ReactNode; subtit
             scrollEventThrottle={TIMING.scrollEventThrottleMs}
             automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
           >
-            <View style={styles.brand}>
-              <Logo size={UI_METRICS.brand.authLogoSize} />
-              <AppText variant="headline">{APP_NAME}</AppText>
-              {subtitle ? (
-                <AppText muted style={styles.center}>
-                  {subtitle}
-                </AppText>
-              ) : null}
-            </View>
             <View
               style={[
                 styles.card,
@@ -48,6 +39,10 @@ export function AuthLayout({ children, subtitle }: { children: ReactNode; subtit
                 { backgroundColor: colors.surface, borderColor: lineColor, borderWidth: lineWidth },
               ]}
             >
+              <View style={styles.brand}>
+                <Logo size={UI_METRICS.brand.authLogoSize} framed={false} />
+                <AppText variant="headline">{APP_NAME}</AppText>
+              </View>
               {children}
             </View>
           </ScrollView>
@@ -67,7 +62,6 @@ const styles = StyleSheet.create({
     gap: SPACING.xl,
   },
   brand: { alignItems: 'center', gap: SPACING.sm },
-  center: { textAlign: 'center' },
   card: {
     width: '100%',
     maxWidth: UI_METRICS.dialog.contentMaxWidth,

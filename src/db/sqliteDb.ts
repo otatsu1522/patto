@@ -7,6 +7,36 @@ import { dbNameFor, type LocalDb } from './types';
 
 /** 端末内データベース（expo-sqlite）。Android / iOS / Web で同じ実装を使う。 */
 
+const WEB_TAB_DATABASE_ID_KEY = 'patto:sqlite-tab-database-id';
+let cachedWebTabDatabaseId: string | null = null;
+
+/** 同一ブラウザー内で SQLite の共有ファイルを開けない場合に使う、タブ固有のDBスコープ。 */
+export function webTabDatabaseScope(scope: string, rotateId = false): string | null {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
+  if (rotateId) {
+    // 複製したタブは sessionStorage も複製されるため、同じタブ固有DBを
+    // 先に開いたタブが使用中なら、新しいIDに切り替えて再試行する。
+    cachedWebTabDatabaseId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    try {
+      window.sessionStorage.setItem(WEB_TAB_DATABASE_ID_KEY, cachedWebTabDatabaseId);
+    } catch {
+      // ストレージが使えない環境でも、現在のページ内では識別できるIDを使用する。
+    }
+  } else if (!cachedWebTabDatabaseId) {
+    try {
+      cachedWebTabDatabaseId = window.sessionStorage.getItem(WEB_TAB_DATABASE_ID_KEY);
+      if (!cachedWebTabDatabaseId) {
+        cachedWebTabDatabaseId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+        window.sessionStorage.setItem(WEB_TAB_DATABASE_ID_KEY, cachedWebTabDatabaseId);
+      }
+    } catch {
+      // ストレージが使えない環境でも、現在のページ内では識別できるIDを使用する。
+      cachedWebTabDatabaseId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    }
+  }
+  return `${scope}__webtab_${cachedWebTabDatabaseId}`;
+}
+
 async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
   let version = row?.user_version ?? 0;
@@ -119,9 +149,16 @@ export async function openLocalDb(scope: string): Promise<LocalDb> {
 }
 
 export async function destroyLocalDb(scope: string): Promise<void> {
-  try {
-    await SQLite.deleteDatabaseAsync(`${dbNameFor(scope)}.db`);
-  } catch {
-    /* 存在しない場合は無視 */
-  }
+  const names = new Set([`${dbNameFor(scope)}.db`]);
+  const tabScope = webTabDatabaseScope(scope);
+  if (tabScope) names.add(`${dbNameFor(tabScope)}.db`);
+  await Promise.all(
+    [...names].map(async (name) => {
+      try {
+        await SQLite.deleteDatabaseAsync(name);
+      } catch {
+        /* 存在しない場合は無視 */
+      }
+    }),
+  );
 }

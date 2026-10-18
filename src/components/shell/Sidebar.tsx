@@ -140,7 +140,7 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
     try {
       const copied = await store.duplicateProject(p.id);
       if (copied) {
-        toast(t('toast.duplicated'), undefined, { category: 'creation' });
+        toast(t('toast.duplicated'), undefined, { category: 'editing' });
       }
     } catch (error) {
       alert(
@@ -163,7 +163,7 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
     toast(
       t('board.undoDeleted'),
       { label: t('common.undo'), onPress: () => void undo() },
-      { category: 'other' },
+      { category: 'editing' },
     );
     // 選択中のプロジェクトを削除してもルートを変えない。BoardViewを維持し、
     // メニューは開いたまま、右側の内容だけを空にする。
@@ -211,7 +211,7 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
               onPress: () => {
                 void store.updateProject(p.id, { isFavorite: !p.isFavorite });
                 toast(t(p.isFavorite ? 'toast.unpinned' : 'toast.pinned'), undefined, {
-                  category: 'other',
+                  category: 'editing',
                 });
               },
             },
@@ -289,7 +289,13 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
           styles.projectScroll,
           styles.flex,
           Platform.OS === 'web'
-            ? ({ overflowY: 'auto', overscrollBehaviorY: 'contain' } as never)
+            ? ({
+                overflowY: 'auto',
+                overscrollBehaviorY: 'contain',
+                // 右端の縁マスク（lineWidth + 1px）にプロジェクト一覧のスクロールバーが隠れないよう、
+                // Web ではスクロール領域そのものを内側へずらす。
+                marginRight: lineWidth + 1,
+              } as never)
             : undefined,
         ]}
         contentContainerStyle={styles.projectScrollContent}
@@ -436,15 +442,17 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
           setEditing(null);
           if (target) {
             await store.updateProject(target.id, v);
-            toast(t('toast.projectUpdated'), undefined, { category: 'other' });
+            toast(t('toast.projectUpdated'), undefined, { category: 'editing' });
           }
         }}
       />
       {Platform.OS === 'web' ? (
         <View
           pointerEvents="none"
-          style={[styles.rightEdge, { backgroundColor: lineColor, width: lineWidth }]}
-        />
+          style={[styles.rightEdge, { backgroundColor: colors.surface, width: lineWidth + 1 }]}
+        >
+          <View style={[styles.rightEdgeLine, { backgroundColor: lineColor, width: lineWidth }]} />
+        </View>
       ) : null}
     </View>
   );
@@ -460,6 +468,12 @@ const styles = StyleSheet.create({
     bottom: 0,
     zIndex: LAYER.sidebarEdge,
     elevation: LAYER.sidebarEdge,
+  },
+  rightEdgeLine: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
   },
   flex: { flex: 1, minHeight: 0 },
   projectScroll: { flex: 1, minHeight: 0 },

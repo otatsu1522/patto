@@ -13,6 +13,8 @@ export interface MenuItem {
   separator?: boolean;
   /** アイコンのみ控えめなテーマ色で表示する */
   mutedIcon?: boolean;
+  /** ラベルの直後に表示するアイコン（例: 選択中の並び順の方向）。 */
+  inlineIcon?: IconKey;
 }
 
 interface Props {

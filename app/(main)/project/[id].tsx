@@ -15,7 +15,8 @@ import { IconButton } from '@/components/ui/IconButton';
 import { isSupabaseConfigured } from '@/config/env';
 import { LIMITS } from '@/config/limits';
 import { columnsOf, isActive, tasksOf } from '@/domain/selectors';
-import type { ColumnSortMode, KanbanColumn, Task } from '@/domain/types';
+import type { ColumnSortBaseMode, KanbanColumn, Task } from '@/domain/types';
+import { sortBaseMode, sortDirection, withSortDirection } from '@/domain/ordering';
 import { UserActionError } from '@/domain/operationError';
 import { useBoardActions } from '@/features/useBoardActions';
 import { popUndo } from '@/features/undo';
@@ -87,7 +88,7 @@ export default function ProjectScreen() {
   const duplicateTaskById = async (taskId: string) => {
     try {
       if (await useDataStore.getState().duplicateTask(taskId)) {
-        toast(t('toast.duplicated'), undefined, { category: 'creation' });
+        toast(t('toast.duplicated'), undefined, { category: 'editing' });
       }
     } catch (error) {
       duplicateFailed(error);
@@ -97,7 +98,7 @@ export default function ProjectScreen() {
   const duplicateColumnById = async (columnId: string) => {
     try {
       if (await useDataStore.getState().duplicateColumn(columnId)) {
-        toast(t('toast.duplicated'), undefined, { category: 'creation' });
+        toast(t('toast.duplicated'), undefined, { category: 'editing' });
       }
     } catch (error) {
       duplicateFailed(error);
@@ -179,9 +180,10 @@ export default function ProjectScreen() {
         await store.reorderTask(task.id, c.taskIndex + step);
         update((x) => ({ ...x, taskIndex: x.taskIndex + step }));
       }
-    } else if (horizontal && cols[c.columnIndex + step]) {
-      await store.moveColumn(col.id, c.columnIndex + step);
-      update((x) => ({ ...x, columnIndex: x.columnIndex + step }));
+    } else if (horizontal && cols.length > 1) {
+      const nextIndex = (c.columnIndex + step + cols.length) % cols.length;
+      await store.moveColumn(col.id, nextIndex);
+      update((x) => ({ ...x, columnIndex: nextIndex }));
     }
   };
 
@@ -197,9 +199,10 @@ export default function ProjectScreen() {
   function moveColumnBy(step: -1 | 1) {
     const c = current();
     const col = cols[c.columnIndex];
-    if (!col || !cols[c.columnIndex + step]) return;
-    void store.moveColumn(col.id, c.columnIndex + step);
-    update((x) => ({ ...x, columnIndex: x.columnIndex + step }));
+    if (!col || cols.length <= 1) return;
+    const nextIndex = (c.columnIndex + step + cols.length) % cols.length;
+    void store.moveColumn(col.id, nextIndex);
+    update((x) => ({ ...x, columnIndex: nextIndex }));
   }
 
   useShortcuts({
@@ -287,7 +290,7 @@ export default function ProjectScreen() {
     },
   ];
 
-  const sortLabel = (m: ColumnSortMode) => {
+  const sortLabel = (m: ColumnSortBaseMode) => {
     const label =
       m === 'updated'
         ? t('column.sort.updated')
@@ -303,23 +306,38 @@ export default function ProjectScreen() {
   const columnMenu = (column: KanbanColumn, index: number): MenuItem[] => [
     { label: t('column.rename'), icon: 'edit', onPress: () => setColumnDialog({ column }) },
     {
-      label: t('column.moveLeft'),
+      label: index === 0 ? t('column.moveToLast') : t('column.moveLeft'),
       icon: 'left',
-      disabled: index === 0,
-      onPress: () => void store.moveColumn(column.id, index - 1),
+      disabled: cols.length <= 1,
+      onPress: () => void store.moveColumn(column.id, index === 0 ? cols.length - 1 : index - 1),
     },
     {
-      label: t('column.moveRight'),
+      label: index === cols.length - 1 ? t('column.moveToFirst') : t('column.moveRight'),
       icon: 'right',
-      disabled: index === cols.length - 1,
-      onPress: () => void store.moveColumn(column.id, index + 1),
+      disabled: cols.length <= 1,
+      onPress: () => void store.moveColumn(column.id, index === cols.length - 1 ? 0 : index + 1),
     },
-    ...(['updated', 'created', 'due', 'color'] as ColumnSortMode[]).map((m, i) => ({
-      label: sortLabel(m),
-      icon: (column.sortMode === m ? 'check' : undefined) as MenuItem['icon'],
-      separator: i === 0,
-      onPress: () => void store.updateColumn(column.id, { sortMode: m }),
-    })),
+    ...(['updated', 'created', 'due', 'color'] as const).map((m, i) => {
+      const selected = sortBaseMode(column.sortMode) === m;
+      const direction = selected ? sortDirection(column.sortMode) : sortDirection(m);
+      const nextDirection = direction === 'asc' ? 'desc' : 'asc';
+      const directionLabel = (value: 'asc' | 'desc') =>
+        t(value === 'asc' ? 'column.sort.ascending' : 'column.sort.descending');
+      return {
+        label: sortLabel(m),
+        icon: (selected ? 'check' : undefined) as MenuItem['icon'],
+        separator: i === 0,
+        onPress: () =>
+          void store.updateColumn(column.id, { sortMode: selected ? column.sortMode : m }),
+        trailingIcon: direction === 'asc' ? ('sortAsc' as const) : ('sortDesc' as const),
+        trailingLabel: t('column.sortDirectionAction', {
+          sort: sortLabel(m),
+          direction: directionLabel(nextDirection),
+        }),
+        onTrailingPress: () =>
+          void store.updateColumn(column.id, { sortMode: withSortDirection(m, nextDirection) }),
+      };
+    }),
     {
       label: column.isDoneColumn ? t('column.unsetDone') : t('column.setDone'),
       icon: column.isDoneColumn ? 'doneModeOutline' : 'doneMode',
@@ -380,7 +398,7 @@ export default function ProjectScreen() {
         onPress: () => {
           void store.updateTask(task.id, { isFavorite: !task.isFavorite });
           toast(t(task.isFavorite ? 'toast.unpinned' : 'toast.pinned'), undefined, {
-            category: 'other',
+            category: 'editing',
           });
         },
       },
@@ -475,17 +493,17 @@ export default function ProjectScreen() {
       const target = cols.find((c) => c.id === v.columnId);
       const moved = !!task && !!target && task.columnId !== target.id;
       if (moved && task && target) await store.moveTask(task.id, target.id);
-      toast(t('toast.taskUpdated'), undefined, { category: moved ? 'movement' : 'other' });
+      toast(t('toast.taskUpdated'), undefined, { category: moved ? 'movement' : 'editing' });
     } else {
       const targetColumn =
         cols.find((column) => column.id === v.columnId && column.projectId === project.id) ??
         cols.find((column) => column.projectId === project.id);
       if (!targetColumn) {
-        toast(t('column.emptyHint'), undefined, { category: 'other' });
+        toast(t('column.emptyHint'), undefined, { category: 'system' });
         return;
       }
       await store.createTask({ projectId: project.id, columnId: targetColumn.id, ...fields });
-      toast(t('toast.taskCreated'), undefined, { category: 'creation' });
+      toast(t('toast.taskCreated'), undefined, { category: 'editing' });
     }
   };
 
@@ -530,7 +548,7 @@ export default function ProjectScreen() {
           }}
           onColumnDrop={(column, toIndex) => void store.moveColumn(column.id, toIndex)}
           onAddTask={(column) => openCreateTask(column.id)}
-          onCopyTitle={() => toast(t('task.copyTitle'), undefined, { category: 'other' })}
+          onCopyTitle={() => toast(t('task.copyTitle'), undefined, { category: 'editing' })}
           onRefresh={syncEnabled ? async () => void (await syncNow()) : undefined}
         />
 
@@ -556,7 +574,7 @@ export default function ProjectScreen() {
           if (target) await store.updateColumn(target.id, v);
           else await store.createColumn({ projectId: project.id, ...v });
           toast(t(target ? 'toast.columnUpdated' : 'toast.columnCreated'), undefined, {
-            category: target ? 'other' : 'creation',
+            category: 'editing',
           });
         }}
       />

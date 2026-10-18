@@ -50,7 +50,7 @@ export function DiscardChangesOverlay({ visible, onDiscard, onKeepEditing }: Pro
           <AppText muted>{t('task.discardMessage')}</AppText>
           <View style={styles.actions}>
             <Button label={t('task.keepEditing')} variant="secondary" onPress={onKeepEditing} />
-            <Button label={t('task.discard')} variant="danger" onPress={onDiscard} />
+            <Button label={t('task.discard')} variant="outlineDanger" onPress={onDiscard} />
           </View>
         </Pressable>
       </View>

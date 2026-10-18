@@ -527,7 +527,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         return true;
       }
       lastBackPress.current = now;
-      toast(t('app.pressBackAgain'), undefined, { category: 'other' });
+      toast(t('app.pressBackAgain'), undefined, { category: 'system' });
       return true;
     });
     return () => subscription.remove();
@@ -579,7 +579,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       event.stopImmediatePropagation();
       window.history.pushState(entry.state, '', entry.href);
       lastBackPress.current = now;
-      toast(t('app.pressBackAgain'), undefined, { category: 'other' });
+      toast(t('app.pressBackAgain'), undefined, { category: 'system' });
     };
 
     window.addEventListener('popstate', onPopState, true);
@@ -661,7 +661,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         onSubmit={async (v) => {
           setNewProjectOpen(false);
           const p = await useDataStore.getState().createProject(v);
-          toast(t('toast.projectCreated'), undefined, { category: 'creation' });
+          toast(t('toast.projectCreated'), undefined, { category: 'editing' });
           navigateToProject(p.id, { keepMenuOpen: true });
         }}
       />

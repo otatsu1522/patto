@@ -6,7 +6,7 @@ import { AuthLayout } from '@/components/auth/AuthLayout';
 import { AppText } from '@/components/ui/AppText';
 import { Button } from '@/components/ui/Button';
 import { TextField } from '@/components/ui/TextField';
-import { APP_DESCRIPTION } from '@/config/app';
+import { useFeedback } from '@/components/ui/FeedbackProvider';
 import { isSupabaseConfigured } from '@/config/env';
 import { firstError, validateEmail } from '@/domain/validation';
 import { t } from '@/i18n';
@@ -15,6 +15,7 @@ import { SPACING, useTheme } from '@/theme';
 export default function LoginScreen() {
   const router = useRouter();
   const { colors, lineWidth, lineColor } = useTheme();
+  const { confirm } = useFeedback();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -36,6 +37,14 @@ export default function LoginScreen() {
   };
 
   const guest = async () => {
+    const answer = await confirm({
+      title: t('auth.guestConfirmTitle'),
+      message: t(
+        isSupabaseConfigured ? 'auth.guestConfirmRemoteMessage' : 'auth.guestConfirmLocalMessage',
+      ),
+      confirmLabel: t('auth.guestConfirmContinue'),
+    });
+    if (answer !== 'confirm') return;
     setMessage(null);
     setBusy(true);
     const res = await useAuthStore.getState().continueAsGuest();
@@ -44,7 +53,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <AuthLayout subtitle={APP_DESCRIPTION}>
+    <AuthLayout>
       <TextField
         label={t('auth.email')}
         value={email}
@@ -103,11 +112,6 @@ export default function LoginScreen() {
         loading={busy}
         fullWidth
       />
-      <AppText variant="caption" muted style={styles.note}>
-        {isSupabaseConfigured
-          ? t('auth.guestNote')
-          : `${t('auth.notConfigured')}\n${t('auth.notConfiguredGuest')}`}
-      </AppText>
     </AuthLayout>
   );
 }
@@ -116,5 +120,4 @@ const styles = StyleSheet.create({
   links: { alignItems: 'center' },
   divider: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
   line: { flex: 1 },
-  note: { textAlign: 'center' },
 });

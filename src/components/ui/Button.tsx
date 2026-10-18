@@ -42,7 +42,7 @@ export function Button({
     danger: { bg: colors.danger, fg: colors.onDanger, border: colors.danger },
     ghost: { bg: 'transparent', fg: colors.primary, border: 'transparent' },
     outline: { bg: 'transparent', fg: colors.text, border: controlLineColor },
-    outlineDanger: { bg: 'transparent', fg: colors.danger, border: controlLineColor },
+    outlineDanger: { bg: 'transparent', fg: colors.danger, border: colors.danger },
   }[variant];
   const foreground = textColor ?? palette.fg;
   const inactive = disabled || loading;

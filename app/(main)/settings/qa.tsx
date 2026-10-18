@@ -50,8 +50,10 @@ export default function QaScreen() {
                   </Pressable>
                   {isOpen ? (
                     <View style={styles.answer}>
-                      <AppText>
-                        <AppText bold>{t('settings.qaAnswerPrefix')} </AppText>
+                      <AppText muted>
+                        <AppText muted bold>
+                          {t('settings.qaAnswerPrefix')}{' '}
+                        </AppText>
                         {item.answer}
                       </AppText>
                     </View>

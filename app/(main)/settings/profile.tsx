@@ -245,7 +245,7 @@ function GuestSection({ local }: { local: boolean }) {
       ) : null}
       <Button
         label={t('settings.backToLogin')}
-        variant="danger"
+        variant="outlineDanger"
         icon="logout"
         onPress={leave}
         fullWidth
@@ -339,7 +339,7 @@ function AccountSections() {
     if (r !== 'confirm') return;
     const res = await useAuthStore.getState().deleteAccount();
     if (!res.ok) setDeleteMessage(res.message);
-    else toast(t('settings.deleteAccountDone'), undefined, { category: 'other' });
+    else toast(t('settings.deleteAccountDone'), undefined, { category: 'system' });
   };
 
   return (
@@ -439,7 +439,7 @@ function AccountSections() {
           <Message text={deleteMessage} />
           <Button
             label={t('settings.deleteAccount')}
-            variant="danger"
+            variant="outlineDanger"
             disabled={typed !== t('settings.deleteAccountWord')}
             onPress={deleteAccount}
           />

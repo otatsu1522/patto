@@ -1,6 +1,12 @@
 import { Platform } from 'react-native';
 import { create } from 'zustand';
-import { defaultSettings, TOAST_DURATION_SECONDS, type AppSettings } from '@/config/defaults';
+import {
+  defaultSettings,
+  TOAST_CATEGORIES,
+  TOAST_DURATION_SECONDS,
+  type AppSettings,
+  type ToastCategory,
+} from '@/config/defaults';
 import { TRASH } from '@/config/limits';
 import { isTaskColorKey } from '@/theme/taskColors';
 import { kv } from '@/lib/kv';
@@ -30,6 +36,27 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
     const settings = { ...defaultSettings(isWeb, TRASH.retentionDays), ...stored };
     let normalized = false;
+
+    // 旧分類（creation / other）を新しい移動・編集・システム分類へ移行する。
+    const rawToastCategories = (stored as { toastCategories?: unknown }).toastCategories;
+    if (rawToastCategories !== undefined) {
+      const migrated: ToastCategory[] = [];
+      if (Array.isArray(rawToastCategories)) {
+        const legacy = rawToastCategories as unknown[];
+        if (legacy.includes('movement')) migrated.push('movement');
+        if (legacy.some((item) => item === 'editing' || item === 'creation' || item === 'other')) {
+          migrated.push('editing');
+        }
+        if (legacy.some((item) => item === 'system' || item === 'other')) migrated.push('system');
+        if (migrated.length === 0 && legacy.length > 0) migrated.push(...TOAST_CATEGORIES);
+      } else {
+        migrated.push(...TOAST_CATEGORIES);
+      }
+      if (JSON.stringify(settings.toastCategories) !== JSON.stringify(migrated)) {
+        settings.toastCategories = migrated;
+        normalized = true;
+      }
+    }
     if (!TOAST_DURATION_SECONDS.some((seconds) => seconds === settings.toastDurationSeconds)) {
       settings.toastDurationSeconds = Number.isFinite(settings.toastDurationSeconds)
         ? Math.min(3, Math.max(1, Math.round(settings.toastDurationSeconds)))

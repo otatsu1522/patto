@@ -1,10 +1,11 @@
-import { Pressable, StyleSheet, Switch, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Switch, View } from 'react-native';
 import type { IconKey } from '@/config/icons';
 import { BOARD, UI_METRICS } from '@/config/layout';
 import { RADIUS, SPACING, useTheme, ICON_SIZE, OPACITY } from '@/theme';
 import { AppText } from './AppText';
 import { Icon } from './Icon';
 import { canHover } from '@/lib/hover';
+import { useSettingsStore } from '@/store/settingsStore';
 
 export function Section({
   title,
@@ -108,6 +109,26 @@ export function SwitchRow({
   onChange: (v: boolean) => void;
   hint?: string;
 }) {
+  const { colors, isDark, controlLineColor } = useTheme();
+  const hasCustomControlColor = useSettingsStore((s) => s.settings.controlBorderColor !== null);
+  const activeTrackColor = hasCustomControlColor ? controlLineColor : colors.accent;
+  const offThumbColor = isDark ? colors.text : colors.surface;
+  // React Native は trackColor が false / true のオブジェクト、Web は
+  // trackColor / activeTrackColor の文字列を受け取るため、各実装の API に合わせる。
+  const switchColors =
+    Platform.OS === 'web'
+      ? ({
+          trackColor: colors.border,
+          activeTrackColor,
+          thumbColor: offThumbColor,
+          activeThumbColor: '#FFFFFF',
+        } as never)
+      : {
+          trackColor: { false: colors.border, true: activeTrackColor },
+          thumbColor: value ? '#FFFFFF' : offThumbColor,
+          ios_backgroundColor: colors.border,
+        };
+
   return (
     <View style={styles.row}>
       <View style={styles.flex}>
@@ -118,7 +139,7 @@ export function SwitchRow({
           </AppText>
         ) : null}
       </View>
-      <Switch value={value} onValueChange={onChange} accessibilityLabel={label} />
+      <Switch {...switchColors} value={value} onValueChange={onChange} accessibilityLabel={label} />
     </View>
   );
 }

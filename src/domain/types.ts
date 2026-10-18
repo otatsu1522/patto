@@ -1,7 +1,13 @@
 import type { TaskColorKey } from '@/theme/taskColors';
 
 export type TableName = 'projects' | 'kanban_columns' | 'tasks';
-export type ColumnSortMode = 'updated' | 'created' | 'due' | 'color' | 'manual';
+export type ColumnSortBaseMode = 'updated' | 'created' | 'due' | 'color' | 'manual';
+/**
+ * sortMode は既存の値を維持しつつ、必要な場合だけ :asc / :desc を付けて方向を保存する。
+ * 既存データの 'updated' などは従来どおりの方向として扱う。
+ */
+export type ColumnSortMode =
+  ColumnSortBaseMode | `${Exclude<ColumnSortBaseMode, 'manual'>}:${'asc' | 'desc'}`;
 
 /** すべての同期対象レコードに共通の項目。 */
 export interface BaseRecord {

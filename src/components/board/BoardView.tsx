@@ -36,6 +36,7 @@ import {
 } from '@/hooks/drawerTransition';
 import { isTouchWeb } from '@/lib/hover';
 import { useUiStore } from '@/store/uiStore';
+import { useSettingsStore } from '@/store/settingsStore';
 import {
   adjacentOffset,
   boardGeometry,
@@ -124,6 +125,7 @@ interface ScrollUiSnapshot {
 export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(props, ref) {
   const { columns, tasksOf, cursor, header } = props;
   const { colors, isDark, lineWidth, lineColor, controlLineWidth, controlLineColor } = useTheme();
+  const customOuterBorder = useSettingsStore((s) => s.settings.borderColor !== null);
   const { mode, width: windowWidth, height: windowHeight } = useLayoutMode();
   const insets = useSafeAreaInsets();
   // 画面切替直後に width=0 のため ScrollView 自体が描画されず、1フレーム白くなるのを防ぐ。
@@ -242,7 +244,10 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
   }, []);
   const scrollUiSnapshotRef = useRef<ScrollUiSnapshot | null>(null);
   // メニューとカンバンの境界線をつなぐ幅。Web では sticky レイヤー内の線に使う。
-  const menuEdgeWidth = Math.max(0, closedX - menuWidth);
+  const menuEdgeWidth = Math.max(
+    0,
+    closedX - menuWidth + (Platform.OS === 'web' && customOuterBorder ? lineWidth : 0),
+  );
   // メニューを開いているときだけ、ヘッダー下線をメニュー右端からつなぐ。
   const menuBridgeOpacity = useMemo(
     () =>
@@ -1051,6 +1056,7 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                     height={columnHeight}
                     webSnapAlign={webInlineChrome ? undefined : snapAlign}
                     webSnapPadding={geo.padding}
+                    boardEdgePadding={geo.padding}
                     compactCards={props.compactCards}
                     detailedCards={props.detailedCards}
                     showTaskDescription={props.showTaskDescription}
@@ -1387,6 +1393,24 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
           </>
         ) : null}
       </View>
+      {Platform.OS === 'web' && mode === 'compact' && customOuterBorder ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.columnHeaderGlobalBridge,
+            {
+              // Sidebar 内ではなく BoardView 直下に描画し、次のカンバンやサイドバーの縁マスクに覆われないようにする。
+              // 縦線の内側からカンバン側へ 2px 重ね、線幅設定にかかわらず隙間を作らない。
+              left: menuWidth - lineWidth,
+              top: BOARD.headerHeight + BOARD.touchTarget - lineWidth,
+              width: lineWidth + 2,
+              height: lineWidth,
+              backgroundColor: lineColor,
+              opacity: menuBridgeOpacity,
+            },
+          ]}
+        />
+      ) : null}
     </View>
   );
 });
@@ -1413,6 +1437,7 @@ const styles = StyleSheet.create({
   headerLineBridge: { position: 'absolute', zIndex: LAYER.boardChrome },
   footerLineOverlay: { position: 'absolute', zIndex: LAYER.boardChrome },
   footerLineBridge: { position: 'absolute', zIndex: LAYER.boardChrome },
+  columnHeaderGlobalBridge: { position: 'absolute', zIndex: LAYER.sidebarEdge + 1 },
   navBtn: {
     position: 'absolute',
     top: 0,
