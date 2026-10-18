@@ -395,8 +395,7 @@ export function Dialog({
           ]}
           pointerEvents="box-none"
         >
-          <Pressable
-            onPress={(e) => e.stopPropagation()}
+          <View
             style={[
               styles.card,
               SHADOW.float,
@@ -451,7 +450,7 @@ export function Dialog({
               )}
               {footer ? <View style={styles.footer}>{footer}</View> : null}
             </AuthInputFocusProvider>
-          </Pressable>
+          </View>
         </KeyboardAvoidingView>
         {overlay}
       </View>

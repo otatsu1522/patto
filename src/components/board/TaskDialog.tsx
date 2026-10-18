@@ -161,6 +161,7 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
           ref={titleInputRef}
           key={`${visible ? 'open' : 'closed'}-${shownTask?.id ?? 'new'}`}
           autoGrow
+          singleLine
           onSubmitEditing={submit}
           onEnter={submit}
         />
@@ -185,7 +186,9 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
               value={description}
               onChangeText={setDescription}
               error={descError}
+              key={`${visible ? 'open' : 'closed'}-${shownTask?.id ?? 'new'}-description`}
               lines={UI_METRICS.textField.descriptionLines}
+              autoGrow
             />
 
             <View style={styles.dueRow}>

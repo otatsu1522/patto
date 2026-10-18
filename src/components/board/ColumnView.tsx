@@ -95,8 +95,7 @@ export function ColumnView(p: ColumnViewProps) {
   const hasScrollableContent = listViewportHeight > 0 && listContentHeight > listViewportHeight + 1;
   const hasWebScrollbar = Platform.OS === 'web' && hasScrollableContent;
   // ScrollView 右端から、隣の区切り線または画面外周までの現状の間隔。
-  // スクロールバー表示中の Web ではこの分だけ ScrollView を右へ延ばし、
-  // スクロールバーと境界線の間の余白をなくす。
+  // スクロールバー表示中の PC ブラウザーでは、枠線幅1px・2pxなら3px、それ以外は2px延ばす。
   const scrollbarRightGap =
     p.index < p.count - 1
       ? Math.max(0, BOARD.columnGap / 2 - lineWidth / 2)
@@ -104,16 +103,12 @@ export function ColumnView(p: ColumnViewProps) {
           0,
           (p.boardEdgePadding ?? BOARD.columnGap / 2) - (customOuterBorder ? lineWidth : 0),
         );
-  const scrollbarRightExpansion = hasWebScrollbar
-    ? canHover
-      ? scrollbarRightGap / 3
-      : scrollbarRightGap
-    : 0;
+  const scrollbarRightExpansion = hasWebScrollbar && canHover ? 2 : 0;
   // スマホでは、境界線側から取り除いた分をカード一覧の内側右余白へ移す。
   // ブラウザでは ScrollView の拡張と対応させ、ネイティブでも縦スクロール時に適用する。
   const isSmartphone = Platform.OS !== 'web' || !canHover;
   const scrollbarCardPaddingRight = hasScrollableContent
-    ? 2 + (isSmartphone ? scrollbarRightGap : 0)
+    ? 0 + (isSmartphone ? scrollbarRightGap : 0)
     : listPaddingRight;
   const taskRefs = useRef(new Map<string, View>());
   const headerGesture = useDragGesture({
@@ -213,7 +208,8 @@ export function ColumnView(p: ColumnViewProps) {
       <View
         style={[
           styles.header,
-          headerFocused && { borderColor: colors.focus, borderWidth: BORDER_WIDTH_EMPHASIS },
+          // 下線の幅だけを下側の余白として確保し、ボタンの上下余白を揃える。
+          { paddingBottom: lineWidth },
           p.grabbed && headerFocused && { backgroundColor: colors.border },
         ]}
       >
@@ -222,7 +218,11 @@ export function ColumnView(p: ColumnViewProps) {
           touchAction="manipulation"
           enableContextMenu={false}
         >
-          <View ref={headerRef} collapsable={false} style={styles.titleWrap}>
+          <View
+            ref={headerRef}
+            collapsable={false}
+            style={[styles.titleWrap, { minHeight: BOARD.touchTarget - lineWidth }]}
+          >
             {p.column.color ? (
               <View style={[styles.dot, { backgroundColor: taskColor(p.column.color) }]} />
             ) : null}
@@ -256,6 +256,12 @@ export function ColumnView(p: ColumnViewProps) {
             />
           )}
         />
+        {headerFocused ? (
+          <View
+            pointerEvents="none"
+            style={[styles.headerFocusFrame, { bottom: lineWidth, borderColor: colors.focus }]}
+          />
+        ) : null}
         <View
           pointerEvents="none"
           style={[
@@ -289,6 +295,8 @@ export function ColumnView(p: ColumnViewProps) {
             styles.list,
             Platform.OS === 'web' ? styles.webList : undefined,
             scrollbarRightExpansion > 0 ? { marginRight: -scrollbarRightExpansion } : undefined,
+            // 縦スクロールバーを右側の境界まで延ばす場合も、一覧内の横スクロールは発生させない。
+            hasWebScrollbar ? ({ overflowX: 'hidden' } as never) : undefined,
           ]}
           onScroll={(event) => {
             listOffset.current = event.nativeEvent.contentOffset.y;
@@ -299,8 +307,8 @@ export function ColumnView(p: ColumnViewProps) {
             styles.listContent,
             {
               paddingLeft: listPaddingLeft,
-              // スクロールバー表示中は、PCブラウザは基準 2px、スマホは境界線側から
-              // 取り除いた分もカード側へ移す。表示されない場合は従来値を維持する。
+              // スクロールバー表示中は、PCブラウザの固定余白を加算せず、スマホは境界線側から
+              // 取り除いた分をカード側へ移す。表示されない場合は従来値を維持する。
               paddingRight: scrollbarCardPaddingRight,
             },
           ]}
@@ -390,15 +398,24 @@ const styles = StyleSheet.create({
   },
   columnDivider: { position: 'absolute', top: 0, bottom: 0 },
   header: {
-    // 上のヘッダー区切り線と下線の間で、タイトル行を縦方向の中央に配置する。
+    // 下線の高さ分を下側の内余白に含め、操作領域を線の上で縦中央に配置する。
     position: 'relative',
     height: BOARD.touchTarget,
     flexDirection: 'row',
     alignItems: 'center',
     paddingLeft: SPACING.md,
     paddingRight: SPACING.xs,
-    paddingBottom: 0,
     overflow: 'visible',
+  },
+  headerFocusFrame: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    left: 0,
+    borderTopWidth: BORDER_WIDTH_EMPHASIS,
+    borderRightWidth: BORDER_WIDTH_EMPHASIS,
+    borderBottomWidth: 0,
+    borderLeftWidth: BORDER_WIDTH_EMPHASIS,
   },
   headerUnderline: {
     position: 'absolute',
@@ -411,7 +428,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
-    minHeight: BOARD.touchTarget,
     cursor: 'grab',
   } as never,
   dot: {

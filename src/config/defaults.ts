@@ -26,6 +26,8 @@ export interface AppSettings {
   syncMode: SyncMode;
   /** 操作結果のトースト（画面下の短い通知）を出すか */
   toastEnabled: boolean;
+  /** タイトル・説明をクリップボードへコピーしたときのトーストを出すか */
+  clipboardToastEnabled: boolean;
   /** トースト表示時間（秒） */
   toastDurationSeconds: number;
   /** 画面の通常枠線の太さ（px） */
@@ -56,6 +58,7 @@ export const defaultSettings = (isWeb: boolean, retentionDays: number): AppSetti
   showTaskUpdatedAt: false,
   syncMode: isWeb ? 'auto' : 'manual',
   toastEnabled: true,
+  clipboardToastEnabled: true,
   toastDurationSeconds: 2,
   borderWidth: 1,
   controlBorderWidth: 1,

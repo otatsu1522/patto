@@ -515,15 +515,15 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     marginVertical: SPACING.xs,
   },
-  // プロジェクト内の区切り線と同じ太さ・左右の余白に揃える。
-  rule: { marginVertical: SPACING.xs, marginHorizontal: 0 },
+  // 設定項目の直前に置く区切り線。上側の余白はなくし、下側のみ従来の余白を残す。
+  rule: { marginTop: 0, marginBottom: SPACING.xs, marginHorizontal: 0 },
   archiveToggle: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.xs,
     padding: SPACING.lg,
   },
-  footer: { paddingVertical: SPACING.xs },
+  footer: { paddingTop: 0, paddingBottom: SPACING.xs },
   syncTextRow: {
     flex: 1,
     minWidth: 0,

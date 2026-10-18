@@ -34,6 +34,8 @@ export type ConfirmResult = 'confirm' | 'cancel';
 interface Toast {
   message: string;
   category: ToastCategory;
+  /** 独立設定を持つトーストは、通知分類のON/OFFとは別に扱う。 */
+  bypassCategoryFilter?: boolean;
   actionLabel?: string;
   onAction?: () => void;
 }
@@ -46,7 +48,7 @@ interface Feedback {
   toast: (
     message: string,
     action?: { label: string; onPress: () => void },
-    options?: { category: ToastCategory },
+    options?: { category: ToastCategory; bypassCategoryFilter?: boolean },
   ) => void;
 }
 
@@ -95,15 +97,20 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     (
       message: string,
       action?: { label: string; onPress: () => void },
-      options?: { category: ToastCategory },
+      options?: { category: ToastCategory; bypassCategoryFilter?: boolean },
     ) => {
       const settings = useSettingsStore.getState().settings;
       if (!settings.toastEnabled) return;
-      if (!options?.category || !settings.toastCategories.includes(options.category)) return;
+      if (
+        !options?.bypassCategoryFilter &&
+        (!options?.category || !settings.toastCategories.includes(options.category))
+      )
+        return;
       if (timer.current) clearTimeout(timer.current);
       setToast({
         message,
-        category: options.category,
+        category: options?.category ?? 'system',
+        bypassCategoryFilter: options?.bypassCategoryFilter,
         actionLabel: action?.label,
         onAction: action?.onPress,
       });
@@ -118,7 +125,10 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     // 設定ストアの変更通知内で既存トーストを破棄する。
     // effect の実行中に setState を同期実行せず、React の cascade-render 警告を避ける。
     const unsubscribe = useSettingsStore.subscribe((state) => {
-      if (state.settings.toastEnabled && state.settings.toastCategories.includes(toast.category)) {
+      if (
+        state.settings.toastEnabled &&
+        (toast.bypassCategoryFilter || state.settings.toastCategories.includes(toast.category))
+      ) {
         return;
       }
       if (timer.current) clearTimeout(timer.current);
@@ -134,7 +144,9 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   return (
     <Ctx.Provider value={value}>
       {children}
-      {toast && settings.toastEnabled && settings.toastCategories.includes(toast.category) ? (
+      {toast &&
+      settings.toastEnabled &&
+      (toast.bypassCategoryFilter || settings.toastCategories.includes(toast.category)) ? (
         <View
           pointerEvents="box-none"
           style={[styles.toastWrap, { bottom: insets.bottom + SPACING.lg }]}

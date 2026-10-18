@@ -284,6 +284,12 @@ export default function SystemSettings() {
                   {t('settings.toastCategoriesHint')}
                 </AppText>
                 <SwitchRow
+                  label={t('settings.clipboardToast')}
+                  hint={t('settings.clipboardToastHint')}
+                  value={settings.clipboardToastEnabled}
+                  onChange={(v) => update({ clipboardToastEnabled: v })}
+                />
+                <SwitchRow
                   label={t('settings.toastCategory.movement')}
                   hint={t('settings.toastCategory.movementHint')}
                   value={settings.toastCategories.includes('movement')}

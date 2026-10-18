@@ -218,6 +218,8 @@ export const ja = {
   'task.detailsMenu': 'タスクの詳細',
   'task.copyTitle': 'タイトルをコピーしました。',
   'task.copyTitleAction': 'タイトルをコピー',
+  'task.copyDescription': '説明をコピーしました。',
+  'task.copyDescriptionAction': '説明をコピー',
   'task.moveLeftTo': '左へ移動',
   'task.moveRightTo': '右へ移動',
   'task.moveUpInColumn': '上へ並び替え',
@@ -584,6 +586,8 @@ export const ja = {
   'settings.toastHint':
     '操作結果を画面の下に短く表示します。OFFにするとトーストは表示されません。ONの場合は、下から表示したい通知の種類を選べます。',
   'settings.toast': 'トーストを表示する',
+  'settings.clipboardToast': 'コピー完了時のトースト',
+  'settings.clipboardToastHint': '含まれる通知：\n・タイトルのコピー\n・説明のコピー',
   'settings.toastCategoriesHint':
     '表示したい通知の分類を選択してください。各分類に含まれる通知を下に列挙しています。',
   'settings.toastCategory.movement': '移動系',
@@ -591,7 +595,7 @@ export const ja = {
     '含まれる通知：\n・タスクを別のカンバンへ移動\n・タスク編集で所属カンバンを変更',
   'settings.toastCategory.editing': '編集系',
   'settings.toastCategory.editingHint':
-    '含まれる通知：\n・タスクの作成／更新\n・カンバンの追加／更新\n・プロジェクトの追加／更新\n・タスク／カンバン／プロジェクトの複製\n・ピン留め／解除\n・タスクタイトルのコピー\n・タスク／カンバン／プロジェクトの削除（元に戻す付き）\n・タスクのアーカイブ／DONEタスクの一括アーカイブ（元に戻す付き）',
+    '含まれる通知：\n・タスクの作成／更新\n・カンバンの追加／更新\n・プロジェクトの追加／更新\n・タスク／カンバン／プロジェクトの複製\n・ピン留め／解除\n・タスク／カンバン／プロジェクトの削除（元に戻す付き）\n・タスクのアーカイブ／DONEタスクの一括アーカイブ（元に戻す付き）',
   'settings.toastCategory.system': 'システム系',
   'settings.toastCategory.systemHint':
     '含まれる通知：\n・インポート／エクスポート（対象がない場合を含む）\n・アーカイブ／ごみ箱のクリア（対象がない場合を含む）\n・データ初期化／アカウント削除完了\n・戻る操作を2回行うとアプリを終了する案内\n・アーカイブするタスクがない場合の案内\n・カンバンがなく追加方法を案内する通知',

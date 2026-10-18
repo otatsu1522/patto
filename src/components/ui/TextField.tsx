@@ -23,6 +23,8 @@ interface Props extends Omit<TextInputProps, 'style'> {
   secure?: boolean;
   /** 固定行数ではなく、表示上の折り返しに合わせて高さを伸ばす。 */
   autoGrow?: boolean;
+  /** autoGrow 時も改行を許さず、Enter で確定する。 */
+  singleLine?: boolean;
   /** 複数行入力の行数 */
   lines?: number;
   /** 指定すると、入力があるときに右端に×を出し、押すとこれを呼ぶ（クリア用） */
@@ -38,6 +40,7 @@ export const TextField = forwardRef<TextInput, Props>(function TextField(
     secure,
     lines,
     autoGrow = false,
+    singleLine = false,
     onClear,
     onEnter,
     onFocus,
@@ -65,6 +68,7 @@ export const TextField = forwardRef<TextInput, Props>(function TextField(
     [ref],
   );
   const multiline = autoGrow || (lines ?? 1) > 1;
+  const autoGrowBaseLines = Math.max(1, lines ?? 1);
   // React Native の型定義に boxSizing がないバージョンにも対応しつつ、
   // Web では textarea の padding が height に加算されないようにする。
   const webBoxSizing =
@@ -74,11 +78,13 @@ export const TextField = forwardRef<TextInput, Props>(function TextField(
   const autoGrowLineHeight = fs(FONT.body) * UI_METRICS.textField.lineHeightMultiplier;
   const autoGrowMinHeight = Math.max(
     BOARD.touchTarget - UI_METRICS.textField.autoGrowMinHeightAdjustment,
-    autoGrowLineHeight + SPACING.sm * 2,
+    autoGrowLineHeight * autoGrowBaseLines + SPACING.sm * 2,
   );
-  // 1行時は、TextArea の top alignment によって下側だけ余って見えないよう、
-  // 1行分の高さから上下の padding を対称に算出する。折り返し後も padding は固定する。
-  const autoGrowVerticalPadding = Math.max(0, (autoGrowMinHeight - autoGrowLineHeight) / 2);
+  // 初期表示の行数（タイトルは1行、説明欄は既定4行）に対して上下の padding を均等にする。
+  const autoGrowVerticalPadding = Math.max(
+    0,
+    (autoGrowMinHeight - autoGrowLineHeight * autoGrowBaseLines) / 2,
+  );
   const visibleHeight = Math.min(windowHeight, keyboardAvailableHeight ?? windowHeight);
   // 入力欄自体が画面／キーボードの高さを占有しないよう、表示領域の一部を上限にする。
   const autoGrowMaxHeight = Math.max(
@@ -92,6 +98,39 @@ export const TextField = forwardRef<TextInput, Props>(function TextField(
     autoGrowMaxHeight,
     Math.max(autoGrowMinHeight, measuredContentHeight ?? autoGrowMinHeight),
   );
+  const measureWebAutoGrow = useCallback(() => {
+    if (Platform.OS !== 'web' || !autoGrow) return;
+
+    // React Native Web の ref は実 DOM 要素そのものではなく getNativeRef() を
+    // 介して textarea を返す場合があるため、両方の形に対応する。
+    const input = inputRef.current as unknown as
+      | (HTMLTextAreaElement & { getNativeRef?: () => HTMLTextAreaElement | null })
+      | { getNativeRef?: () => HTMLTextAreaElement | null }
+      | null;
+    const node = (
+      input && typeof input.getNativeRef === 'function' ? input.getNativeRef() : input
+    ) as HTMLTextAreaElement | null;
+    if (!node || !node.style || typeof node.scrollHeight !== 'number') return;
+
+    // 拡張後の高さが残ったままでは、文字を削除しても scrollHeight が縮まないことがある。
+    // いったん高さ・上下限を解除して現在の内容だけを測定し、同期的に元へ戻す。
+    const previousHeight = node.style.height;
+    const previousMinHeight = node.style.minHeight;
+    const previousMaxHeight = node.style.maxHeight;
+    const previousOverflowY = node.style.overflowY;
+    node.style.height = '0px';
+    node.style.minHeight = '0px';
+    node.style.maxHeight = 'none';
+    node.style.overflowY = 'hidden';
+    const contentHeight = node.scrollHeight;
+    node.style.height = previousHeight;
+    node.style.minHeight = previousMinHeight;
+    node.style.maxHeight = previousMaxHeight;
+    node.style.overflowY = previousOverflowY;
+
+    const nextHeight = Math.min(autoGrowMaxHeight, Math.max(autoGrowMinHeight, contentHeight));
+    setMeasuredContentHeight((current) => (current === nextHeight ? current : nextHeight));
+  }, [autoGrow, autoGrowMaxHeight, autoGrowMinHeight]);
   const handleWebKeyPress = useCallback(
     (event: {
       nativeEvent: { key: string; isComposing?: boolean; keyCode?: number };
@@ -100,9 +139,10 @@ export const TextField = forwardRef<TextInput, Props>(function TextField(
     }) => {
       const keyEvent = event.nativeEvent;
       // React Native Web の onKeyPress は、DOM KeyboardEvent ではなく nativeEvent.key を渡す。
-      // タスク名は一文入力。Enter と Shift+Enter のどちらも確定し、改行は挿入しない。
+      // singleLine のタスク名は Enter と Shift+Enter で確定し、改行を挿入しない。
       if (
         !autoGrow ||
+        !singleLine ||
         keyEvent.key !== 'Enter' ||
         keyEvent.isComposing ||
         keyEvent.keyCode === 229
@@ -114,7 +154,7 @@ export const TextField = forwardRef<TextInput, Props>(function TextField(
       onEnter?.();
       inputRef.current?.blur();
     },
-    [autoGrow, onEnter],
+    [autoGrow, singleLine, onEnter],
   );
 
   useEffect(() => {
@@ -151,6 +191,11 @@ export const TextField = forwardRef<TextInput, Props>(function TextField(
     };
   }, [autoGrow, windowHeight]);
 
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !autoGrow) return;
+    measureWebAutoGrow();
+  }, [autoGrow, rest.value, measureWebAutoGrow]);
+
   return (
     <View style={styles.wrap}>
       {label ? (
@@ -166,8 +211,8 @@ export const TextField = forwardRef<TextInput, Props>(function TextField(
             backgroundColor: colors.surface,
             borderWidth: controlLineWidth,
           },
-          // autoGrow の初期表示は通常の1行入力欄と同じ高さに固定する。
-          // Textarea のブラウザー既定サイズで外枠が押し広げられないよう、外枠側で高さを管理する。
+          // autoGrow の初期表示は指定行数に応じた高さにし、外枠側で高さを管理する。
+          // Textarea のブラウザー既定サイズで外枠が押し広げられないようにする。
           autoGrow
             ? {
                 height: autoGrowHeight + controlLineWidth * 2,
@@ -185,39 +230,60 @@ export const TextField = forwardRef<TextInput, Props>(function TextField(
           placeholderTextColor={colors.textMuted}
           secureTextEntry={secure && hidden}
           multiline={multiline}
-          numberOfLines={autoGrow ? 1 : lines}
+          numberOfLines={autoGrow ? autoGrowBaseLines : lines}
           {...rest}
           onKeyPress={
             Platform.OS === 'web' && autoGrow ? (handleWebKeyPress as never) : rest.onKeyPress
           }
-          blurOnSubmit={autoGrow && Platform.OS === 'web' ? true : rest.blurOnSubmit}
-          submitBehavior={autoGrow ? 'submit' : rest.submitBehavior}
+          blurOnSubmit={autoGrow && singleLine && Platform.OS === 'web' ? true : rest.blurOnSubmit}
+          submitBehavior={autoGrow && singleLine ? 'submit' : rest.submitBehavior}
           onSubmitEditing={
-            Platform.OS === 'web' && autoGrow
+            Platform.OS === 'web' && autoGrow && singleLine
               ? undefined
               : (event) => {
                   onSubmitEditing?.(event);
-                  if (autoGrow) inputRef.current?.blur();
+                  if (autoGrow && singleLine) inputRef.current?.blur();
                 }
           }
           onContentSizeChange={(event) => {
             onContentSizeChange?.(event);
             if (!autoGrow) return;
             const contentHeight = event.nativeEvent.contentSize.height;
-            // 1行時の TextInput が返す余分な高さを基準として記録し、1行の高さ自体は変えない。
-            // 1行目からの増加分が行高に達した場合だけ、表示上の折り返しとして扱う。
-            const baseline = baselineContentHeight.current;
-            if (baseline === null) {
-              baselineContentHeight.current = contentHeight;
-              setMeasuredContentHeight(null);
+            if (Platform.OS === 'web') {
+              // Web では制御値の更新でも測定し、textarea の実内容高さへ追従させる。
+              measureWebAutoGrow();
             } else {
-              const addedHeight = contentHeight - baseline;
+              // ネイティブは1行分の内容高さを基準にして初期行数を超えた分を加算する。
+              const baseline = baselineContentHeight.current;
               const lineHeight = fs(FONT.body) * UI_METRICS.textField.lineHeightMultiplier;
-              setMeasuredContentHeight(
-                addedHeight >= lineHeight * UI_METRICS.textField.autoGrowStepFraction
-                  ? Math.min(autoGrowMaxHeight, autoGrowMinHeight + addedHeight)
-                  : null,
-              );
+              if (baseline === null) {
+                const hasInitialValue = typeof rest.value === 'string' && rest.value.length > 0;
+                // 編集時は最初のサイズ通知から既に折り返し済みの場合がある。
+                // 空欄の実測値を基準にする従来方式では、その折り返し分を失うため、
+                // 初期値がある場合は1行分の高さを基準として初回から拡張する。
+                const singleLineBaseline = autoGrowLineHeight;
+                baselineContentHeight.current = hasInitialValue
+                  ? singleLineBaseline
+                  : contentHeight;
+                const addedHeight =
+                  contentHeight -
+                  baselineContentHeight.current -
+                  autoGrowLineHeight * (autoGrowBaseLines - 1);
+                setMeasuredContentHeight(
+                  hasInitialValue &&
+                    addedHeight >= lineHeight * UI_METRICS.textField.autoGrowStepFraction
+                    ? Math.min(autoGrowMaxHeight, autoGrowMinHeight + addedHeight)
+                    : null,
+                );
+              } else {
+                const addedHeight =
+                  contentHeight - baseline - autoGrowLineHeight * (autoGrowBaseLines - 1);
+                setMeasuredContentHeight(
+                  addedHeight >= lineHeight * UI_METRICS.textField.autoGrowStepFraction
+                    ? Math.min(autoGrowMaxHeight, autoGrowMinHeight + addedHeight)
+                    : null,
+                );
+              }
             }
             // 入力文字の折り返しで高さが変わった後も、入力欄を表示領域内に保つ。
             revealAuthInput?.(inputRef.current);

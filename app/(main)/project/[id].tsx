@@ -68,6 +68,10 @@ export default function ProjectScreen() {
 
   const actions = useBoardActions(id ?? '');
   const store = useDataStore.getState();
+  const showClipboardToast = (key: 'task.copyTitle' | 'task.copyDescription') => {
+    if (!useSettingsStore.getState().settings.clipboardToastEnabled) return;
+    toast(t(key), undefined, { category: 'editing', bypassCategoryFilter: true });
+  };
 
   const [taskDialog, setTaskDialog] = useState<TaskDialogState>(null);
   const [columnDialog, setColumnDialog] = useState<{ column: KanbanColumn | null } | null>(null);
@@ -548,7 +552,7 @@ export default function ProjectScreen() {
           }}
           onColumnDrop={(column, toIndex) => void store.moveColumn(column.id, toIndex)}
           onAddTask={(column) => openCreateTask(column.id)}
-          onCopyTitle={() => toast(t('task.copyTitle'), undefined, { category: 'editing' })}
+          onCopyTitle={() => showClipboardToast('task.copyTitle')}
           onRefresh={syncEnabled ? async () => void (await syncNow()) : undefined}
         />
 
@@ -586,6 +590,18 @@ export default function ProjectScreen() {
         onDismiss={() => {
           setTaskDetails(null);
           setTaskDetailsDismissImmediately(false);
+        }}
+        onCopyTitle={() => showClipboardToast('task.copyTitle')}
+        onCopyDescription={() => showClipboardToast('task.copyDescription')}
+        onToggleFavorite={(task) => {
+          const isFavorite = !task.isFavorite;
+          void store.updateTask(task.id, { isFavorite });
+          setTaskDetails((current) =>
+            current?.id === task.id ? { ...current, isFavorite } : current,
+          );
+          toast(t(isFavorite ? 'toast.pinned' : 'toast.unpinned'), undefined, {
+            category: 'editing',
+          });
         }}
         onEdit={(task) => {
           // 詳細ダイアログの閉じるアニメーションを待たず、編集を即時表示する。
