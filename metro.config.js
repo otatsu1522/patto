@@ -15,7 +15,12 @@ config.server.enhanceMiddleware = (middleware) => (req, res, next) => {
 
 // 本番ビルドの Web アセットだけ、公開パスの node_modules を置き換える。
 // 既存のアセットプラグインは維持する。
-if (process.env.NODE_ENV === 'production') {
+// `expo export` is a production build even if NODE_ENV has not been set yet
+// at the moment Metro loads this config. Keep the plugin out of `expo start`.
+const isProductionWebExport =
+  process.env.NODE_ENV === 'production' || process.argv.some((arg) => arg === 'export');
+
+if (isProductionWebExport) {
   config.transformer.assetPlugins = [
     ...(config.transformer.assetPlugins ?? []),
     require.resolve('./scripts/metro-asset-plugin.js'),
