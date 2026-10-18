@@ -2,14 +2,10 @@
  * Rewrite production Web asset URLs so Cloudflare Pages can serve them.
  *
  * Metro uses httpServerLocation both in generated asset references and when
- * computing exported asset destinations. Changing this field here keeps both
- * paths in sync and avoids rewriting the exported bundle after the build.
+ * computing exported asset destinations. Rewrite the `assets/node_modules`
+ * segment wherever it appears in the location, including Expo plugin assets
+ * such as `/_expo/plugins/expo-sqlite/assets/node_modules/...`.
  */
-const ASSET_PATH_PREFIXES = [
-  { from: '/assets/node_modules/', to: '/assets/vendor_modules/' },
-  { from: 'assets/node_modules/', to: 'assets/vendor_modules/' },
-];
-
 function mapAssetSegments(segments) {
   // Keep the same pnpm layout as the previous post-build script:
   // .pnpm/<package-key>/node_modules/<package-path>
@@ -44,19 +40,17 @@ module.exports = function metroAssetPlugin(asset) {
   }
 
   const location = asset.httpServerLocation.replace(/\\/g, '/');
-  const prefix = ASSET_PATH_PREFIXES.find(({ from }) => location.startsWith(from));
+  // Do not require the location to start with `assets/node_modules`: Expo
+  // plugin assets may have a prefix, e.g. `/_expo/plugins/expo-sqlite/`.
+  const match = location.match(/^(.*\/)?assets\/node_modules\/(.+)$/);
+  if (!match) return asset;
 
-  // Leave application assets and paths outside the target directory unchanged.
-  if (!prefix) {
-    return asset;
-  }
-
-  const suffix = location.slice(prefix.from.length);
-  const segments = suffix.split('/');
+  const pathPrefix = match[1] ?? '';
+  const segments = match[2].split('/');
   const mappedSegments = mapAssetSegments(segments);
 
   return {
     ...asset,
-    httpServerLocation: `${prefix.to}${mappedSegments.join('/')}`,
+    httpServerLocation: `${pathPrefix}assets/vendor_modules/${mappedSegments.join('/')}`,
   };
 };

@@ -6,7 +6,9 @@ const distDir = resolve(projectRoot, 'dist');
 const assetsDir = join(distDir, 'assets');
 const textExtensions = new Set(['.js', '.html', '.htm', '.json', '.css', '.map', '.txt']);
 const oldAssetReferencePattern = /assets\/node_modules\/[^"'`\s<>)\]]+/g;
-const vendorAssetReferencePattern = /assets\/vendor_modules\/[^"'`\s<>)\]]+/g;
+// Capture the full URL path, including a possible prefix such as
+// /_expo/plugins/expo-sqlite/, so the reference resolves to the right file.
+const vendorAssetReferencePattern = /(?:\/[^"'`\s<>)\]]*?)?assets\/vendor_modules\/[^"'`\s<>)\]]+/g;
 
 function collectFiles(directory) {
   const files = [];
@@ -21,6 +23,16 @@ function collectFiles(directory) {
   }
 
   return files;
+}
+
+function collectDirectories(directory) {
+  const directories = [];
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const fullPath = join(directory, entry.name);
+    directories.push(fullPath, ...collectDirectories(fullPath));
+  }
+  return directories;
 }
 
 function isInside(file, directory) {
@@ -50,33 +62,30 @@ if (!existsSync(assetsDir) || !statSync(assetsDir).isDirectory()) {
 }
 
 const files = collectFiles(distDir);
-const forbiddenDirectories = [];
-// Walk directories separately because collectFiles returns files only.
-function collectDirectories(directory) {
-  const dirs = [];
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const fullPath = join(directory, entry.name);
-    dirs.push(fullPath, ...collectDirectories(fullPath));
-  }
-  return dirs;
-}
-for (const directory of collectDirectories(distDir)) {
-  if (directory.split(sep).includes('node_modules')) forbiddenDirectories.push(directory);
-}
+const forbiddenDirectories = collectDirectories(distDir).filter((directory) =>
+  directory.split(sep).includes('node_modules'),
+);
 if (forbiddenDirectories.length > 0) {
-  fail(`Cloudflare Pages-excluded node_modules directory remains: ${forbiddenDirectories[0]}`);
+  fail(
+    `Cloudflare Pages-excluded node_modules directory remains: ${relative(distDir, forbiddenDirectories[0])}`,
+  );
 }
 
-const vendorAssetsDir = resolve(assetsDir, 'vendor_modules');
-const wasmFiles = files.filter(
-  (file) => isInside(file, vendorAssetsDir) && /^wa-sqlite.*\.wasm$/i.test(file.split(sep).at(-1)),
+// WASM can be emitted under dist/_expo/plugins/... as well as dist/assets/...;
+// validate the required assets anywhere under vendor_modules.
+const vendorAssets = files.filter((file) =>
+  relative(distDir, file).split(sep).includes('vendor_modules'),
 );
-const ioniconsFiles = files.filter(
-  (file) => isInside(file, vendorAssetsDir) && /^Ionicons\..*\.ttf$/i.test(file.split(sep).at(-1)),
+const wasmFiles = vendorAssets.filter((file) =>
+  /^wa-sqlite(?:\..*)?\.wasm$/i.test(file.split(sep).at(-1)),
 );
-if (wasmFiles.length === 0) fail('Required wa-sqlite WASM asset was not exported.');
-if (ioniconsFiles.length === 0) fail('Required Ionicons font asset was not exported.');
+const ioniconsFiles = vendorAssets.filter((file) =>
+  /^Ionicons(?:\..*)?\.ttf$/i.test(file.split(sep).at(-1)),
+);
+if (wasmFiles.length === 0)
+  fail('Required wa-sqlite WASM asset was not exported under vendor_modules.');
+if (ioniconsFiles.length === 0)
+  fail('Required Ionicons font asset was not exported under vendor_modules.');
 
 const textFiles = files.filter((file) => textExtensions.has(extname(file).toLowerCase()));
 let oldReferences = 0;
@@ -85,11 +94,9 @@ const missingReferences = [];
 
 for (const file of textFiles) {
   const content = readFileSync(file, 'utf8');
-  const oldMatches = content.match(oldAssetReferencePattern) ?? [];
-  oldReferences += oldMatches.length;
+  oldReferences += (content.match(oldAssetReferencePattern) ?? []).length;
 
-  const matches = content.match(vendorAssetReferencePattern) ?? [];
-  for (const match of matches) {
+  for (const match of content.match(vendorAssetReferencePattern) ?? []) {
     vendorReferences++;
     const localPath = localPathFromAssetReference(match);
     if (!existsSync(localPath) || !statSync(localPath).isFile()) {
