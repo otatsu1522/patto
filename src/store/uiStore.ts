@@ -4,6 +4,8 @@ import { create } from 'zustand';
 interface UiState {
   /** 実際に開いているダイアログの数。ネイティブの戻る操作の優先判定にも使う。 */
   dialogCount: number;
+  /** アプリ共通のドロップダウンメニューが開いている間はボードのキー操作を止める。 */
+  dropdownMenuOpen: boolean;
   /** ショートカット設定など、画面単位でキーボードショートカットを停止する状態。 */
   shortcutsSuspended: boolean;
   sidebarCollapsed: boolean;
@@ -21,6 +23,7 @@ interface UiState {
   newProjectOpen: boolean;
   pushDialog: () => void;
   popDialog: () => void;
+  setDropdownMenuOpen: (v: boolean) => void;
   setShortcutsSuspended: (v: boolean) => void;
   toggleSidebarCollapsed: () => void;
   setHelpOpen: (v: boolean) => void;
@@ -33,6 +36,7 @@ interface UiState {
 
 export const useUiStore = create<UiState>((set) => ({
   dialogCount: 0,
+  dropdownMenuOpen: false,
   shortcutsSuspended: false,
   sidebarCollapsed: Platform.OS === 'web',
   helpOpen: false,
@@ -44,6 +48,7 @@ export const useUiStore = create<UiState>((set) => ({
   newProjectOpen: false,
   pushDialog: () => set((s) => ({ dialogCount: s.dialogCount + 1 })),
   popDialog: () => set((s) => ({ dialogCount: Math.max(0, s.dialogCount - 1) })),
+  setDropdownMenuOpen: (v) => set({ dropdownMenuOpen: v }),
   setShortcutsSuspended: (v) => set({ shortcutsSuspended: v }),
   toggleSidebarCollapsed: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
   setHelpOpen: (v) => set({ helpOpen: v }),

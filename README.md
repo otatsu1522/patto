@@ -115,9 +115,39 @@ Android エミュレーターを使用する場合は、Android の開発環境�
 
 Supabase を設定しなくても、端末内へのデータ保存とゲスト利用はできます。その場合、クラウド同期は行われません。
 
-## 5. 開発コマンド
+## 5. よく使うコマンド（package.json の scripts）
 
-開発サーバー、型チェック、lint、コード整形、Web ビルド、依存パッケージの更新などのコマンドは [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) を参照してください。
+以下はプロジェクトルートで実行します。`package.json` に登録されたすべてのスクリプトです。
+
+| コマンド                     | 内容                                                         |
+| ---------------------------- | ------------------------------------------------------------ |
+| `pnpm start`                 | Expo 開発サーバーを起動                                      |
+| `pnpm android`               | 開発サーバーを起動し、Android エミュレーター／接続端末で開く |
+| `pnpm ios`                   | 開発サーバーを起動し、iOS シミュレーターで開く（Mac のみ）   |
+| `pnpm web`                   | Web ブラウザー向け開発サーバーを起動                         |
+| `pnpm build:android:preview` | EAS で Android の preview ビルドを作成                       |
+| `pnpm build:ios:preview`     | EAS で iOS の preview ビルドを作成                           |
+| `pnpm typecheck`             | TypeScript の型チェック（`tsc --noEmit`）                    |
+| `pnpm export:web`            | Web 版を `dist/` に出力し、生成したアセット参照を検証        |
+| `pnpm lint`                  | Expo ESLint を実行                                           |
+| `pnpm format`                | Prettier でプロジェクト内の対象ファイルを整形                |
+| `pnpm format:check`          | ファイルを変更せず、Prettier の整形状態を確認                |
+
+`build:android:preview` と `build:ios:preview` は、次の EAS コマンドのショートカットです。
+
+```powershell
+npx eas-cli build --platform android --profile preview
+npx eas-cli build --platform ios --profile preview
+```
+
+`scripts/` ディレクトリ内の補助スクリプトは次のとおりです。通常は `pnpm export:web` の実行時などに自動で呼び出されるため、個別に実行する必要はありません。
+
+| ファイル                        | 内容                                                                                          |
+| ------------------------------- | --------------------------------------------------------------------------------------------- |
+| `scripts/metro-asset-plugin.js` | Metro が出力する Web アセット参照を Cloudflare Pages 用のパスへ変換                           |
+| `scripts/verify-web-assets.mjs` | Web ビルド後に必要な WASM／フォントとアセット参照先を検証。欠落があればビルド検証を失敗させる |
+
+開発環境の設定、依存パッケージの更新などの詳しい手順は [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) を参照してください。
 
 ## 6. 公開と配布
 
@@ -149,6 +179,8 @@ git push origin main
 端末へ直接インストールして確認するプレビュー APK は、プロジェクトルートで次を実行して作成する。
 
 ```powershell
+pnpm build:android:preview
+# 直接実行する場合
 npx eas-cli build --platform android --profile preview
 ```
 
@@ -161,6 +193,8 @@ Google Play へ公開する場合は、ストア配布用のビルド・提出�
 iPhone 実機で確認するプレビュー用ビルドは、次を実行する。
 
 ```powershell
+pnpm build:ios:preview
+# 直接実行する場合
 npx eas-cli build --platform ios --profile preview
 ```
 
@@ -189,7 +223,7 @@ patto/
 ├── assets/              アイコン・ロゴ（logo.svg が元データ）
 ├── docs/                仕様書・手順書
 ├── public/_headers      Web 公開時の HTTP ヘッダー（Cloudflare Pages）
-├── scripts/             ビルド補助スクリプト
+├── scripts/             Metro の Web アセットパス変換、Web ビルド成果物の検証
 ├── supabase/            SQL（migrations）と Edge Function
 ├── src/
 │   ├── components/      UI 部品

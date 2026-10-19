@@ -26,8 +26,8 @@ export const SYNC = {
   pageSize: 500,
   /** 変更後に自動同期を始めるまでの待ち時間(ms) */
   debounceMs: 2000,
-  /** 自動同期モードの定期同期間隔(ms) */
-  intervalMs: 60_000,
+  /** 自動同期モードの定期確認間隔(ms)。変更通知と復帰時の同期を優先し、定期通信を抑える。 */
+  intervalMs: 5 * 60_000,
   /** 再試行の間隔（指数バックオフ）(ms) */
   retryBaseMs: 5_000,
   retryMaxMs: 300_000,

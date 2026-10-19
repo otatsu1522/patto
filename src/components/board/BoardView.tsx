@@ -92,6 +92,7 @@ interface Props {
   onColumnDrop: (column: KanbanColumn, toIndex: number) => void;
   onAddTask: (column: KanbanColumn) => void;
   onCopyTitle: (task: Task) => void;
+  onCopyDescription: (task: Task) => void;
   onRefresh?: () => Promise<void>;
   /**
    * 画面上部のバー。スマホではメニューと一緒に横へ動かす（メニューを開くと、画面全体が右へずれてメニューが現れる）。
@@ -127,6 +128,7 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
   const { colors, isDark, lineWidth, lineColor, controlLineWidth, controlLineColor } = useTheme();
   const customOuterBorder = useSettingsStore((s) => s.settings.borderColor !== null);
   const { mode, width: windowWidth, height: windowHeight } = useLayoutMode();
+  const showTaskMetadataIcons = mode === 'expanded' || (Platform.OS === 'web' && !isTouchWeb);
   const insets = useSafeAreaInsets();
   // 画面切替直後に width=0 のため ScrollView 自体が描画されず、1フレーム白くなるのを防ぐ。
   // 初期値はウィンドウ寸法から安全領域を差し引いて見積もり、実際のレイアウト値は onLayout で同期する。
@@ -1062,6 +1064,7 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                     showTaskDescription={props.showTaskDescription}
                     showTaskDueDate={props.showTaskDueDate}
                     showTaskUpdatedAt={props.showTaskUpdatedAt}
+                    showTaskMetadataIcons={showTaskMetadataIcons}
                     cursorTaskIndex={
                       cursor && cursor.columnIndex === index ? cursor.taskIndex : null
                     }
@@ -1078,6 +1081,7 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                     onAdvance={props.onAdvance}
                     onAddTask={() => props.onAddTask(column)}
                     onCopyTitle={props.onCopyTitle}
+                    onCopyDescription={props.onCopyDescription}
                     connectHeaderLineToMenu={pane && index === 0}
                     onTaskMeasure={(taskId, node) => {
                       if (node) taskNodeRefs.current.set(taskId, node);

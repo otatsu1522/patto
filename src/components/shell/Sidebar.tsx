@@ -9,6 +9,7 @@ import { archivedProjects, visibleProjects } from '@/domain/selectors';
 import type { Project } from '@/domain/types';
 import { UserActionError } from '@/domain/operationError';
 import { pushUndo } from '@/features/undo';
+import { useManualSync } from '@/hooks/useManualSync';
 import { useProjectNavigation } from '@/hooks/useProjectNavigation';
 import { useLayoutMode } from '@/hooks/useLayout';
 import { closeSettingsMenu, requestSettingsMenuCloseAfterRender } from '@/hooks/settingsMenu';
@@ -16,7 +17,6 @@ import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
 import { t } from '@/i18n';
 import { useDataStore } from '@/store/dataStore';
 import { useUiStore } from '@/store/uiStore';
-import { syncNow } from '@/sync/controller';
 import { FONT, SPACING, useTheme, ICON_SIZE, ICON_BUTTON_BOX, LAYER, OPACITY } from '@/theme';
 import { ProjectDialog } from '../board/NameDialogs';
 import { AppText } from '../ui/AppText';
@@ -44,6 +44,7 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
   const pathname = usePathname();
   const { mode } = useLayoutMode();
   const { confirm, toast, alert } = useFeedback();
+  const syncManually = useManualSync();
   const sync = useSyncLabel();
   const identity = useAuthStore((s) => s.identity);
 
@@ -411,7 +412,7 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
               : sync.label
           }
           disabled={!sync.enabled}
-          onPress={() => void syncNow()}
+          onPress={() => void syncManually()}
           style={styles.footerRow}
         >
           <Icon name={sync.icon} size={ICON_SIZE.xl} color={sync.color} />

@@ -94,7 +94,7 @@ function Boot() {
   }, []);
 
   // Supabase の user_metadata はアカウント共通。別端末で更新された表示名・メールを、
-  // フォーカス復帰時と表示中の定期確認で取り込み、端末内キャッシュのままにしない。
+  // フォーカス復帰時に取り込む。表示中の定期ポーリングは行わない。
   useEffect(() => {
     if (!remoteIdentityId || !isSupabaseConfigured) return;
     const refresh = () => {
@@ -108,12 +108,10 @@ function Boot() {
     };
 
     refresh();
-    const interval = setInterval(refresh, TIMING.identityRefreshIntervalMs);
     if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof document !== 'undefined') {
       window.addEventListener('focus', refresh);
       document.addEventListener('visibilitychange', refresh);
       return () => {
-        clearInterval(interval);
         window.removeEventListener('focus', refresh);
         document.removeEventListener('visibilitychange', refresh);
       };
@@ -122,7 +120,6 @@ function Boot() {
       if (state === 'active') refresh();
     });
     return () => {
-      clearInterval(interval);
       subscription.remove();
     };
   }, [remoteIdentityId]);

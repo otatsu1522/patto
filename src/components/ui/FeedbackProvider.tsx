@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -20,6 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SystemBars } from './SystemBars';
 import { getSystemBarInsets } from '@/lib/systemBarInsets';
 import { DIAGNOSTIC_MESSAGES } from '@/config/diagnostics';
+import { useUiStore } from '@/store/uiStore';
 
 export interface ConfirmOptions {
   title: string;
@@ -66,6 +68,15 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   const insets = getSystemBarInsets(useSafeAreaInsets());
   const [dialog, setDialog] = useState<ConfirmOptions | null>(null);
   const [dialogMode, setDialogMode] = useState<'confirm' | 'alert'>('confirm');
+  const pushDialog = useUiStore((s) => s.pushDialog);
+  const popDialog = useUiStore((s) => s.popDialog);
+  const isDialogVisible = dialog !== null;
+
+  useLayoutEffect(() => {
+    if (!isDialogVisible) return;
+    pushDialog();
+    return popDialog;
+  }, [isDialogVisible, pushDialog, popDialog]);
   const resolver = useRef<((r: ConfirmResult) => void) | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
   const settings = useSettingsStore((s) => s.settings);

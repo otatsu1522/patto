@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type { Task } from '@/domain/types';
 import type { IconKey } from '@/config/icons';
 import { formatDue } from '@/domain/due';
@@ -6,10 +7,11 @@ import { UI_METRICS } from '@/config/layout';
 import { t } from '@/i18n';
 import { AppText } from '../ui/AppText';
 import { Button } from '../ui/Button';
+import { CalendarDialog } from '../ui/CalendarDialog';
 import { Dialog } from '../ui/Dialog';
 import { Icon } from '../ui/Icon';
 import { SPACING, useTheme, ICON_SIZE } from '@/theme';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Keyboard, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 
 interface Props {
@@ -22,6 +24,7 @@ interface Props {
   onCopyTitle: () => void;
   onCopyDescription: () => void;
   onToggleFavorite: (task: Task) => void;
+  onSetDue: (task: Task, dueAt: number | null) => void;
   projectName?: string;
   columnName?: string;
 }
@@ -37,10 +40,18 @@ export function RecordDetailsDialog({
   onCopyTitle,
   onCopyDescription,
   onToggleFavorite,
+  onSetDue,
   projectName,
   columnName,
 }: Props) {
   const { colors, taskColor, lineWidth, lineColor } = useTheme();
+  const [calendarVisible, setCalendarVisible] = useState(false);
+
+  /* eslint-disable react-hooks/set-state-in-effect -- 詳細ダイアログが閉じた場合、期限選択を次回表示へ持ち越さない */
+  useEffect(() => {
+    if (!visible) setCalendarVisible(false);
+  }, [visible]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const copyText = async (value: string, onCopied: () => void) => {
     try {
@@ -135,128 +146,162 @@ export function RecordDetailsDialog({
   );
 
   return (
-    <Dialog
-      visible={visible && !!record}
-      title={t('task.detailsTitle')}
-      onClose={onClose}
-      onDismiss={onDismiss}
-      dismissImmediately={dismissImmediately}
-      footer={
-        <View style={styles.footerButtons}>
-          <Button
-            label={t('task.edit')}
-            variant="primary"
-            onPress={() => onEdit(task)}
-            style={styles.footerButton}
-          />
-          <Button
-            label={t('common.close')}
-            variant="secondary"
-            onPress={onClose}
-            style={styles.footerButton}
-          />
-        </View>
-      }
-    >
-      <View style={styles.locationRow}>
-        <AppText numberOfLines={UI_METRICS.text.singleLineMax} style={styles.locationName}>
-          {projectName || t('common.none')}
-        </AppText>
-        <AppText muted>{t('task.locationSeparator')}</AppText>
-        <AppText numberOfLines={UI_METRICS.text.singleLineMax} style={styles.locationName}>
-          {columnName || t('common.none')}
-        </AppText>
-      </View>
-
-      <View style={styles.section}>
-        <AppText variant="caption" muted style={styles.fieldLabel}>
-          {t('common.title')}
-        </AppText>
-        <View style={styles.valueRow}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('task.copyTitleAction')}
-            hitSlop={4}
-            onPress={() => void copyText(task.title, onCopyTitle)}
-            style={styles.copySlot}
-          >
-            <View
-              style={[
-                styles.colorDot,
-                task.color
-                  ? { backgroundColor: taskColor(task.color) }
-                  : { borderColor: colors.border, borderWidth: lineWidth },
-              ]}
+    <>
+      <Dialog
+        visible={visible && !!record}
+        title={t('task.detailsTitle')}
+        onClose={() => {
+          setCalendarVisible(false);
+          onClose();
+        }}
+        onDismiss={() => {
+          setCalendarVisible(false);
+          onDismiss();
+        }}
+        dismissImmediately={dismissImmediately}
+        footer={
+          <View style={styles.footerButtons}>
+            <Button
+              label={t('task.edit')}
+              variant="primary"
+              onPress={() => {
+                setCalendarVisible(false);
+                onEdit(task);
+              }}
+              style={styles.footerButton}
             />
-          </Pressable>
-          <AppText selectable style={styles.value}>
-            {task.title}
+            <Button
+              label={t('common.close')}
+              variant="secondary"
+              onPress={() => {
+                setCalendarVisible(false);
+                onClose();
+              }}
+              style={styles.footerButton}
+            />
+          </View>
+        }
+      >
+        <View style={styles.locationRow}>
+          <AppText numberOfLines={UI_METRICS.text.singleLineMax} style={styles.locationName}>
+            {projectName || t('common.none')}
+          </AppText>
+          <AppText muted>{t('task.locationSeparator')}</AppText>
+          <AppText numberOfLines={UI_METRICS.text.singleLineMax} style={styles.locationName}>
+            {columnName || t('common.none')}
           </AppText>
         </View>
-      </View>
-      <View style={styles.section}>
-        <AppText variant="caption" muted style={styles.fieldLabel}>
-          {t('common.description')}
-        </AppText>
-        <View style={styles.valueRow}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('task.copyDescriptionAction')}
-            hitSlop={4}
-            onPress={() => void copyText(task.description, onCopyDescription)}
-            style={styles.copySlot}
-          >
-            <Icon name="document" size={ICON_SIZE.sm} color={colors.textMuted} />
-          </Pressable>
-          <AppText
-            selectable
-            style={styles.value}
-            color={!description ? colors.textMuted : colors.text}
-          >
-            {description ? renderDescription(description) : t('common.noDescription')}
-          </AppText>
-        </View>
-      </View>
-      {detail(
-        t('task.favorite'),
-        task.isFavorite ? t('common.yes') : t('common.no'),
-        false,
-        task.isFavorite ? 'pin' : 'unpin',
-        () => onToggleFavorite(task),
-        task.isFavorite ? t('common.unfavorite') : t('common.favorite'),
-      )}
-      {detail(t('task.due'), due, task.dueAt === null, 'calendar')}
-      {task.completedAt ? detail(t('task.completedAt'), formatDateTime(task.completedAt)) : null}
-      {task.archivedAt ? detail(t('common.archive'), formatDateTime(task.archivedAt)) : null}
-      {task.deletedAt !== null
-        ? detail(t('common.deletedAt'), formatDateTime(task.deletedAt))
-        : null}
 
-      <View style={[styles.dateRow, { borderTopColor: lineColor, borderTopWidth: lineWidth }]}>
-        <View style={styles.dateCell}>
-          <View style={styles.dateLabel}>
-            <Icon name="edit" size={ICON_SIZE.md} color={colors.textMuted} />
-            <AppText variant="caption" muted style={styles.fieldLabel}>
-              {t('common.createdAt')}
+        <View style={styles.section}>
+          <AppText variant="caption" muted style={styles.fieldLabel}>
+            {t('common.title')}
+          </AppText>
+          <View style={styles.valueRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('task.copyTitleAction')}
+              hitSlop={4}
+              onPress={() => void copyText(task.title, onCopyTitle)}
+              style={styles.copySlot}
+            >
+              <View
+                style={[
+                  styles.colorDot,
+                  task.color
+                    ? { backgroundColor: taskColor(task.color) }
+                    : { borderColor: colors.border, borderWidth: lineWidth },
+                ]}
+              />
+            </Pressable>
+            <AppText selectable style={styles.value}>
+              {task.title}
             </AppText>
           </View>
-          <AppText selectable style={styles.value}>
-            {formatDateTime(task.createdAt)}
-          </AppText>
         </View>
-        <View style={styles.dateCell}>
-          <View style={styles.dateLabel}>
-            <Icon name="refresh" size={ICON_SIZE.md} color={colors.textMuted} />
-            <AppText variant="caption" muted style={styles.fieldLabel}>
-              {t('common.updatedAt')}
+        <View style={styles.section}>
+          <AppText variant="caption" muted style={styles.fieldLabel}>
+            {t('common.description')}
+          </AppText>
+          <View style={styles.valueRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('task.copyDescriptionAction')}
+              hitSlop={4}
+              onPress={() => void copyText(task.description, onCopyDescription)}
+              style={styles.copySlot}
+            >
+              <Icon name="document" size={ICON_SIZE.sm} color={colors.textMuted} />
+            </Pressable>
+            <AppText
+              selectable
+              style={styles.value}
+              color={!description ? colors.textMuted : colors.text}
+            >
+              {description ? renderDescription(description) : t('common.noDescription')}
             </AppText>
           </View>
-          <AppText selectable style={styles.value}>
-            {formatDateTime(task.updatedAt)}
-          </AppText>
         </View>
-      </View>
-    </Dialog>
+        {detail(
+          t('task.favorite'),
+          task.isFavorite ? t('common.yes') : t('common.no'),
+          false,
+          task.isFavorite ? 'pin' : 'unpin',
+          () => onToggleFavorite(task),
+          task.isFavorite ? t('common.unfavorite') : t('common.favorite'),
+        )}
+        {detail(
+          t('task.due'),
+          due,
+          task.dueAt === null,
+          'calendar',
+          () => {
+            // カレンダーを閉じた際に背面の入力欄へフォーカスが戻らないようにする。
+            Keyboard.dismiss();
+            setCalendarVisible(true);
+          },
+          t('task.dueOpen'),
+        )}
+        {task.completedAt ? detail(t('task.completedAt'), formatDateTime(task.completedAt)) : null}
+        {task.archivedAt ? detail(t('common.archive'), formatDateTime(task.archivedAt)) : null}
+        {task.deletedAt !== null
+          ? detail(t('common.deletedAt'), formatDateTime(task.deletedAt))
+          : null}
+
+        <View style={[styles.dateRow, { borderTopColor: lineColor, borderTopWidth: lineWidth }]}>
+          <View style={styles.dateCell}>
+            <View style={styles.dateLabel}>
+              <Icon name="edit" size={ICON_SIZE.md} color={colors.textMuted} />
+              <AppText variant="caption" muted style={styles.fieldLabel}>
+                {t('common.createdAt')}
+              </AppText>
+            </View>
+            <AppText selectable style={styles.value}>
+              {formatDateTime(task.createdAt)}
+            </AppText>
+          </View>
+          <View style={styles.dateCell}>
+            <View style={styles.dateLabel}>
+              <Icon name="refresh" size={ICON_SIZE.md} color={colors.textMuted} />
+              <AppText variant="caption" muted style={styles.fieldLabel}>
+                {t('common.updatedAt')}
+              </AppText>
+            </View>
+            <AppText selectable style={styles.value}>
+              {formatDateTime(task.updatedAt)}
+            </AppText>
+          </View>
+        </View>
+      </Dialog>
+      <CalendarDialog
+        visible={calendarVisible && visible}
+        value={task.dueAt}
+        onClose={() => setCalendarVisible(false)}
+        onSelect={(dueAt) => {
+          onSetDue(task, dueAt);
+          setCalendarVisible(false);
+        }}
+      />
+    </>
   );
 }
 

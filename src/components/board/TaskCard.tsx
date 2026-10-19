@@ -1,5 +1,5 @@
-import { useRef } from 'react';
-import { Keyboard, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { useRef, type ComponentType, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { Keyboard, Platform, Pressable, StyleSheet, View, type ViewProps } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { GestureDetector } from 'react-native-gesture-handler';
 import { UI_METRICS } from '@/config/layout';
@@ -18,6 +18,35 @@ import { useDragGesture, type DragHandlers } from './dragGesture';
 import { BORDER_WIDTH_EMPHASIS } from '@/theme/tokens';
 import { canHover, isTouchWeb } from '@/lib/hover';
 
+type WebClickableViewProps = ViewProps & {
+  onClick?: () => void;
+  onKeyDown?: (event: ReactKeyboardEvent<HTMLElement>) => void;
+  tabIndex?: 0 | -1;
+};
+const WebClickableView = View as ComponentType<WebClickableViewProps>;
+
+function CardBodyTrigger({ onActivate, ...props }: ViewProps & { onActivate: () => void }) {
+  if (Platform.OS === 'web') {
+    return (
+      <WebClickableView
+        {...props}
+        accessibilityRole={undefined}
+        role="group"
+        tabIndex={0}
+        onClick={onActivate}
+        onKeyDown={(event) => {
+          if (event.target !== event.currentTarget) return;
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            onActivate();
+          }
+        }}
+      />
+    );
+  }
+  return <Pressable {...props} onPress={onActivate} />;
+}
+
 interface Props {
   task: Task;
   done: boolean;
@@ -32,13 +61,15 @@ interface Props {
   showDescription: boolean;
   showDueDate: boolean;
   showUpdatedAt: boolean;
+  showMetadataIcons: boolean;
   onAdvance: () => void;
   onCopyTitle: () => void;
+  onCopyDescription: () => void;
   onMeasure?: (id: string, node: View | null) => void;
   drag: DragHandlers;
 }
 
-/** タスクカード。色丸の押下でタイトルをコピーし、右端のボタンで次のカンバンへ移動する。 */
+/** タスクカード。タイトル・説明のコピーと次のカンバンへの移動を操作する。 */
 export function TaskCard({
   task,
   done,
@@ -53,8 +84,10 @@ export function TaskCard({
   showDescription,
   showDueDate,
   showUpdatedAt,
+  showMetadataIcons,
   onAdvance,
   onCopyTitle,
+  onCopyDescription,
   onMeasure,
   drag,
 }: Props) {
@@ -101,6 +134,58 @@ export function TaskCard({
     ? `${t('task.due')}: ${formatDue(due)}${dueStatus ? ` ${dueStatus}` : ''}`
     : '';
   const strike = done ? styles.done : undefined;
+  const descriptionVisible = showDescription && task.description.trim().length > 0;
+  const metadataIconsVisible = showMetadataIcons;
+
+  const copyText = async (value: string, onCopied: () => void) => {
+    try {
+      await Clipboard.setStringAsync(value);
+      onCopied();
+    } catch {
+      // クリップボードが利用できない環境では、タスク操作自体には影響させない。
+    }
+  };
+  const bodyVerticalPadding = compact
+    ? SPACING.sm
+    : SPACING.md + UI_METRICS.board.taskContentPaddingAdjustment;
+  const bodyGap = SPACING.xs + UI_METRICS.board.taskContentGapAdjustment;
+  const metadata =
+    (showDueDate && due) || showUpdatedAt ? (
+      <View style={styles.metadataList}>
+        {showDueDate && due ? (
+          <View style={styles.metadataItem}>
+            {metadataIconsVisible ? (
+              <Icon name="calendar" size={ICON_SIZE.md} color={dueColor} />
+            ) : null}
+            <AppText
+              variant="caption"
+              numberOfLines={UI_METRICS.text.singleLineMax}
+              ellipsizeMode="tail"
+              color={dueColor}
+              style={[styles.metadataText, strike]}
+            >
+              {dueText}
+            </AppText>
+          </View>
+        ) : null}
+        {showUpdatedAt ? (
+          <View style={styles.metadataItem}>
+            {metadataIconsVisible ? (
+              <Icon name="refresh" size={ICON_SIZE.md} color={colors.textMuted} />
+            ) : null}
+            <AppText
+              variant="caption"
+              muted
+              numberOfLines={UI_METRICS.text.singleLineMax}
+              ellipsizeMode="tail"
+              style={[styles.metadataText, strike]}
+            >
+              {`${t('task.updatedShort')}: ${formatDateTime(task.updatedAt)}`}
+            </AppText>
+          </View>
+        ) : null}
+      </View>
+    ) : null;
 
   return (
     <View
@@ -121,34 +206,29 @@ export function TaskCard({
         grabbed && { backgroundColor: colors.hover, borderStyle: 'dashed' },
       ]}
     >
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t('task.copyTitleAction')}
-        onPress={async () => {
-          try {
-            const copied = await Clipboard.setStringAsync(task.title);
-            if (copied) onCopyTitle();
-          } catch {
-            // クリップボードが利用できない環境では、タスク操作自体には影響させない。
-          }
-        }}
-        style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
-          styles.colorButton,
-          { backgroundColor: pressed || (hovered && canHover) ? colors.hover : 'transparent' },
-        ]}
-      >
-        {task.color ? (
-          <View style={[styles.dot, { backgroundColor: taskColor(task.color) }]} />
-        ) : (
-          <View
-            style={[
-              styles.dot,
-              styles.emptyDot,
-              { borderColor: colors.border, borderWidth: lineWidth },
-            ]}
-          />
-        )}
-      </Pressable>
+      {!descriptionVisible ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('task.copyTitleAction')}
+          onPress={() => void copyText(task.title, onCopyTitle)}
+          style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
+            styles.colorButton,
+            { backgroundColor: pressed || (hovered && canHover) ? colors.hover : 'transparent' },
+          ]}
+        >
+          {task.color ? (
+            <View style={[styles.dot, { backgroundColor: taskColor(task.color) }]} />
+          ) : (
+            <View
+              style={[
+                styles.dot,
+                styles.emptyDot,
+                { borderColor: colors.border, borderWidth: lineWidth },
+              ]}
+            />
+          )}
+        </Pressable>
+      ) : null}
       <DropdownMenu
         items={menuItems}
         anchorStyle={styles.anchor}
@@ -158,68 +238,104 @@ export function TaskCard({
             touchAction={Platform.OS === 'web' && isTouchWeb ? 'auto' : 'manipulation'}
             enableContextMenu={false}
           >
-            <Pressable
+            <CardBodyTrigger
               accessibilityRole="button"
               accessibilityLabel={task.title}
-              onPress={() => {
+              onActivate={() => {
                 if (Date.now() - lastDragEnd.current > TIMING.taskClickAfterDragGuardMs) open();
               }}
-              style={[styles.body, compact && styles.compactBody]}
+              style={[
+                styles.body,
+                compact && styles.compactBody,
+                descriptionVisible && styles.bodyWithDescription,
+              ]}
             >
-              <View style={styles.titleRow}>
+              <View style={[styles.titleRow, descriptionVisible && { gap: 0 }]}>
+                {descriptionVisible ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t('task.copyTitleAction')}
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      void copyText(task.title, onCopyTitle);
+                    }}
+                    style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
+                      styles.inlineAction,
+                      {
+                        paddingTop: bodyVerticalPadding,
+                        paddingBottom: bodyGap,
+                      },
+                      {
+                        backgroundColor:
+                          pressed || (hovered && canHover) ? colors.hover : 'transparent',
+                      },
+                    ]}
+                  >
+                    {task.color ? (
+                      <View style={[styles.dot, { backgroundColor: taskColor(task.color) }]} />
+                    ) : (
+                      <View
+                        style={[
+                          styles.dot,
+                          styles.emptyDot,
+                          { borderColor: colors.border, borderWidth: lineWidth },
+                        ]}
+                      />
+                    )}
+                  </Pressable>
+                ) : null}
                 <AppText
                   bold
                   numberOfLines={compact ? UI_METRICS.text.previewLines : undefined}
                   ellipsizeMode="tail"
-                  style={[styles.title, strike]}
+                  style={[
+                    styles.title,
+                    strike,
+                    descriptionVisible && {
+                      paddingTop: bodyVerticalPadding,
+                      paddingBottom: bodyGap,
+                    },
+                  ]}
                 >
                   {task.title}
                 </AppText>
               </View>
-              {showDescription && task.description ? (
-                <AppText
-                  variant="caption"
-                  muted
-                  numberOfLines={detailed ? undefined : UI_METRICS.text.previewLines}
-                  ellipsizeMode="tail"
-                  style={strike}
-                >
-                  {task.description}
-                </AppText>
-              ) : null}
-              {(showDueDate && due) || showUpdatedAt ? (
-                <View style={styles.metadataList}>
-                  {showDueDate && due ? (
-                    <View style={styles.metadataItem}>
-                      <Icon name="calendar" size={ICON_SIZE.md} color={dueColor} />
-                      <AppText
-                        variant="caption"
-                        numberOfLines={UI_METRICS.text.singleLineMax}
-                        ellipsizeMode="tail"
-                        color={dueColor}
-                        style={[styles.metadataText, strike]}
-                      >
-                        {dueText}
-                      </AppText>
-                    </View>
-                  ) : null}
-                  {showUpdatedAt ? (
-                    <View style={styles.metadataItem}>
-                      <Icon name="refresh" size={ICON_SIZE.md} color={colors.textMuted} />
-                      <AppText
-                        variant="caption"
-                        muted
-                        numberOfLines={UI_METRICS.text.singleLineMax}
-                        ellipsizeMode="tail"
-                        style={[styles.metadataText, strike]}
-                      >
-                        {`${t('task.updatedShort')}: ${formatDateTime(task.updatedAt)}`}
-                      </AppText>
-                    </View>
-                  ) : null}
+              {descriptionVisible ? (
+                <View style={styles.descriptionRow}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t('task.copyDescriptionAction')}
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      void copyText(task.description, onCopyDescription);
+                    }}
+                    style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
+                      styles.inlineAction,
+                      { paddingBottom: bodyVerticalPadding },
+                      {
+                        backgroundColor:
+                          pressed || (hovered && canHover) ? colors.hover : 'transparent',
+                      },
+                    ]}
+                  >
+                    <Icon name="document" size={ICON_SIZE.md} color={colors.textMuted} />
+                  </Pressable>
+                  <View style={[styles.descriptionContent, { paddingBottom: bodyVerticalPadding }]}>
+                    <AppText
+                      variant="caption"
+                      muted
+                      numberOfLines={detailed ? undefined : UI_METRICS.text.previewLines}
+                      ellipsizeMode="tail"
+                      style={[styles.descriptionText, strike]}
+                    >
+                      {task.description}
+                    </AppText>
+                    {metadata}
+                  </View>
                 </View>
               ) : null}
-            </Pressable>
+              {!descriptionVisible ? metadata : null}
+            </CardBodyTrigger>
           </GestureDetector>
         )}
       />
@@ -261,8 +377,23 @@ const styles = StyleSheet.create({
     cursor: 'grab',
   } as never,
   compactBody: { paddingVertical: SPACING.sm },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  title: { flexShrink: 1 },
+  bodyWithDescription: { paddingVertical: 0, gap: 0 },
+  titleRow: { flexDirection: 'row', alignItems: 'stretch' },
+  descriptionRow: { flexDirection: 'row', alignItems: 'stretch' },
+  descriptionContent: {
+    flex: 1,
+    minWidth: 0,
+    gap: SPACING.xs + UI_METRICS.board.taskContentGapAdjustment,
+  },
+  inlineAction: {
+    width: UI_METRICS.board.taskActionWidth,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  title: { flexShrink: 1, minWidth: 0 },
+  descriptionText: { flexShrink: 1, minWidth: 0 },
   dot: {
     width: UI_METRICS.board.colorDotSize,
     height: UI_METRICS.board.colorDotSize,

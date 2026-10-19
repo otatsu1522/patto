@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BOARD, UI_METRICS } from '@/config/layout';
@@ -9,6 +17,7 @@ import type { MenuItem } from './DropdownMenu';
 import { Icon } from './Icon';
 import { canHover } from '@/lib/hover';
 import { DIAGNOSTIC_MESSAGES } from '@/config/diagnostics';
+import { useUiStore } from '@/store/uiStore';
 
 interface Rect {
   x: number;
@@ -43,8 +52,16 @@ export function MenuProvider({ children }: { children: ReactNode }) {
   const insets = useSafeAreaInsets();
   const [menu, setMenu] = useState<{ anchor: Rect; items: MenuItem[] } | null>(null);
 
-  const hide = useCallback(() => setMenu(null), []);
-  const show = useCallback((anchor: Rect, items: MenuItem[]) => setMenu({ anchor, items }), []);
+  const hide = useCallback(() => {
+    setMenu(null);
+    useUiStore.getState().setDropdownMenuOpen(false);
+  }, []);
+  const show = useCallback((anchor: Rect, items: MenuItem[]) => {
+    useUiStore.getState().setDropdownMenuOpen(true);
+    setMenu({ anchor, items });
+  }, []);
+
+  useEffect(() => () => useUiStore.getState().setDropdownMenuOpen(false), []);
   const host = useMemo(() => ({ show, hide }), [show, hide]);
 
   const width = Math.min(

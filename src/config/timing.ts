@@ -8,8 +8,6 @@ export const TIMING = {
   authBootstrapTimeoutMs: 20_000,
   /** ローカルDBのオープン／読み込みタイムアウト */
   dbOpenTimeoutMs: 15_000,
-  /** アカウント情報を再確認する間隔 */
-  identityRefreshIntervalMs: 60_000,
   /** Androidで戻るキーを2回押して終了するまでの間隔 */
   androidBackExitWindowMs: 2000,
   /** スクロールイベント通知間隔 */

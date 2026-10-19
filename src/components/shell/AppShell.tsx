@@ -22,12 +22,12 @@ import {
   scheduleDrawerCloseAfterRender,
 } from '@/hooks/drawerTransition';
 import { useProjectNavigation } from '@/hooks/useProjectNavigation';
+import { useManualSync } from '@/hooks/useManualSync';
 import { useShortcuts } from '@/shortcuts/useShortcuts';
 import { useDataStore } from '@/store/dataStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useUiStore } from '@/store/uiStore';
 import { GESTURE, UI_METRICS } from '@/config/layout';
-import { syncNow } from '@/sync/controller';
 import { useTheme } from '@/theme';
 import { GlobalSearchDialog } from '../board/GlobalSearchDialog';
 import { ProjectDialog } from '../board/NameDialogs';
@@ -59,6 +59,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const navigateToProject = useProjectNavigation();
   const { toast } = useFeedback();
+  const syncManually = useManualSync();
   const pathname = usePathname();
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
   const toggleCollapsed = useUiStore((s) => s.toggleSidebarCollapsed);
@@ -491,7 +492,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       s.update({ themeMode: s.settings.themeMode === 'dark' ? 'light' : 'dark' });
     },
     showHelp: () => useUiStore.getState().setHelpOpen(true),
-    sync: () => void syncNow(),
+    sync: () => void syncManually(),
     undo: () => void popUndo(),
   });
 

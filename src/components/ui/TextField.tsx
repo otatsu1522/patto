@@ -261,7 +261,9 @@ export const TextField = forwardRef<TextInput, Props>(function TextField(
                 // 編集時は最初のサイズ通知から既に折り返し済みの場合がある。
                 // 空欄の実測値を基準にする従来方式では、その折り返し分を失うため、
                 // 初期値がある場合は1行分の高さを基準として初回から拡張する。
-                const singleLineBaseline = autoGrowLineHeight;
+                // ネイティブ TextInput の contentSize には上下 padding が含まれる。
+                // 1行分の基準にも padding を含めないと、1行の既存タイトルを2行分と誤判定する。
+                const singleLineBaseline = autoGrowLineHeight + autoGrowVerticalPadding * 2;
                 baselineContentHeight.current = hasInitialValue
                   ? singleLineBaseline
                   : contentHeight;

@@ -41,6 +41,8 @@ interface Props {
   onShow?: () => void;
   /** Modal の終了イベント後に呼び出す（次のダイアログを競合せず開く用途）。 */
   onDismiss?: () => void;
+  /** 期限カレンダーなどの子ダイアログ表示中、親ダイアログのキーボード配置を維持する。 */
+  preserveKeyboardLayout?: boolean;
   /** 旧呼び出し元との互換用。現在のダイアログはアニメーションなしで表示を切り替える。 */
   dismissImmediately?: boolean;
 }
@@ -57,10 +59,13 @@ export function Dialog({
   dismissible = true,
   onShow,
   onDismiss,
+  preserveKeyboardLayout = false,
 }: Props) {
   const { colors, lineWidth, lineColor } = useTheme();
   const insets = getSystemBarInsets(useSafeAreaInsets());
   const { mode } = useLayoutMode();
+  const footerInBody =
+    (mode === 'compact' || Platform.OS !== 'web' || isTouchWeb) && !fixedBody && !!footer;
   const push = useUiStore((s) => s.pushDialog);
   const pop = useUiStore((s) => s.popDialog);
   const bodyScrollRef = useWebWheelScroll({
@@ -82,7 +87,15 @@ export function Dialog({
   // フォーカス状態とキーボードが実際に表示された状態を分離する。
   // KeyboardAvoidingView の behavior は表示中ずっと固定し、フォーカス時の後追いレイアウト変更を防ぐ。
   const dialogInputFocusedRef = useRef(false);
+  // onShow から入力欄へ自動フォーカスする間、native の Keyboard イベントが
+  // TextInput の onFocus より先に届いても、キーボード表示状態を取りこぼさない。
+  const dialogInputFocusRequestedRef = useRef(false);
   const nativeKeyboardSessionRef = useRef(false);
+  const preserveKeyboardLayoutRef = useRef(preserveKeyboardLayout);
+  useLayoutEffect(() => {
+    preserveKeyboardLayoutRef.current = preserveKeyboardLayout;
+  }, [preserveKeyboardLayout]);
+  const keyboardTrackingSuspendedRef = useRef(false);
   // Web では blur がキーボード閉じ始めより先に届くため、viewport が戻るまでセッションを保持する。
   const webKeyboardSessionRef = useRef(false);
   const webViewportBaselineHeightRef = useRef(
@@ -121,6 +134,7 @@ export function Dialog({
     (input?: TextInput | null) => {
       if (input === null || input === undefined) {
         dialogInputFocusedRef.current = false;
+        dialogInputFocusRequestedRef.current = false;
       } else if (Platform.OS === 'web') {
         // TextField はフォーカス時だけでなく、内容サイズ変化時にもこの通知を送る。
         // DOM 上の activeElement と照合し、サイズ変更をフォーカス開始と誤認しない。
@@ -136,6 +150,7 @@ export function Dialog({
       } else {
         // ネイティブでも内容サイズ変更通知を受けるため、実際の入力フォーカスを確認する。
         dialogInputFocusedRef.current = input.isFocused();
+        if (dialogInputFocusedRef.current) dialogInputFocusRequestedRef.current = false;
       }
       revealFocusedInput(input);
     },
@@ -164,6 +179,7 @@ export function Dialog({
   // layout effect で描画前に戻し、最初のフレームだけ位置が変わるちらつきを避ける。
   useLayoutEffect(() => {
     dialogInputFocusedRef.current = false;
+    dialogInputFocusRequestedRef.current = false;
     nativeKeyboardSessionRef.current = false;
     webKeyboardSessionRef.current = false;
     // 開くときは keyboardStateMatchesVisibility によって前回値を描画へ使わないため、
@@ -213,7 +229,17 @@ export function Dialog({
 
   useEffect(() => {
     // 非表示のダイアログはキーボードを監視しない。前回値は layout effect で初期化する。
-    if (!visible) return;
+    if (!visible) {
+      keyboardTrackingSuspendedRef.current = false;
+      return;
+    }
+    // 子ダイアログを開いている間は、親の keyboard state を維持して hide イベントを無視する。
+    if (preserveKeyboardLayout) {
+      keyboardTrackingSuspendedRef.current = true;
+      return;
+    }
+    const resumedAfterChildDialog = keyboardTrackingSuspendedRef.current;
+    keyboardTrackingSuspendedRef.current = false;
 
     if (Platform.OS === 'web') {
       if (!isTouchWeb || typeof window === 'undefined' || typeof document === 'undefined') return;
@@ -221,13 +247,16 @@ export function Dialog({
       if (!viewport) return;
       let frame = 0;
       const update = () => {
+        if (preserveKeyboardLayoutRef.current) return;
         if (frame) cancelAnimationFrame(frame);
         frame = requestAnimationFrame(() => {
+          if (preserveKeyboardLayoutRef.current) return;
           // ブラウザーのアドレスバーによる visualViewport の変化をキーボードと誤認しない。
           // 実際に入力要素へフォーカスがある場合に限り、表示領域の下端との差を採用する。
           const active = document.activeElement;
+          // フォーカス通知と DOM の activeElement の更新順は、別ダイアログから
+          // 切り替えた直後にずれることがある。実際に入力要素が active なら検出する。
           const focusedInput =
-            dialogInputFocusedRef.current &&
             active instanceof HTMLElement &&
             active.matches('input, textarea, [contenteditable="true"]');
           const visibleBottom = viewport.offsetTop + viewport.height;
@@ -277,18 +306,42 @@ export function Dialog({
 
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    let pendingShowFrame: number | null = null;
+    let resumeFrame: number | null = null;
+    if (resumedAfterChildDialog) {
+      // カレンダーを閉じた時点の実際のキーボード状態で親ダイアログを再同期する。
+      resumeFrame = requestAnimationFrame(() => {
+        resumeFrame = null;
+        const keyboardVisible = Keyboard.isVisible();
+        nativeKeyboardSessionRef.current = keyboardVisible;
+        updateKeyboardState(keyboardVisible);
+      });
+    }
     const show = Keyboard.addListener(showEvent, (event) => {
-      // Keyboard イベントはアプリ全体へ届くため、入力欄を持たないダイアログでは無視する。
-      // 直前の別ダイアログの遅延イベントで、非入力ダイアログの位置が動くのを防ぐ。
-      // 実際にこのダイアログの入力欄がフォーカス中の場合に限って、
-      // キーボード表示イベントを位置調整へ反映する。
-      if (!dialogInputFocusedRef.current) return;
-      nativeKeyboardSessionRef.current = true;
-      if (Platform.OS === 'ios') Keyboard.scheduleLayoutAnimation(event);
-      updateKeyboardState(true);
+      // 別ダイアログから切り替えた直後は、入力欄のフォーカス通知より
+      // キーボード表示イベントが先に届くことがあるため、次フレームでも確認する。
+      const applyShow = () => {
+        pendingShowFrame = null;
+        if (preserveKeyboardLayoutRef.current) return;
+        // Keyboard イベントはアプリ全体へ届くため、入力欄を持たないダイアログでは無視する。
+        // 自動フォーカス要求済みなら、onFocus 通知より先に届いた正当なイベントを受理する。
+        if (!dialogInputFocusedRef.current && !dialogInputFocusRequestedRef.current) return;
+        dialogInputFocusRequestedRef.current = false;
+        nativeKeyboardSessionRef.current = true;
+        if (Platform.OS === 'ios') Keyboard.scheduleLayoutAnimation(event);
+        updateKeyboardState(true);
+      };
+      if (dialogInputFocusedRef.current || dialogInputFocusRequestedRef.current) {
+        applyShow();
+      } else {
+        if (pendingShowFrame !== null) cancelAnimationFrame(pendingShowFrame);
+        pendingShowFrame = requestAnimationFrame(applyShow);
+      }
     });
     const hide = Keyboard.addListener(hideEvent, (event) => {
+      if (preserveKeyboardLayoutRef.current) return;
       // blur が Keyboard hide より先に届いても、表示済みセッションの終了だけは処理する。
+      dialogInputFocusRequestedRef.current = false;
       if (!nativeKeyboardSessionRef.current) return;
       nativeKeyboardSessionRef.current = false;
       if (Platform.OS === 'ios') Keyboard.scheduleLayoutAnimation(event);
@@ -297,19 +350,21 @@ export function Dialog({
       // 入力フォーカス自体は TextField の blur 通知に任せる。
     });
     return () => {
+      if (pendingShowFrame !== null) cancelAnimationFrame(pendingShowFrame);
+      if (resumeFrame !== null) cancelAnimationFrame(resumeFrame);
       show.remove();
       hide.remove();
     };
-  }, [visible, updateKeyboardState]);
+  }, [visible, preserveKeyboardLayout, updateKeyboardState]);
 
   const handleShow = () => {
     // Web は現在の visualViewport とフォーカス状態から計測する。
-    // ネイティブはこの Modal の keyboard show イベントから位置を更新し、前のModalの状態を使わない。
+    // ネイティブは onShow 内の自動フォーカスより Keyboard イベントが先に届く場合に備え、
+    // 入力欄へフォーカスする要求を先に記録する。
     if (Platform.OS === 'web') {
       const viewport = typeof window !== 'undefined' ? window.visualViewport : undefined;
       const active = typeof document !== 'undefined' ? document.activeElement : null;
       const focusedInput =
-        dialogInputFocusedRef.current &&
         active instanceof HTMLElement &&
         active.matches('input, textarea, [contenteditable="true"]');
       if (isTouchWeb && viewport && focusedInput) {
@@ -332,13 +387,20 @@ export function Dialog({
         webKeyboardSessionRef.current = false;
         updateKeyboardState(false);
       }
+    } else {
+      dialogInputFocusRequestedRef.current = Boolean(onShow);
+      if (onShow) {
+        // 自動フォーカスがキーボード表示イベントより先に走るため、イベント待ちの間も
+        // 下余白をなくし、ダイアログをキーボード回避後の領域の下端に配置する。
+        // KeyboardAvoidingView が OS ごとのキーボード表示領域を反映する。
+        nativeKeyboardSessionRef.current = true;
+        updateKeyboardState(true);
+      }
     }
-    // ネイティブは onShow で位置を更新しない。
-    // 現在のダイアログの入力欄がフォーカスされ、Keyboard show が届いたときだけ位置を調整する。
     onShow?.();
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!visible) return;
     push();
     return pop;
@@ -378,8 +440,9 @@ export function Dialog({
             {
               paddingTop: dialogTopPadding,
               paddingBottom: keyboardVisible ? 0 : insets.bottom + SPACING.lg,
-              // モバイルWebでは VisualViewport 自体をダイアログの表示領域にする。
-              // 画面全体の高さからキーボード分を二重に引かず、下端をキーボード上端へ合わせる。
+              // モバイルWebでは VisualViewport の実高さを使う。
+              // window.innerHeight との差分から下端を計算すると、ブラウザーがウィンドウ高も
+              // 変更する環境で位置がずれるため、高さを直接指定してキーボード上端へ合わせる。
               ...(webKeyboardViewportActive
                 ? {
                     position: 'absolute' as const,
@@ -408,12 +471,16 @@ export function Dialog({
                   ? ('100%' as never)
                   : BOARD.dialogMaxWidth + UI_METRICS.dialog.standardExtraWidth,
                 // キーボード表示中は VisualViewport 内に収め、本文のスクロール領域を潰さない。
-                maxHeight: webKeyboardMaxHeight ?? UI_METRICS.dialog.maxHeightPercent,
-                height: fixedBody
-                  ? webKeyboardViewportActive
-                    ? webKeyboardMaxHeight
-                    : UI_METRICS.dialog.fixedBodyHeight
-                  : undefined,
+                maxHeight:
+                  webKeyboardMaxHeight ??
+                  (keyboardVisible && Platform.OS !== 'web'
+                    ? '100%'
+                    : UI_METRICS.dialog.maxHeightPercent),
+                height: webKeyboardViewportActive
+                  ? webKeyboardMaxHeight
+                  : fixedBody
+                    ? UI_METRICS.dialog.fixedBodyHeight
+                    : undefined,
               },
             ]}
           >
@@ -446,9 +513,10 @@ export function Dialog({
                   scrollEventThrottle={TIMING.scrollEventThrottleMs}
                 >
                   {children}
+                  {footerInBody ? <View style={styles.mobileFooter}>{footer}</View> : null}
                 </ScrollView>
               )}
-              {footer ? <View style={styles.footer}>{footer}</View> : null}
+              {footer && !footerInBody ? <View style={styles.footer}>{footer}</View> : null}
             </AuthInputFocusProvider>
           </View>
         </KeyboardAvoidingView>
@@ -488,4 +556,10 @@ const styles = StyleSheet.create({
   fixedBodyScroll: { flex: 1 },
   fixedBodyContent: { flex: 1 },
   footer: { padding: SPACING.lg, paddingTop: SPACING.sm, gap: SPACING.sm },
+  mobileFooter: {
+    marginHorizontal: -SPACING.lg,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.sm,
+    gap: SPACING.sm,
+  },
 });

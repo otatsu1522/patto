@@ -25,7 +25,7 @@ EAS Build はクラウドで実行されるため、Android・iOS のビルド�
 
 アプリ名やアプリ ID は `src/config/app.info.json` から読み込まれる。Android のアプリ ID と iOS の Bundle ID は別の設定項目なので、理由なく変更しない。
 
-EAS CLI は `pnpm dlx eas-cli` が pnpm のビルドスクリプト制限で失敗したため、この文書では動作確認済みの `npx eas-cli` を使用する。
+EAS CLI は `pnpm dlx eas-cli` が pnpm のビルドスクリプト制限で失敗したため、この文書では動作確認済みの `npx eas-cli` を使用する。繰り返し実行するビルドコマンドは `package.json` の `scripts` にショートカットを用意している。これはプロジェクト固有のコマンドを短く呼び出せるようにする一般的な使い方で、実行する EAS Build の内容は直接 `npx eas-cli` を実行する場合と同じ。
 
 ## 1. ビルド前の共通確認
 
@@ -166,6 +166,12 @@ Supabase を使用しない場合は、環境変数の登録は不要。ただ�
 **APK を実際に作成するときだけ、次のコマンドを実行する。** この操作により EAS のクラウドビルドが開始され、プランの利用枠や料金の対象となる。
 
 ```powershell
+pnpm build:android:preview
+```
+
+このスクリプトは、次のコマンドを実行するショートカット。直接実行しても結果は同じ。
+
+```powershell
 npx eas-cli build --platform android --profile preview
 ```
 
@@ -217,6 +223,12 @@ npx eas-cli device:list
 ### 6.3 iOS 実機用 IPA をビルドする
 
 後日、iPhone 実機用ビルドを作成する段階になったら、次のコマンドを使用する。
+
+```powershell
+pnpm build:ios:preview
+```
+
+このスクリプトは、次のコマンドを実行するショートカット。直接実行しても結果は同じ。
 
 ```powershell
 npx eas-cli build --platform ios --profile preview

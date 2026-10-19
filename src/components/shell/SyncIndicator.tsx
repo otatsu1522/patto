@@ -5,7 +5,7 @@ import { t } from '@/i18n';
 import { formatTime } from '@/lib/dates';
 import { useDataStore } from '@/store/dataStore';
 import { useSettingsStore } from '@/store/settingsStore';
-import { syncNow } from '@/sync/controller';
+import { useManualSync } from '@/hooks/useManualSync';
 import { useSyncStore } from '@/sync/status';
 import { useTheme, ICON_SIZE, ICON_BUTTON_BOX } from '@/theme';
 import { IconButton } from '../ui/IconButton';
@@ -65,6 +65,7 @@ export function useSyncLabel(): {
 /** タイトルの横に出す同期状態のアイコン。押すと今すぐ同期する。 */
 export function SyncIndicator() {
   const { icon, label, pendingLabel, color, enabled } = useSyncLabel();
+  const syncManually = useManualSync();
   return (
     <IconButton
       icon={icon}
@@ -74,7 +75,7 @@ export function SyncIndicator() {
       color={color}
       size={ICON_SIZE.xl}
       box={ICON_BUTTON_BOX.medium}
-      onPress={enabled ? () => void syncNow() : undefined}
+      onPress={enabled ? () => void syncManually() : undefined}
     />
   );
 }

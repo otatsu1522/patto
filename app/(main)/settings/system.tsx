@@ -23,15 +23,16 @@ import { clearBucket, previewClear, resetAllData } from '@/features/maintenance'
 import { visibleProjects, archivedProjects } from '@/domain/selectors';
 import { t } from '@/i18n';
 import { formatDateTime } from '@/lib/dates';
+import { useManualSync } from '@/hooks/useManualSync';
 import { useDataStore } from '@/store/dataStore';
 import { useSettingsStore } from '@/store/settingsStore';
-import { syncNow } from '@/sync/controller';
 import { useSyncStore } from '@/sync/status';
 import { SPACING, useTheme } from '@/theme';
 
 /** システム設定: 外観 / システム / データ管理。 */
 export default function SystemSettings() {
   const { confirm, toast, alert } = useFeedback();
+  const syncManually = useManualSync();
   const { colors } = useTheme();
   const [syncRequested, setSyncRequested] = useState(false);
   const settings = useSettingsStore((s) => s.settings);
@@ -56,7 +57,7 @@ export default function SystemSettings() {
     // 状態ストアの更新を待たずにボタンを即時表示へ切り替える。
     setSyncRequested(true);
     try {
-      await syncNow();
+      await syncManually();
     } finally {
       setSyncRequested(false);
     }

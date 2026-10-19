@@ -24,6 +24,13 @@ let queued = false;
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
 let retryCount = 0;
 
+function isForeground(): boolean {
+  if (Platform.OS === 'web') {
+    return typeof document === 'undefined' || document.visibilityState === 'visible';
+  }
+  return AppState.currentState === 'active';
+}
+
 export const configureSync = (c: SyncConfig) => {
   config = c;
 };
@@ -116,7 +123,10 @@ function scheduleRetry() {
   if (useSettingsStore.getState().settings.syncMode !== 'auto' || !config.isEnabled()) return;
   const wait = Math.min(SYNC.retryBaseMs * 2 ** retryCount, SYNC.retryMaxMs);
   retryCount += 1;
-  retryTimer = setTimeout(() => void syncNow(), wait);
+  retryTimer = setTimeout(() => {
+    retryTimer = null;
+    if (isForeground() && !running) void syncNow();
+  }, wait);
 }
 
 /**
@@ -127,8 +137,11 @@ export function startAutoSync(ownerId: string): () => void {
   const cleanups: (() => void)[] = [];
   let debounce: ReturnType<typeof setTimeout> | null = null;
   const kick = () => {
+    if (!isForeground()) return;
     if (debounce) clearTimeout(debounce);
-    debounce = setTimeout(() => void syncNow(), SYNC.debounceMs);
+    debounce = setTimeout(() => {
+      if (isForeground()) void syncNow();
+    }, SYNC.debounceMs);
   };
 
   void getDb()
@@ -139,10 +152,12 @@ export function startAutoSync(ownerId: string): () => void {
 
   if (useSettingsStore.getState().settings.syncMode !== 'auto') return () => {};
 
-  void syncNow();
+  if (isForeground()) void syncNow();
   cleanups.push(onLocalChange(kick));
 
-  const interval = setInterval(() => void syncNow(), SYNC.intervalMs);
+  const interval = setInterval(() => {
+    if (isForeground() && !running) void syncNow();
+  }, SYNC.intervalMs);
   cleanups.push(() => clearInterval(interval));
 
   const net = NetInfo.addEventListener((s) => {
@@ -154,6 +169,14 @@ export function startAutoSync(ownerId: string): () => void {
     if (st === 'active') kick();
   });
   cleanups.push(() => app.remove());
+
+  if (Platform.OS === 'web' && typeof document !== 'undefined') {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') kick();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    cleanups.push(() => document.removeEventListener('visibilitychange', onVisibilityChange));
+  }
 
   // Web はサーバー側の変更をリアルタイムに受け取る
   const client = getSupabase();

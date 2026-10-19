@@ -1,6 +1,7 @@
-import { Redirect, useLocalSearchParams } from 'expo-router';
+import { Redirect, useIsFocused, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { useAuthStore } from '@/auth/authStore';
 import { ArchiveDialog } from '@/components/board/ArchiveDialog';
 import { BoardHeader } from '@/components/board/BoardHeader';
@@ -20,6 +21,7 @@ import { sortBaseMode, sortDirection, withSortDirection } from '@/domain/orderin
 import { UserActionError } from '@/domain/operationError';
 import { useBoardActions } from '@/features/useBoardActions';
 import { popUndo } from '@/features/undo';
+import { useManualSync } from '@/hooks/useManualSync';
 import { t } from '@/i18n';
 import {
   clampCursor,
@@ -32,7 +34,6 @@ import { useEscape, useShortcuts } from '@/shortcuts/useShortcuts';
 import { useDataStore } from '@/store/dataStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useUiStore } from '@/store/uiStore';
-import { syncNow } from '@/sync/controller';
 import { SHADOW, SPACING, useTheme } from '@/theme';
 
 type TaskDialogState =
@@ -40,9 +41,11 @@ type TaskDialogState =
 
 export default function ProjectScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const isFocused = useIsFocused();
   const { colors } = useTheme();
   const boardRef = useRef<BoardViewHandle>(null);
   const { toast, alert } = useFeedback();
+  const syncManually = useManualSync();
 
   const ready = useDataStore((s) => s.ready);
   const projects = useDataStore((s) => s.projects);
@@ -78,6 +81,7 @@ export default function ProjectScreen() {
   const [taskDetails, setTaskDetails] = useState<Task | null>(null);
   const [taskDetailsVisible, setTaskDetailsVisible] = useState(false);
   const [taskDetailsDismissImmediately, setTaskDetailsDismissImmediately] = useState(false);
+  const [pendingTaskEditId, setPendingTaskEditId] = useState<string | null>(null);
   const [archiveKind, setArchiveKind] = useState<'archive' | 'trash' | null>(null);
   const pendingArchiveClearRef = useRef<(() => void) | null>(null);
   const [cursor, setCursor] = useState<Cursor | null>(null);
@@ -123,6 +127,7 @@ export default function ProjectScreen() {
     setTaskDetails(null);
     setTaskDetailsVisible(false);
     setTaskDetailsDismissImmediately(false);
+    setPendingTaskEditId(null);
     setArchiveKind(null);
   }, [id, projectActive]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -157,15 +162,35 @@ export default function ProjectScreen() {
 
   // ---- キーボード操作 ----
   const current = (): Cursor => clampCursor(cursor ?? initialCursor(), counts);
-  const cursorColumn = (): KanbanColumn | undefined => cols[current().columnIndex];
+  const cursorColumn = (): KanbanColumn | undefined =>
+    cursor ? cols[current().columnIndex] : undefined;
   const cursorTask = (): Task | undefined => {
+    if (!cursor) return undefined;
     const c = current();
     const col = cols[c.columnIndex];
     return col && c.taskIndex >= 0 ? tasksByColumn.get(col.id)?.[c.taskIndex] : undefined;
   };
   const update = (fn: (c: Cursor) => Cursor) => setCursor(clampCursor(fn(current()), counts));
 
+  const copySelectedTaskField = async (field: 'title' | 'description') => {
+    const task = cursorTask();
+    if (!task) return;
+    try {
+      await Clipboard.setStringAsync(field === 'title' ? task.title : task.description);
+      showClipboardToast(field === 'title' ? 'task.copyTitle' : 'task.copyDescription');
+    } catch {
+      // クリップボードが利用できない環境では、選択状態やタスク操作に影響させない。
+    }
+  };
+
   const navigate = async (dir: Direction) => {
+    if (!cursor) {
+      const firstColumnIndex = counts.findIndex((count) => count > 0);
+      if (firstColumnIndex >= 0) {
+        setCursor({ columnIndex: firstColumnIndex, taskIndex: 0, grabbed: false });
+      }
+      return;
+    }
     const c = current();
     if (!c.grabbed) return update((x) => moveCursor(x, dir, counts));
     const col = cols[c.columnIndex];
@@ -173,21 +198,16 @@ export default function ProjectScreen() {
     const horizontal = dir === 'left' || dir === 'right';
     const step = dir === 'left' || dir === 'up' ? -1 : 1;
     const task = cursorTask();
-    if (task) {
-      if (horizontal) {
-        const target = cols[c.columnIndex + step];
-        if (target) {
-          follow.current = task.id;
-          await actions.moveTask(task, target);
-        }
-      } else if (col.sortMode === 'manual') {
-        await store.reorderTask(task.id, c.taskIndex + step);
-        update((x) => ({ ...x, taskIndex: x.taskIndex + step }));
+    if (!task) return;
+    if (horizontal) {
+      const target = cols[c.columnIndex + step];
+      if (target) {
+        follow.current = task.id;
+        await actions.moveTask(task, target);
       }
-    } else if (horizontal && cols.length > 1) {
-      const nextIndex = (c.columnIndex + step + cols.length) % cols.length;
-      await store.moveColumn(col.id, nextIndex);
-      update((x) => ({ ...x, columnIndex: nextIndex }));
+    } else if (col.sortMode === 'manual') {
+      await store.reorderTask(task.id, c.taskIndex + step);
+      update((x) => ({ ...x, taskIndex: x.taskIndex + step }));
     }
   };
 
@@ -201,6 +221,7 @@ export default function ProjectScreen() {
   };
 
   function moveColumnBy(step: -1 | 1) {
+    if (!cursor) return;
     const c = current();
     const col = cols[c.columnIndex];
     if (!col || cols.length <= 1) return;
@@ -209,47 +230,58 @@ export default function ProjectScreen() {
     update((x) => ({ ...x, columnIndex: nextIndex }));
   }
 
-  useShortcuts({
-    cursorLeft: () => void navigate('left'),
-    cursorRight: () => void navigate('right'),
-    cursorUp: () => void navigate('up'),
-    cursorDown: () => void navigate('down'),
-    grab: () => cols.length > 0 && update((c) => ({ ...c, grabbed: !c.grabbed })),
-    edit: () => {
-      const task = cursorTask();
-      if (task) setTaskDialog({ mode: 'edit', taskId: task.id });
-      else if (cols.length > 0) setColumnDialog({ column: cursorColumn() ?? null });
+  useShortcuts(
+    {
+      cursorLeft: () => void navigate('left'),
+      cursorRight: () => void navigate('right'),
+      cursorUp: () => void navigate('up'),
+      cursorDown: () => void navigate('down'),
+      copyTitle: () => void copySelectedTaskField('title'),
+      copyDescription: () => void copySelectedTaskField('description'),
+      advanceTask: () => {
+        const task = cursorTask();
+        if (task && cols.length > 1) {
+          follow.current = task.id;
+          void actions.advance(task);
+        }
+      },
+      grab: () => {
+        if (cursorTask()) update((c) => ({ ...c, grabbed: !c.grabbed }));
+      },
+      edit: () => {
+        const task = cursorTask();
+        if (task) setTaskDialog({ mode: 'edit', taskId: task.id });
+      },
+      delete: () => {
+        const task = cursorTask();
+        if (task) void actions.deleteTask(task);
+      },
+      newTask: () => openCreateTask(),
+      newColumn: () => setColumnDialog({ column: null }),
+      toggleFavorite: () => {
+        const task = cursorTask();
+        if (task) void store.updateTask(task.id, { isFavorite: !task.isFavorite });
+      },
+      archiveTask: () => {
+        const task = cursorTask();
+        if (task) void actions.archiveTask(task);
+      },
+      archiveDone: () => void actions.archiveDone(),
+      duplicate: () => {
+        const task = cursorTask();
+        if (task) void duplicateTaskById(task.id);
+      },
+      moveColumnLeft: () => moveColumnBy(-1),
+      moveColumnRight: () => moveColumnBy(1),
+      undo: () => void popUndo(),
     },
-    delete: () => {
-      const task = cursorTask();
-      if (task) void actions.deleteTask(task);
-      else if (cursorColumn()) void actions.deleteColumn(cursorColumn()!);
-    },
-    newTask: () => openCreateTask(),
-    newColumn: () => setColumnDialog({ column: null }),
-    toggleFavorite: () => {
-      const task = cursorTask();
-      if (task) void store.updateTask(task.id, { isFavorite: !task.isFavorite });
-    },
-    archiveTask: () => {
-      const task = cursorTask();
-      if (task) void actions.archiveTask(task);
-    },
-    archiveDone: () => void actions.archiveDone(),
-    duplicate: () => {
-      const task = cursorTask();
-      if (task) void duplicateTaskById(task.id);
-      else if (cursorColumn()) void duplicateColumnById(cursorColumn()!.id);
-    },
-    moveColumnLeft: () => moveColumnBy(-1),
-    moveColumnRight: () => moveColumnBy(1),
-    undo: () => void popUndo(),
-  });
+    isFocused,
+  );
 
   useEscape(() => {
     if (cursor?.grabbed) update((c) => ({ ...c, grabbed: false }));
     else if (cursor) setCursor(null);
-  });
+  }, isFocused);
 
   if (!ready) return null;
   if (!project) return <Redirect href="/home" />;
@@ -534,7 +566,7 @@ export default function ProjectScreen() {
           columns={projectActive ? cols : []}
           showEmptyState={projectActive}
           tasksOf={(columnId) => tasksByColumn.get(columnId) ?? []}
-          cursor={projectActive ? cursor : null}
+          cursor={projectActive && counts.some((count) => count > 0) && cursor ? current() : null}
           compactCards={density === 'compact'}
           detailedCards={density === 'detailed'}
           showTaskDescription={showTaskDescription}
@@ -553,7 +585,8 @@ export default function ProjectScreen() {
           onColumnDrop={(column, toIndex) => void store.moveColumn(column.id, toIndex)}
           onAddTask={(column) => openCreateTask(column.id)}
           onCopyTitle={() => showClipboardToast('task.copyTitle')}
-          onRefresh={syncEnabled ? async () => void (await syncNow()) : undefined}
+          onCopyDescription={() => showClipboardToast('task.copyDescription')}
+          onRefresh={syncEnabled ? syncManually : undefined}
         />
 
         {projectActive && cursor?.grabbed ? (
@@ -590,6 +623,10 @@ export default function ProjectScreen() {
         onDismiss={() => {
           setTaskDetails(null);
           setTaskDetailsDismissImmediately(false);
+          if (pendingTaskEditId) {
+            setTaskDialog({ mode: 'edit', taskId: pendingTaskEditId });
+            setPendingTaskEditId(null);
+          }
         }}
         onCopyTitle={() => showClipboardToast('task.copyTitle')}
         onCopyDescription={() => showClipboardToast('task.copyDescription')}
@@ -603,12 +640,17 @@ export default function ProjectScreen() {
             category: 'editing',
           });
         }}
+        onSetDue={(task, dueAt) => {
+          void store.updateTask(task.id, { dueAt, dueHasTime: false });
+          setTaskDetails((current) =>
+            current?.id === task.id ? { ...current, dueAt, dueHasTime: false } : current,
+          );
+        }}
         onEdit={(task) => {
-          // 詳細ダイアログの閉じるアニメーションを待たず、編集を即時表示する。
-          // 詳細側はアニメーションなしで閉じ、不要な二重アニメーションを避ける。
+          // 詳細ダイアログを閉じ終えてから編集を開き、キーボードイベントの競合を避ける。
           setTaskDetailsDismissImmediately(true);
+          setPendingTaskEditId(task.id);
           setTaskDetailsVisible(false);
-          setTaskDialog({ mode: 'edit', taskId: task.id });
         }}
         projectName={project.title}
         columnName={

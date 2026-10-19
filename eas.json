@@ -17,7 +17,8 @@
       "node": "24.18.0"
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "node": "24.18.0"
     }
   },
   "submit": {

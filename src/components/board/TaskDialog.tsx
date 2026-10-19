@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View, type TextInput } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, View, type TextInput } from 'react-native';
 import { LIMITS } from '@/config/limits';
 import { BOARD, UI_METRICS } from '@/config/layout';
 import { formatDueInput, formatDueTyping, normalizeDueInput, parseDue } from '@/domain/due';
@@ -141,6 +141,7 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
         title={shownTask ? t('task.edit') : t('task.create')}
         onClose={requestClose}
         onShow={focusTitleInput}
+        preserveKeyboardLayout={calendar}
         overlay={
           <DiscardChangesOverlay
             visible={discardPrompt}
@@ -210,7 +211,12 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
               <IconButton
                 icon="calendar"
                 label={t('task.dueOpen')}
-                onPress={() => setCalendar(true)}
+                onPress={() => {
+                  // カレンダーを閉じたあとに、親の入力欄へフォーカスが復元されて
+                  // キーボードが再表示されるのを防ぐ。
+                  Keyboard.dismiss();
+                  setCalendar(true);
+                }}
                 style={styles.dueButton}
               />
             </View>

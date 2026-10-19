@@ -43,6 +43,7 @@ export interface ColumnViewProps {
   showTaskDescription: boolean;
   showTaskDueDate: boolean;
   showTaskUpdatedAt: boolean;
+  showTaskMetadataIcons: boolean;
   /** キーボードのカーソル: 自分のカンバンなら taskIndex（-1 はヘッダー）、それ以外は null */
   cursorTaskIndex: number | null;
   grabbed: boolean;
@@ -56,6 +57,7 @@ export interface ColumnViewProps {
   /** 「タスクを追加」を押したとき（作成ダイアログを開く） */
   onAddTask: () => void;
   onCopyTitle: (task: Task) => void;
+  onCopyDescription: (task: Task) => void;
   /** メニュー右端と先頭カンバンのヘッダー下線を接続する */
   connectHeaderLineToMenu?: boolean;
   /** 手動並び替えでタスクの画面位置を測るための参照登録 */
@@ -166,6 +168,7 @@ export function ColumnView(p: ColumnViewProps) {
         showDescription={p.showTaskDescription}
         showDueDate={p.showTaskDueDate}
         showUpdatedAt={p.showTaskUpdatedAt}
+        showMetadataIcons={p.showTaskMetadataIcons}
         isLast={p.index === p.count - 1}
         canAdvance={p.count > 1}
         focused={p.cursorTaskIndex === i}
@@ -174,6 +177,7 @@ export function ColumnView(p: ColumnViewProps) {
         menuItems={p.taskMenu(task)}
         onAdvance={() => p.onAdvance(task)}
         onCopyTitle={() => p.onCopyTitle(task)}
+        onCopyDescription={() => p.onCopyDescription(task)}
         onMeasure={(id, node) => {
           if (node) taskRefs.current.set(id, node);
           else taskRefs.current.delete(id);

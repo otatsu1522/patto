@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import { useSettingsStore } from '@/store/settingsStore';
+import { isTouchWeb } from '@/lib/hover';
 import { useUiStore } from '@/store/uiStore';
 import {
   buildKeyMap,
@@ -27,18 +28,24 @@ const isTypingTarget = (el: EventTarget | null): boolean => {
  */
 export function useShortcuts(handlers: ShortcutHandlers, active = true): void {
   const ref = useRef(handlers);
+  const activeRef = useRef(active);
   // eslint-disable-next-line react-hooks/refs -- 常に最新のハンドラーを呼ぶための定番の書き方（読むのはキー入力時だけ）
   ref.current = handlers;
+  // eslint-disable-next-line react-hooks/refs -- 画面切替コミット直後、listener cleanup 前の入力も抑止する。
+  activeRef.current = active;
 
   useEffect(() => {
-    if (Platform.OS !== 'web' || !active) return;
+    if (Platform.OS !== 'web' || isTouchWeb || !active) return;
     const onKeyDown = (e: KeyboardEvent) => {
+      if (!activeRef.current) return;
       const { settings } = useSettingsStore.getState();
       if (!settings.shortcutsEnabled || isModifierOnly(e.key)) return;
+      const uiState = useUiStore.getState();
       if (
         isTypingTarget(e.target) ||
-        useUiStore.getState().dialogCount > 0 ||
-        useUiStore.getState().shortcutsSuspended
+        uiState.dialogCount > 0 ||
+        uiState.dropdownMenuOpen ||
+        uiState.shortcutsSuspended
       )
         return;
       const map = buildKeyMap(resolveBindings(settings.shortcutOverrides));
@@ -57,15 +64,21 @@ export function useShortcuts(handlers: ShortcutHandlers, active = true): void {
 /** Esc などの固定キー用（設定で変更できない）。 */
 export function useEscape(handler: () => void, active = true): void {
   const ref = useRef(handler);
+  const activeRef = useRef(active);
   // eslint-disable-next-line react-hooks/refs -- 同上
   ref.current = handler;
+  // eslint-disable-next-line react-hooks/refs -- 画面切替コミット直後、listener cleanup 前の入力も抑止する。
+  activeRef.current = active;
   useEffect(() => {
     if (Platform.OS !== 'web' || !active) return;
     const onKeyDown = (e: KeyboardEvent) => {
+      if (!activeRef.current) return;
+      const uiState = useUiStore.getState();
       if (
         e.key === 'Escape' &&
-        useUiStore.getState().dialogCount === 0 &&
-        !useUiStore.getState().shortcutsSuspended
+        uiState.dialogCount === 0 &&
+        !uiState.dropdownMenuOpen &&
+        !uiState.shortcutsSuspended
       )
         ref.current();
     };
