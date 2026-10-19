@@ -9,23 +9,25 @@ export const SHORTCUT_ACTIONS = [
   { id: 'cursorDown', labelKey: 'shortcut.cursorDown', keys: ['j'] },
   { id: 'cursorUp', labelKey: 'shortcut.cursorUp', keys: ['k'] },
   { id: 'cursorRight', labelKey: 'shortcut.cursorRight', keys: ['l'] },
+  { id: 'advanceTask', labelKey: 'shortcut.advanceTask', keys: ['f'] },
+  { id: 'retreatTask', labelKey: 'shortcut.retreatTask', keys: ['shift+f'] },
   { id: 'copyTitle', labelKey: 'shortcut.copyTitle', keys: ['c'] },
   { id: 'copyDescription', labelKey: 'shortcut.copyDescription', keys: ['shift+c'] },
-  { id: 'advanceTask', labelKey: 'shortcut.advanceTask', keys: ['f'] },
   { id: 'grab', labelKey: 'shortcut.grab', keys: ['g'] },
   { id: 'edit', labelKey: 'shortcut.edit', keys: ['e', 'Enter'] },
   { id: 'delete', labelKey: 'shortcut.delete', keys: ['x'] },
-  { id: 'newTask', labelKey: 'shortcut.newTask', keys: ['n'] },
-  { id: 'newColumn', labelKey: 'shortcut.newColumn', keys: ['N'] },
   { id: 'toggleFavorite', labelKey: 'shortcut.toggleFavorite', keys: ['p'] },
+  { id: 'changeDueDate', labelKey: 'shortcut.changeDueDate', keys: ['d'] },
+  { id: 'duplicate', labelKey: 'shortcut.duplicate', keys: ['shift+d'] },
   { id: 'archiveTask', labelKey: 'shortcut.archiveTask', keys: ['a'] },
   { id: 'archiveDone', labelKey: 'shortcut.archiveDone', keys: ['A'] },
-  { id: 'duplicate', labelKey: 'shortcut.duplicate', keys: ['d'] },
+  { id: 'newTask', labelKey: 'shortcut.newTask', keys: ['n'] },
+  { id: 'newColumn', labelKey: 'shortcut.newColumn', keys: ['N'] },
+  { id: 'newProject', labelKey: 'shortcut.newProject', keys: ['P'] },
   { id: 'moveColumnLeft', labelKey: 'shortcut.moveColumnLeft', keys: ['H'] },
   { id: 'moveColumnRight', labelKey: 'shortcut.moveColumnRight', keys: ['L'] },
-  { id: 'nextProject', labelKey: 'shortcut.nextProject', keys: [']'] },
-  { id: 'prevProject', labelKey: 'shortcut.prevProject', keys: ['['] },
-  { id: 'newProject', labelKey: 'shortcut.newProject', keys: ['P'] },
+  { id: 'prevProject', labelKey: 'shortcut.prevProject', keys: ['shift+k'] },
+  { id: 'nextProject', labelKey: 'shortcut.nextProject', keys: ['shift+j'] },
   { id: 'search', labelKey: 'shortcut.search', keys: ['/'] },
   { id: 'toggleSidebar', labelKey: 'shortcut.toggleSidebar', keys: ['m'] },
   { id: 'openSettings', labelKey: 'shortcut.openSettings', keys: [','] },
@@ -37,6 +39,35 @@ export const SHORTCUT_ACTIONS = [
 
 export type ActionId = (typeof SHORTCUT_ACTIONS)[number]['id'];
 export type Bindings = Record<ActionId, string[]>;
+
+/** 設定画面専用の表示順。キー処理・競合判定に使う SHORTCUT_ACTIONS の順序は変えない。 */
+function reorderAtExistingPositions<T extends { readonly id: string }>(
+  actions: readonly T[],
+  orderedIds: readonly string[],
+): T[] {
+  const result = [...actions];
+  const indices = orderedIds.map((id) => result.findIndex((action) => action.id === id));
+  const orderedItems = orderedIds.map((id) => result.find((action) => action.id === id));
+  if (indices.some((index) => index < 0) || orderedItems.some((action) => action === undefined)) {
+    return result;
+  }
+
+  indices.sort((a, b) => a - b);
+  indices.forEach((position, index) => {
+    result[position] = orderedItems[index]!;
+  });
+  return result;
+}
+
+export const SHORTCUT_SETTINGS_ACTIONS = reorderAtExistingPositions(
+  reorderAtExistingPositions(SHORTCUT_ACTIONS, [
+    'cursorRight',
+    'cursorLeft',
+    'cursorUp',
+    'cursorDown',
+  ]),
+  ['moveColumnRight', 'moveColumnLeft'],
+);
 
 export const defaultBindings = (): Bindings =>
   Object.fromEntries(

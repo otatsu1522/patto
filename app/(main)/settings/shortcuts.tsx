@@ -19,6 +19,7 @@ import { t, type StringKey } from '@/i18n';
 import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
 import {
   SHORTCUT_ACTIONS,
+  SHORTCUT_SETTINGS_ACTIONS,
   displayKey,
   displayKeyParts,
   findConflict,
@@ -40,6 +41,8 @@ const INFO_KEYS: StringKey[] = [
   'shortcut.info6',
   'shortcut.info7',
   'shortcut.info8',
+  'shortcut.info9',
+  'shortcut.info10',
 ];
 
 /** 表示するキーの幅から、キー欄を必要最小限の幅で表示するための概算。 */
@@ -297,7 +300,7 @@ export default function ShortcutSettings() {
               </View>
             </View>
             {separator}
-            {SHORTCUT_ACTIONS.map((a, i) => (
+            {SHORTCUT_SETTINGS_ACTIONS.map((a, i) => (
               <View key={a.id}>
                 {i > 0 ? separator : null}
                 <View

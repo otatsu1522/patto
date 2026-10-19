@@ -10,7 +10,9 @@ import { ColorPicker } from '@/components/ui/ColorPicker';
 import { Button } from '@/components/ui/Button';
 import { isSupabaseConfigured } from '@/config/env';
 import {
+  AUTO_SYNC_INTERVAL_SECONDS,
   TOAST_DURATION_SECONDS,
+  type AutoSyncIntervalSeconds,
   type CardDensity,
   type SyncMode,
   type ThemeMode,
@@ -28,6 +30,12 @@ import { useDataStore } from '@/store/dataStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useSyncStore } from '@/sync/status';
 import { SPACING, useTheme } from '@/theme';
+
+type AutoSyncIntervalChoice = `${AutoSyncIntervalSeconds}`;
+const AUTO_SYNC_INTERVAL_OPTIONS = AUTO_SYNC_INTERVAL_SECONDS.map((seconds) => ({
+  value: String(seconds) as AutoSyncIntervalChoice,
+  label: `${seconds}秒`,
+}));
 
 /** システム設定: 外観 / システム / データ管理。 */
 export default function SystemSettings() {
@@ -336,6 +344,21 @@ export default function SystemSettings() {
                     {t('settings.syncModeAutoDesc')}
                   </AppText>
                 </View>
+                {settings.syncMode === 'auto' ? (
+                  <>
+                    <ChoiceRow<AutoSyncIntervalChoice>
+                      label={t('settings.autoSyncInterval')}
+                      value={String(settings.autoSyncIntervalSeconds) as AutoSyncIntervalChoice}
+                      onChange={(value) =>
+                        update({
+                          autoSyncIntervalSeconds: Number(value) as AutoSyncIntervalSeconds,
+                        })
+                      }
+                      options={AUTO_SYNC_INTERVAL_OPTIONS}
+                    />
+                    {hint(t('settings.autoSyncIntervalHint'))}
+                  </>
+                ) : null}
                 <View style={styles.syncAction}>
                   <Button
                     label={syncInProgress ? t('sync.syncing') : t('settings.syncNow')}

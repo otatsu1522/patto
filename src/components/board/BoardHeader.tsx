@@ -11,15 +11,17 @@ import { IconButton } from '../ui/IconButton';
 import { SyncIndicator } from '../shell/SyncIndicator';
 
 interface Props {
-  title: string;
+  title?: string;
   /** 右端のボタン（横3点メニューなど） */
   right?: ReactNode;
   /** メニューアイコンを出すか（メニューが画面そのものになる画面では false） */
   menu?: boolean;
+  /** プロジェクト未選択時など、タイトルや右側の操作を出さずメニューだけ表示する。 */
+  menuOnly?: boolean;
 }
 
 /** 画面上部のバー: 左にメニューアイコン、中央にタイトルと同期状態、右に横3点メニュー。 */
-export function BoardHeader({ title, right, menu = true }: Props) {
+export function BoardHeader({ title = '', right, menu = true, menuOnly = false }: Props) {
   const { colors, lineWidth, lineColor } = useTheme();
   const { mode } = useLayoutMode();
   const permanent = mode === 'expanded';
@@ -48,16 +50,24 @@ export function BoardHeader({ title, right, menu = true }: Props) {
         ) : null}
       </View>
 
-      <View style={styles.center}>
-        <AppText variant="title" numberOfLines={UI_METRICS.text.singleLineMax} style={styles.title}>
-          {title}
-        </AppText>
-        <View style={styles.sync}>
-          <SyncIndicator />
+      {!menuOnly ? (
+        <View style={styles.center}>
+          <AppText
+            variant="title"
+            numberOfLines={UI_METRICS.text.singleLineMax}
+            style={styles.title}
+          >
+            {title}
+          </AppText>
+          <View style={styles.sync}>
+            <SyncIndicator />
+          </View>
         </View>
-      </View>
+      ) : (
+        <View style={styles.center} />
+      )}
 
-      <View style={styles.side}>{right}</View>
+      <View style={styles.side}>{menuOnly ? null : right}</View>
     </View>
   );
 }

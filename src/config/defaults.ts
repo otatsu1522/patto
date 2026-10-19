@@ -10,6 +10,8 @@ export const DEFAULT_COLUMNS = [
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type SyncMode = 'off' | 'manual' | 'auto';
+export const AUTO_SYNC_INTERVAL_SECONDS = [10, 30, 60, 300, 600] as const;
+export type AutoSyncIntervalSeconds = (typeof AUTO_SYNC_INTERVAL_SECONDS)[number];
 export type CardDensity = 'compact' | 'normal' | 'detailed';
 export const TOAST_CATEGORIES = ['movement', 'editing', 'system'] as const;
 export type ToastCategory = (typeof TOAST_CATEGORIES)[number];
@@ -24,6 +26,8 @@ export interface AppSettings {
   showTaskUpdatedAt: boolean;
   /** この端末の同期モード。off=同期しない / manual=画面を引いた時・ボタンのみ / auto=自動 */
   syncMode: SyncMode;
+  /** 自動同期の定期確認間隔（秒）。バックグラウンドでは動作しない。 */
+  autoSyncIntervalSeconds: AutoSyncIntervalSeconds;
   /** 操作結果のトースト（画面下の短い通知）を出すか */
   toastEnabled: boolean;
   /** タイトル・説明をクリップボードへコピーしたときのトーストを出すか */
@@ -57,6 +61,7 @@ export const defaultSettings = (isWeb: boolean, retentionDays: number): AppSetti
   showTaskDueDate: true,
   showTaskUpdatedAt: false,
   syncMode: isWeb ? 'auto' : 'manual',
+  autoSyncIntervalSeconds: 60,
   toastEnabled: true,
   clipboardToastEnabled: true,
   toastDurationSeconds: 2,

@@ -90,7 +90,7 @@ export const UI_METRICS = {
     /** 設定画面カードの最大幅に加える余白 */
     settingsPanelExtraWidth: 120,
     /** 本文固定ダイアログの高さ（キーボード表示時は表示可能領域に合わせて縮小） */
-    fixedBodyHeight: '82%',
+    fixedBodyHeight: '90%',
     /** ダイアログの最大高さ */
     maxHeightPercent: '90%',
   },

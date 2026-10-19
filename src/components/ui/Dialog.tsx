@@ -174,6 +174,15 @@ export function Dialog({
     : undefined;
   const wasVisibleRef = useRef(visible);
   const onDismissRef = useRef(onDismiss);
+  const [webModalSession, setWebModalSession] = useState(0);
+  const wasVisibleForWebModalRef = useRef(false);
+
+  useLayoutEffect(() => {
+    if (Platform.OS === 'web' && visible && !wasVisibleForWebModalRef.current) {
+      setWebModalSession((session) => session + 1);
+    }
+    wasVisibleForWebModalRef.current = visible;
+  }, [visible]);
 
   // 開閉時に前回のキーボード寸法を次の表示へ持ち越さない。
   // layout effect で描画前に戻し、最初のフレームだけ位置が変わるちらつきを避ける。
@@ -409,6 +418,7 @@ export function Dialog({
   const compact = mode === 'compact';
   return (
     <Modal
+      key={Platform.OS === 'web' ? webModalSession : 'native-dialog'}
       visible={visible}
       transparent
       animationType="none"

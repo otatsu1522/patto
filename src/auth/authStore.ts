@@ -9,7 +9,7 @@ import { kv } from '@/lib/kv';
 import { useDataStore } from '@/store/dataStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { syncNow } from '@/sync/controller';
-import { isNetworkError, mapAuthError } from './errors';
+import { isAuthRequiredError, isNetworkError, mapAuthError } from './errors';
 import { getSupabase } from './supabase';
 
 const IDENTITY_KEY = 'patto:identity';
@@ -304,7 +304,14 @@ export const useAuthStore = create<AuthState>((set, get) => {
       const request = (async () => {
         try {
           const { data, error } = await client.auth.getUser();
-          if (error || !data.user || data.user.id !== identity.userId) return;
+          if (error) {
+            if (isAuthRequiredError(error)) get().setNeedsReauth(true);
+            return;
+          }
+          if (!data.user || data.user.id !== identity.userId) {
+            get().setNeedsReauth(true);
+            return;
+          }
           const latest: Identity = {
             ...identity,
             email: data.user.email ?? identity.email,

@@ -24,13 +24,6 @@ let queued = false;
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
 let retryCount = 0;
 
-function isForeground(): boolean {
-  if (Platform.OS === 'web') {
-    return typeof document === 'undefined' || document.visibilityState === 'visible';
-  }
-  return AppState.currentState === 'active';
-}
-
 export const configureSync = (c: SyncConfig) => {
   config = c;
 };
@@ -79,17 +72,20 @@ export async function syncNow(
     queued = true;
     return false;
   }
-  const status = useSyncStore.getState().set;
-  if (!(await isOnline())) {
-    status({ status: 'offline' });
-    if (opts.throwOnError) throw new Error(ERROR_CODES.offline);
-    return false;
-  }
 
   running = true;
-  status({ status: 'syncing', error: null });
+  const status = useSyncStore.getState().set;
   try {
-    const { data } = await client.auth.getSession();
+    const online = await isOnline();
+    if (!online) {
+      status({ status: 'offline' });
+      if (opts.throwOnError) throw new Error(ERROR_CODES.offline);
+      return false;
+    }
+
+    status({ status: 'syncing', error: null });
+    const { data, error: sessionError } = await client.auth.getSession();
+    if (sessionError) throw sessionError;
     if (!data.session) throw new Error(ERROR_CODES.authRequired);
     const settings = useSettingsStore.getState().settings;
     await runSync(createSupabaseRemote(client), localPort(), {
@@ -120,65 +116,72 @@ export async function syncNow(
 /** 自動同期モードのときだけ、指数バックオフで再試行する。 */
 function scheduleRetry() {
   if (retryTimer) clearTimeout(retryTimer);
+  retryTimer = null;
   if (useSettingsStore.getState().settings.syncMode !== 'auto' || !config.isEnabled()) return;
   const wait = Math.min(SYNC.retryBaseMs * 2 ** retryCount, SYNC.retryMaxMs);
   retryCount += 1;
   retryTimer = setTimeout(() => {
     retryTimer = null;
-    if (isForeground() && !running) void syncNow();
+    if (!running) void syncNow();
   }, wait);
 }
 
-/**
- * 自動同期の仕掛けを開始する。戻り値で停止する。
- * 手動モードのときは何も開始しない（画面を引いたとき・ボタンのみ同期）。
- */
+/** 自動同期の仕掛けを開始する。戻り値で停止する。 */
 export function startAutoSync(ownerId: string): () => void {
   const cleanups: (() => void)[] = [];
   let debounce: ReturnType<typeof setTimeout> | null = null;
-  const kick = () => {
-    if (!isForeground()) return;
-    if (debounce) clearTimeout(debounce);
-    debounce = setTimeout(() => {
-      if (isForeground()) void syncNow();
-    }, SYNC.debounceMs);
-  };
+  let interval: ReturnType<typeof setTimeout> | null = null;
 
   void getDb()
     .getMeta('lastSyncedAt')
-    .then((v) => {
-      if (v) useSyncStore.getState().set({ lastSyncedAt: Number(v) });
-    });
+    .then((value) => {
+      if (value) useSyncStore.getState().set({ lastSyncedAt: Number(value) });
+    })
+    .catch(() => {});
 
   if (useSettingsStore.getState().settings.syncMode !== 'auto') return () => {};
 
-  if (isForeground()) void syncNow();
+  const kick = () => {
+    if (debounce) clearTimeout(debounce);
+    debounce = setTimeout(() => {
+      debounce = null;
+      void syncNow();
+    }, SYNC.debounceMs);
+  };
+
+  const scheduleInterval = () => {
+    if (interval) clearTimeout(interval);
+    interval = setTimeout(() => {
+      interval = null;
+      if (!running) void syncNow();
+      scheduleInterval();
+    }, useSettingsStore.getState().settings.autoSyncIntervalSeconds * 1000);
+  };
+
+  void syncNow();
   cleanups.push(onLocalChange(kick));
+  scheduleInterval();
+  cleanups.push(
+    useSettingsStore.subscribe((state, previousState) => {
+      if (
+        state.settings.autoSyncIntervalSeconds !== previousState.settings.autoSyncIntervalSeconds
+      ) {
+        scheduleInterval();
+      }
+    }),
+  );
 
-  const interval = setInterval(() => {
-    if (isForeground() && !running) void syncNow();
-  }, SYNC.intervalMs);
-  cleanups.push(() => clearInterval(interval));
-
-  const net = NetInfo.addEventListener((s) => {
-    if (s.isConnected && s.isInternetReachable !== false) kick();
+  const net = NetInfo.addEventListener((state) => {
+    if (state.isConnected && state.isInternetReachable !== false) kick();
   });
   cleanups.push(net);
 
-  const app = AppState.addEventListener('change', (st) => {
-    if (st === 'active') kick();
+  const app = AppState.addEventListener('change', (state) => {
+    if (state === 'active') kick();
   });
   cleanups.push(() => app.remove());
 
-  if (Platform.OS === 'web' && typeof document !== 'undefined') {
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible') kick();
-    };
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    cleanups.push(() => document.removeEventListener('visibilitychange', onVisibilityChange));
-  }
-
-  // Web はサーバー側の変更をリアルタイムに受け取る
+  // Web はサーバー側の変更をリアルタイムに受け取る。
   const client = getSupabase();
   if (Platform.OS === 'web' && client) {
     const channel = client.channel(`patto-${ownerId}`);
@@ -195,7 +198,8 @@ export function startAutoSync(ownerId: string): () => void {
 
   return () => {
     if (debounce) clearTimeout(debounce);
+    if (interval) clearTimeout(interval);
     if (retryTimer) clearTimeout(retryTimer);
-    cleanups.forEach((fn) => fn());
+    cleanups.forEach((cleanup) => cleanup());
   };
 }

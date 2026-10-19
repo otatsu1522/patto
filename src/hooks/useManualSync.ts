@@ -7,7 +7,7 @@ import { syncNow } from '@/sync/controller';
 import { useSyncStore } from '@/sync/status';
 import { useFeedback } from '@/components/ui/FeedbackProvider';
 
-/** 手動同期。オフラインで実行できなかった場合は理由をダイアログで伝える。 */
+/** 手動同期。オフライン／同期エラーの理由を利用者に伝える。 */
 export function useManualSync(): () => Promise<void> {
   const { alert } = useFeedback();
 
@@ -21,9 +21,15 @@ export function useManualSync(): () => Promise<void> {
     ) {
       return;
     }
+
     const synced = await syncNow();
-    if (!synced && useSyncStore.getState().status === 'offline') {
+    if (synced) return;
+
+    const current = useSyncStore.getState();
+    if (current.status === 'offline') {
       alert(t('sync.offline'), t('sync.offlineMessage'));
+    } else if (current.status === 'error' && current.error) {
+      alert(t('sync.error'), current.error);
     }
   }, [alert]);
 }

@@ -1,4 +1,9 @@
-import { useRef, type ComponentType, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import {
+  useCallback,
+  useRef,
+  type ComponentType,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react';
 import { Keyboard, Platform, Pressable, StyleSheet, View, type ViewProps } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { GestureDetector } from 'react-native-gesture-handler';
@@ -94,6 +99,13 @@ export function TaskCard({
   const { colors, taskColor, isDark, lineWidth, lineColor } = useTheme();
   const lastDragEnd = useRef(0);
   const cardRef = useRef<View>(null);
+  const registerCardRef = useCallback(
+    (node: View | null) => {
+      cardRef.current = node;
+      onMeasure?.(task.id, node);
+    },
+    [onMeasure, task.id],
+  );
   const gesture = useDragGesture({
     ...drag,
     begin: (x, y) => {
@@ -189,10 +201,7 @@ export function TaskCard({
 
   return (
     <View
-      ref={(node) => {
-        cardRef.current = node;
-        onMeasure?.(task.id, node);
-      }}
+      ref={registerCardRef}
       collapsable={false}
       style={[
         styles.card,

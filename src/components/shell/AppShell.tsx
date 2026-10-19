@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { visibleProjects } from '@/domain/selectors';
-import { popUndo } from '@/features/undo';
+import { popUndo, showUndoToast } from '@/features/undo';
 import { closeBoardMenu, toggleBoardMenu } from '@/hooks/boardMenu';
 import { sidebarWidthFor, useLayoutMode } from '@/hooks/useLayout';
 import { consumeSettingsMenuCloseAfterRender, registerSettingsMenu } from '@/hooks/settingsMenu';
@@ -661,9 +661,14 @@ export function AppShell({ children }: { children: ReactNode }) {
         onClose={() => setNewProjectOpen(false)}
         onSubmit={async (v) => {
           setNewProjectOpen(false);
-          const p = await useDataStore.getState().createProject(v);
-          toast(t('toast.projectCreated'), undefined, { category: 'editing' });
-          navigateToProject(p.id, { keepMenuOpen: true });
+          const created = await useDataStore.getState().createProject(v);
+          showUndoToast(
+            toast,
+            t('toast.projectCreated'),
+            () => useDataStore.getState().deleteProject(created.id),
+            'editing',
+          );
+          navigateToProject(created.id, { keepMenuOpen: true });
         }}
       />
     </View>

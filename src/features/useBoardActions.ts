@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { clearBucket, previewClear, type ClearKind } from '@/features/maintenance';
-import { pushUndo } from '@/features/undo';
+import { showUndoToast } from '@/features/undo';
 import { columnsOf, tasksOf } from '@/domain/selectors';
 import type { KanbanColumn, Task } from '@/domain/types';
 import { t } from '@/i18n';
@@ -19,15 +19,30 @@ export function useBoardActions(projectId: string) {
     const store = () => useDataStore.getState();
 
     const withUndo = (message: string, undo: () => Promise<void>, category: ToastCategory) => {
-      const fn = pushUndo(undo);
-      toast(message, { label: t('common.undo'), onPress: () => void fn() }, { category });
+      showUndoToast(toast, message, undo, category);
     };
 
     return {
       async moveTask(task: Task, target: KanbanColumn) {
-        if (task.columnId === target.id) return;
-        await store().moveTask(task.id, target.id);
-        toast(t('board.taskMoved'), undefined, { category: 'movement' });
+        const state = store();
+        const before = state.tasks.find((item) => item.id === task.id);
+        if (!before || before.columnId === target.id) return;
+        await state.moveTask(before.id, target.id);
+        withUndo(
+          t('board.taskMoved'),
+          async () => {
+            const current = store().tasks.find((item) => item.id === before.id);
+            if (!current) return;
+            if (current.columnId !== before.columnId) {
+              await store().moveTask(before.id, before.columnId);
+            }
+            await store().updateTask(before.id, {
+              sortKey: before.sortKey,
+              completedAt: before.completedAt,
+            });
+          },
+          'movement',
+        );
       },
 
       /** 次（右）のカンバンへ。いちばん右のときは最初のカンバンへ戻す。 */
@@ -36,6 +51,15 @@ export function useBoardActions(projectId: string) {
         if (cols.length < 2) return;
         const i = cols.findIndex((c) => c.id === task.columnId);
         await this.moveTask(task, cols[i + 1] ?? cols[0]!);
+      },
+
+      /** 前（左）のカンバンへ。いちばん左のときは最後のカンバンへ移動する。 */
+      async retreat(task: Task) {
+        const cols = columnsOf(store().columns, projectId);
+        if (cols.length < 2) return;
+        const i = cols.findIndex((c) => c.id === task.columnId);
+        if (i < 0) return;
+        await this.moveTask(task, cols[i - 1] ?? cols[cols.length - 1]!);
       },
 
       async deleteTask(task: Task, askFirst = true) {

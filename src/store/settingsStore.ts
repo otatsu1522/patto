@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import { create } from 'zustand';
 import {
   defaultSettings,
+  AUTO_SYNC_INTERVAL_SECONDS,
   TOAST_CATEGORIES,
   TOAST_DURATION_SECONDS,
   type AppSettings,
@@ -56,6 +57,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         settings.toastCategories = migrated;
         normalized = true;
       }
+    }
+    if (!AUTO_SYNC_INTERVAL_SECONDS.includes(settings.autoSyncIntervalSeconds)) {
+      settings.autoSyncIntervalSeconds = 60;
+      normalized = true;
     }
     if (!TOAST_DURATION_SECONDS.some((seconds) => seconds === settings.toastDurationSeconds)) {
       settings.toastDurationSeconds = Number.isFinite(settings.toastDurationSeconds)

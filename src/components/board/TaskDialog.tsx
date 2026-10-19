@@ -159,6 +159,7 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
           value={title}
           onChangeText={(value) => setTitle(value.replace(/[\r\n]+/g, ' '))}
           error={titleError}
+          maxLength={LIMITS.taskTitleMax}
           ref={titleInputRef}
           key={`${visible ? 'open' : 'closed'}-${shownTask?.id ?? 'new'}`}
           autoGrow

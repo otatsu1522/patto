@@ -8,7 +8,7 @@ import { BOARD, GESTURE, UI_METRICS } from '@/config/layout';
 import { archivedProjects, visibleProjects } from '@/domain/selectors';
 import type { Project } from '@/domain/types';
 import { UserActionError } from '@/domain/operationError';
-import { pushUndo } from '@/features/undo';
+import { showUndoToast } from '@/features/undo';
 import { useManualSync } from '@/hooks/useManualSync';
 import { useProjectNavigation } from '@/hooks/useProjectNavigation';
 import { useLayoutMode } from '@/hooks/useLayout';
@@ -139,9 +139,14 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
 
   const duplicateProject = async (p: Project) => {
     try {
-      const copied = await store.duplicateProject(p.id);
+      const copied = await useDataStore.getState().duplicateProject(p.id);
       if (copied) {
-        toast(t('toast.duplicated'), undefined, { category: 'editing' });
+        showUndoToast(
+          toast,
+          t('toast.duplicated'),
+          () => useDataStore.getState().deleteProject(copied.id),
+          'editing',
+        );
       }
     } catch (error) {
       alert(
@@ -160,11 +165,11 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
     });
     if (r !== 'confirm') return;
     await store.deleteProject(p.id);
-    const undo = pushUndo(() => store.restoreItem('project', p.id));
-    toast(
+    showUndoToast(
+      toast,
       t('board.undoDeleted'),
-      { label: t('common.undo'), onPress: () => void undo() },
-      { category: 'editing' },
+      () => useDataStore.getState().restoreItem('project', p.id),
+      'editing',
     );
     // 選択中のプロジェクトを削除してもルートを変えない。BoardViewを維持し、
     // メニューは開いたまま、右側の内容だけを空にする。
@@ -210,10 +215,16 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
               label: p.isFavorite ? t('common.unfavorite') : t('common.favorite'),
               icon: p.isFavorite ? 'unpin' : 'pin',
               onPress: () => {
-                void store.updateProject(p.id, { isFavorite: !p.isFavorite });
-                toast(t(p.isFavorite ? 'toast.unpinned' : 'toast.pinned'), undefined, {
-                  category: 'editing',
-                });
+                const isFavorite = !p.isFavorite;
+                void (async () => {
+                  await useDataStore.getState().updateProject(p.id, { isFavorite });
+                  showUndoToast(
+                    toast,
+                    t(isFavorite ? 'toast.pinned' : 'toast.unpinned'),
+                    () => useDataStore.getState().updateProject(p.id, { isFavorite: p.isFavorite }),
+                    'editing',
+                  );
+                })();
               },
             },
             {
@@ -225,7 +236,22 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
             {
               label: p.archivedAt ? t('project.unarchiveAction') : t('project.archiveAction'),
               icon: 'archive',
-              onPress: () => void store.setProjectArchived(p.id, p.archivedAt === null),
+              onPress: () => {
+                const previousArchivedAt = p.archivedAt;
+                const archived = previousArchivedAt === null;
+                void (async () => {
+                  await useDataStore.getState().setProjectArchived(p.id, archived);
+                  showUndoToast(
+                    toast,
+                    t(archived ? 'toast.projectArchived' : 'toast.projectUnarchived'),
+                    () =>
+                      useDataStore
+                        .getState()
+                        .updateProject(p.id, { archivedAt: previousArchivedAt }),
+                    'editing',
+                  );
+                })();
+              },
             },
             {
               label: t('common.delete'),
@@ -442,8 +468,18 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
           const target = editing;
           setEditing(null);
           if (target) {
-            await store.updateProject(target.id, v);
-            toast(t('toast.projectUpdated'), undefined, { category: 'editing' });
+            await useDataStore.getState().updateProject(target.id, v);
+            showUndoToast(
+              toast,
+              t('toast.projectUpdated'),
+              () =>
+                useDataStore.getState().updateProject(target.id, {
+                  title: target.title,
+                  description: target.description,
+                  color: target.color,
+                }),
+              'editing',
+            );
           }
         }}
       />

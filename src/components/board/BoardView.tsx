@@ -101,6 +101,8 @@ interface Props {
   header?: (active: boolean) => ReactNode;
   /** カンバンが0件のとき、通常の「カンバンなし」案内を表示するか */
   showEmptyState?: boolean;
+  /** プロジェクト未選択時など、ボード領域に表示する独自の空状態。 */
+  emptyContent?: ReactNode;
   /** この値が変わったら（プロジェクトの切り替えなど）、スクロールを最初の位置に戻す */
   resetKey?: string;
 }
@@ -148,6 +150,10 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
   const scrollRef = useRef<ScrollView>(null);
   const containerRef = useRef<View>(null);
   const taskNodeRefs = useRef(new Map<string, View>());
+  const registerTaskNode = useCallback((taskId: string, node: View | null) => {
+    if (node) taskNodeRefs.current.set(taskId, node);
+    else taskNodeRefs.current.delete(taskId);
+  }, []);
   const origin = useRef({ x: 0, y: 0 });
   const scrollXRef = useRef(0);
   // プログラム操作中は、スクロール完了まで意図した開閉状態を優先する。
@@ -811,7 +817,11 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
     <View style={styles.fill}>
       {!pane ? (header?.(true) ?? null) : null}
       <View ref={containerRef} style={styles.fill} onLayout={onLayout} collapsable={false}>
-        {columns.length === 0 && props.showEmptyState !== false && !pane ? (
+        {columns.length === 0 && props.showEmptyState === false && !pane ? (
+          <View style={[styles.fill, { justifyContent: 'center', alignItems: 'center' }]}>
+            {props.emptyContent}
+          </View>
+        ) : columns.length === 0 && props.showEmptyState !== false && !pane ? (
           <EmptyState title={t('column.empty')} hint={t('column.emptyHint')} />
         ) : size.width > 0 ? (
           <>
@@ -882,13 +892,20 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                 </View>
               ) : null}
               {pane && columns.length === 0 && props.showEmptyState === false ? (
-                // 削除済みプロジェクトでは右側を空にするが、横スクロールのページ幅は
-                // 保持し、メニューを開閉できるようにする。
+                // プロジェクト未選択時も右側に案内を出し、横スクロールでメニューを開閉できるようにする。
                 <View
                   key="empty-deleted-project-page"
                   pointerEvents="none"
-                  style={{ width: geo.columnWidth, height: size.height, flexShrink: 0 }}
-                />
+                  style={{
+                    width: geo.columnWidth,
+                    height: size.height,
+                    paddingTop: headerOffset,
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  {props.emptyContent}
+                </View>
               ) : null}
               {Platform.OS === 'web' && webInlineChrome && header ? (
                 <View
@@ -1083,10 +1100,7 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                     onCopyTitle={props.onCopyTitle}
                     onCopyDescription={props.onCopyDescription}
                     connectHeaderLineToMenu={pane && index === 0}
-                    onTaskMeasure={(taskId, node) => {
-                      if (node) taskNodeRefs.current.set(taskId, node);
-                      else taskNodeRefs.current.delete(taskId);
-                    }}
+                    onTaskMeasure={registerTaskNode}
                     taskDrag={taskDragHandlers}
                     columnDrag={columnDragHandlers(column)}
                     blurSignal={blurSignal}

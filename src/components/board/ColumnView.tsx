@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { GestureDetector } from 'react-native-gesture-handler';
 import { BOARD, GESTURE, UI_METRICS } from '@/config/layout';
@@ -130,6 +130,15 @@ export function ColumnView(p: ColumnViewProps) {
     () => new Map(p.tasks.map((task, index) => [task.id, index] as const)),
     [p.tasks],
   );
+  const onTaskMeasure = p.onTaskMeasure;
+  const registerTaskNode = useCallback(
+    (id: string, node: View | null) => {
+      if (node) taskRefs.current.set(id, node);
+      else taskRefs.current.delete(id);
+      onTaskMeasure(id, node);
+    },
+    [onTaskMeasure],
+  );
   const showDivider = favorites.length > 0 && others.length > 0;
 
   // キーボード操作で選択されたタスクが画面外へ出たら、一覧を必要な分だけスクロールする。
@@ -178,11 +187,7 @@ export function ColumnView(p: ColumnViewProps) {
         onAdvance={() => p.onAdvance(task)}
         onCopyTitle={() => p.onCopyTitle(task)}
         onCopyDescription={() => p.onCopyDescription(task)}
-        onMeasure={(id, node) => {
-          if (node) taskRefs.current.set(id, node);
-          else taskRefs.current.delete(id);
-          p.onTaskMeasure(id, node);
-        }}
+        onMeasure={registerTaskNode}
         drag={p.taskDrag(task)}
       />
     );

@@ -77,7 +77,7 @@ async function openLocalDbWithTimeout(scope: string): Promise<LocalDb> {
 function isWebDatabaseContention(error: unknown): boolean {
   if (error instanceof DbOpenTimeoutError) return true;
   const detail = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-  return /NoModificationAllowedError|createSyncAccessHandle|Access Handles cannot be created|database is locked|Sync operation timeout/i.test(
+  return /NoModificationAllowedError|createSyncAccessHandle|Access Handles cannot be created|database is locked|Sync operation timeout|Invalid VFS state/i.test(
     detail,
   );
 }
@@ -167,7 +167,7 @@ interface DataState extends Snapshot {
   createProject: (input: ProjectInput) => Promise<Project>;
   updateProject: (
     id: string,
-    patch: Partial<Pick<Project, 'title' | 'description' | 'color' | 'isFavorite'>>,
+    patch: Partial<Pick<Project, 'title' | 'description' | 'color' | 'isFavorite' | 'archivedAt'>>,
   ) => Promise<void>;
   setProjectArchived: (id: string, archived: boolean) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
@@ -181,21 +181,37 @@ interface DataState extends Snapshot {
     id: string,
     patch: Partial<Pick<KanbanColumn, 'title' | 'color' | 'sortMode' | 'isDoneColumn'>>,
   ) => Promise<void>;
+  /** カンバン設定のUndo。カンバンの更新に伴い変わったタスクの内部状態も同時に復元する。 */
+  restoreColumnEdit: (
+    id: string,
+    patch: Partial<Pick<KanbanColumn, 'title' | 'color' | 'sortMode' | 'isDoneColumn'>>,
+    taskStates: { id: string; sortKey?: string; completedAt?: number | null }[],
+  ) => Promise<void>;
   deleteColumn: (id: string) => Promise<void>;
-  duplicateColumn: (id: string) => Promise<boolean>;
+  duplicateColumn: (id: string) => Promise<KanbanColumn | null>;
   moveColumn: (id: string, toIndex: number) => Promise<void>;
 
   createTask: (input: TaskInput) => Promise<Task | null>;
   updateTask: (
     id: string,
     patch: Partial<
-      Pick<Task, 'title' | 'description' | 'color' | 'dueAt' | 'dueHasTime' | 'isFavorite'>
+      Pick<
+        Task,
+        | 'title'
+        | 'description'
+        | 'color'
+        | 'dueAt'
+        | 'dueHasTime'
+        | 'isFavorite'
+        | 'sortKey'
+        | 'completedAt'
+      >
     >,
   ) => Promise<void>;
   moveTask: (id: string, toColumnId: string) => Promise<void>;
   reorderTask: (id: string, toIndex: number) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
-  duplicateTask: (id: string) => Promise<boolean>;
+  duplicateTask: (id: string) => Promise<Task | null>;
   archiveTask: (id: string, archived: boolean) => Promise<void>;
   archiveDoneTasks: (projectId: string) => Promise<number>;
   /** アーカイブ済みタスクを、ごみ箱へ一括移動する。 */
@@ -696,6 +712,27 @@ export const useDataStore = create<DataState>((set, get) => {
       await commit(changes);
     },
 
+    async restoreColumnEdit(id, patch, taskStates) {
+      const c = column(id);
+      if (!c) return;
+      const ts = now();
+      const savedById = new Map(taskStates.map((item) => [item.id, item]));
+      const taskChanges = get().tasks.flatMap((item) => {
+        if (item.columnId !== id) return [];
+        const saved = savedById.get(item.id);
+        if (!saved) return [];
+        const taskPatch: Partial<Pick<Task, 'sortKey' | 'completedAt'>> = {};
+        if (saved.sortKey !== undefined) taskPatch.sortKey = saved.sortKey;
+        if ('completedAt' in saved) taskPatch.completedAt = saved.completedAt;
+        if (Object.keys(taskPatch).length === 0) return [];
+        return [patchRecord(item, taskPatch, ts)];
+      });
+      await commit({
+        columns: [patchRecord(c, patch, ts)],
+        ...(taskChanges.length > 0 ? { tasks: taskChanges } : {}),
+      });
+    },
+
     async deleteColumn(id) {
       const c = column(id);
       if (!c) return;
@@ -708,7 +745,7 @@ export const useDataStore = create<DataState>((set, get) => {
 
     async duplicateColumn(id) {
       const c = column(id);
-      if (!c) return false;
+      if (!c) return null;
       const copyTitle = c.title + t('project.copySuffix');
       if (copyTitle.length > LIMITS.columnTitleMax) {
         throw new UserActionError(
@@ -762,7 +799,7 @@ export const useDataStore = create<DataState>((set, get) => {
           completedAt: x.completedAt,
         }));
       await commit({ columns: [copy], tasks: tks });
-      return true;
+      return copy;
     },
 
     async moveColumn(id, toIndex) {
@@ -824,7 +861,7 @@ export const useDataStore = create<DataState>((set, get) => {
 
     async duplicateTask(id) {
       const x = task(id);
-      if (!x) return false;
+      if (!x) return null;
       const copyTitle = x.title + t('project.copySuffix');
       if (copyTitle.length > LIMITS.taskTitleMax) {
         throw new UserActionError(
@@ -855,7 +892,7 @@ export const useDataStore = create<DataState>((set, get) => {
         ),
       };
       await commit({ tasks: [copy] });
-      return true;
+      return copy;
     },
 
     async archiveTask(id, archived) {

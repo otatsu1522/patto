@@ -34,7 +34,7 @@ export default function HomeScreen() {
   }
   return (
     <View style={{ flex: 1 }}>
-      <BoardHeader title="" />
+      <BoardHeader menuOnly />
       <EmptyState
         title={t('project.empty')}
         hint={t('project.emptyHint')}
