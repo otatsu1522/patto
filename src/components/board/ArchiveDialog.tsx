@@ -18,6 +18,9 @@ interface Props {
   projectId: string;
   onClose: () => void;
   onClear: () => void;
+  /** リモートの非表示項目を一覧取得している間は操作を無効にする。 */
+  refreshing?: boolean;
+  refreshError?: string | null;
   /** クリア確認ダイアログを開く前に、一覧ダイアログが閉じたことを待つ。 */
   onDismiss?: () => void;
 }
@@ -31,7 +34,15 @@ interface Row {
 }
 
 /** アーカイブ済みタスク / ごみ箱の中身を一覧し、復元やクリアができるダイアログ。 */
-export function ArchiveDialog({ kind, projectId, onClose, onClear, onDismiss }: Props) {
+export function ArchiveDialog({
+  kind,
+  projectId,
+  onClose,
+  onClear,
+  refreshing = false,
+  refreshError = null,
+  onDismiss,
+}: Props) {
   const { colors, lineWidth, lineColor } = useTheme();
   const projects = useDataStore((s) => s.projects);
   const columns = useDataStore((s) => s.columns);
@@ -97,14 +108,14 @@ export function ArchiveDialog({ kind, projectId, onClose, onClear, onDismiss }: 
           : undefined
       }
       footer={
-        rows.length > 0 ? (
+        !refreshing && rows.length > 0 ? (
           <View style={styles.footerActions}>
             <Button
               label={t('board.restoreAll')}
               variant="outline"
               icon="restore"
               loading={restoringAll}
-              disabled={restoringAll}
+              disabled={restoringAll || refreshing}
               onPress={() => void restoreAll()}
               fullWidth
             />
@@ -112,7 +123,7 @@ export function ArchiveDialog({ kind, projectId, onClose, onClear, onDismiss }: 
               label={kind === 'trash' ? t('board.clearTrash') : t('board.clearArchive')}
               variant="outlineDanger"
               icon={kind === 'trash' ? 'deleteForever' : 'delete'}
-              disabled={restoringAll}
+              disabled={restoringAll || refreshing}
               onPress={() => {
                 setRestoreError(null);
                 setWaitingForClearDismiss(true);
@@ -124,8 +135,11 @@ export function ArchiveDialog({ kind, projectId, onClose, onClear, onDismiss }: 
         ) : undefined
       }
     >
+      {refreshError ? <AppText color={colors.danger}>{refreshError}</AppText> : null}
       {restoreError ? <AppText color={colors.danger}>{restoreError}</AppText> : null}
-      {rows.length === 0 ? (
+      {refreshing ? (
+        <AppText muted>{t('common.loading')}</AppText>
+      ) : rows.length === 0 ? (
         <EmptyState title={t(kind === 'trash' ? 'board.trashEmpty' : 'board.archiveEmpty')} />
       ) : (
         rows.map((r) => (
@@ -143,7 +157,7 @@ export function ArchiveDialog({ kind, projectId, onClose, onClear, onDismiss }: 
             <IconButton
               icon="restore"
               label={t('common.restore')}
-              disabled={restoringAll}
+              disabled={restoringAll || refreshing}
               onPress={r.restore}
             />
           </View>

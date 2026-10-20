@@ -14,9 +14,10 @@ import { SystemBars } from '@/components/ui/SystemBars';
 import { MenuProvider } from '@/components/ui/MenuHost';
 import { autoPurgeLocal } from '@/features/maintenance';
 import { nowMs } from '@/lib/clock';
-import { useDataStore } from '@/store/dataStore';
+import { getDb, useDataStore } from '@/store/dataStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { configureSync, startAutoSync } from '@/sync/controller';
+import { useSyncStore } from '@/sync/status';
 import { AppText } from '@/components/ui/AppText';
 import { Button } from '@/components/ui/Button';
 import { t } from '@/i18n';
@@ -48,8 +49,8 @@ function Boot() {
   const status = useAuthStore((s) => s.status);
   const needsReauth = useAuthStore((s) => s.needsReauth);
   const bootstrapError = useAuthStore((s) => s.bootstrapError);
-  const remoteIdentityId = useAuthStore((s) =>
-    s.identity && !s.identity.local ? s.identity.userId : null,
+  const remoteAccountId = useAuthStore((s) =>
+    s.identity?.mode === 'account' && !s.identity.local ? s.identity.userId : null,
   );
   const ready = useDataStore((s) => s.ready);
   const ownerId = useAuthStore((s) => s.identity?.userId);
@@ -94,69 +95,96 @@ function Boot() {
     };
   }, []);
 
-  // user_metadata はアカウント共通。表示名・メールの定期確認はデータ同期とは別の処理。
-  // 認証状態の確認は同期モードに連動させず、アプリが前景にある間だけ定期タイマーを動かす。
+  // 同期状態はアカウントごとに表示し、切り替え前の状態を引き継がない。
+  // 最終同期時刻はローカルDBから読むため、オフ／手動モードでも通信は発生しない。
   useEffect(() => {
-    if (!remoteIdentityId || !isSupabaseConfigured || needsReauth) return;
+    useSyncStore.getState().set({ status: 'idle', lastSyncedAt: null, error: null });
+    if (!ready || !ownerId) return;
+    let cancelled = false;
+    void getDb()
+      .getMeta('lastSyncedAt')
+      .then((value) => {
+        if (cancelled) return;
+        const identity = useAuthStore.getState().identity;
+        const dataState = useDataStore.getState();
+        if (identity?.userId === ownerId && dataState.ready && dataState.ownerId === ownerId) {
+          useSyncStore.getState().set({ lastSyncedAt: value ? Number(value) : null });
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [ownerId, ready]);
 
-    let interval: ReturnType<typeof setInterval> | null = null;
+  // アカウント情報の確認はサーバー通信を伴うため、自動同期モードのアカウントだけに限定する。
+  // 60秒ごとのポーリングは行わず、起動時とバックグラウンドからの復帰時にだけ確認する。
+  // ゲスト、オフ、手動では、表示用のアカウント情報確認を理由とした通信を行わない。
+  useEffect(() => {
+    if (syncMode !== 'auto' || !remoteAccountId || !isSupabaseConfigured || needsReauth) return;
+
     const isForeground = () =>
       Platform.OS === 'web'
         ? typeof document !== 'undefined' && document.visibilityState === 'visible'
         : AppState.currentState === 'active';
-    const stopTimer = () => {
-      if (interval !== null) clearInterval(interval);
-      interval = null;
-    };
-    const refresh = () => {
-      if (isForeground()) void useAuthStore.getState().refreshRemoteIdentity();
-    };
-    const startTimer = () => {
-      if (!isForeground()) {
-        stopTimer();
-        return;
-      }
-      if (interval === null) {
-        refresh();
-        interval = setInterval(refresh, TIMING.identityRefreshIntervalMs);
-      }
-    };
+    let wasForeground = isForeground();
+    if (wasForeground) void useAuthStore.getState().refreshRemoteIdentity();
+
     const handleForegroundChange = () => {
-      if (!isForeground()) {
-        stopTimer();
-        return;
+      const foreground = isForeground();
+      if (foreground && !wasForeground) {
+        void useAuthStore.getState().refreshRemoteIdentity();
       }
-      if (interval === null) startTimer();
-      else refresh();
+      wasForeground = foreground;
     };
 
-    startTimer();
     if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof document !== 'undefined') {
       window.addEventListener('focus', handleForegroundChange);
       document.addEventListener('visibilitychange', handleForegroundChange);
       return () => {
-        stopTimer();
         window.removeEventListener('focus', handleForegroundChange);
         document.removeEventListener('visibilitychange', handleForegroundChange);
       };
     }
     const subscription = AppState.addEventListener('change', handleForegroundChange);
-    return () => {
-      stopTimer();
-      subscription.remove();
-    };
-  }, [remoteIdentityId, needsReauth]);
+    return () => subscription.remove();
+  }, [remoteAccountId, needsReauth, syncMode]);
 
   useEffect(() => {
     configureSync({
       // アカウント／接続設定の確認と同期モードの判断を分離する。
-      // 認証セッションの維持は Supabase Auth が管理し、データ同期の可否は controller が判断する。
+      // トークン自動更新は supabase.ts が同期モードと前景状態で制御し、データ同期の可否は controller が判断する。
       isAccountAvailable: () => {
         const authState = useAuthStore.getState();
         const identity = authState.identity;
-        return !!identity && !identity.local && !authState.needsReauth && isSupabaseConfigured;
+        const dataState = useDataStore.getState();
+        return (
+          !!identity &&
+          !identity.local &&
+          !authState.needsReauth &&
+          isSupabaseConfigured &&
+          dataState.ready &&
+          dataState.ownerId === identity.userId
+        );
       },
-      onAuthRequired: () => useAuthStore.getState().setNeedsReauth(true),
+      getAccountId: () => {
+        const identity = useAuthStore.getState().identity;
+        const dataState = useDataStore.getState();
+        return identity &&
+          !identity.local &&
+          isSupabaseConfigured &&
+          dataState.ready &&
+          dataState.ownerId === identity.userId
+          ? identity.userId
+          : null;
+      },
+      onAuthRequired: (ownerId) => {
+        const identity = useAuthStore.getState().identity;
+        const dataState = useDataStore.getState();
+        if (identity?.userId === ownerId && dataState.ready && dataState.ownerId === ownerId) {
+          useAuthStore.getState().setNeedsReauth(true);
+        }
+      },
     });
   }, []);
 

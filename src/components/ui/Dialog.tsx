@@ -91,6 +91,7 @@ export function Dialog({
   // TextInput の onFocus より先に届いても、キーボード表示状態を取りこぼさない。
   const dialogInputFocusRequestedRef = useRef(false);
   const nativeKeyboardSessionRef = useRef(false);
+  const nativeShowFrameRef = useRef<number | null>(null);
   const preserveKeyboardLayoutRef = useRef(preserveKeyboardLayout);
   useLayoutEffect(() => {
     preserveKeyboardLayoutRef.current = preserveKeyboardLayout;
@@ -366,10 +367,16 @@ export function Dialog({
     };
   }, [visible, preserveKeyboardLayout, updateKeyboardState]);
 
+  useEffect(() => {
+    if (visible || nativeShowFrameRef.current === null) return;
+    cancelAnimationFrame(nativeShowFrameRef.current);
+    nativeShowFrameRef.current = null;
+    dialogInputFocusRequestedRef.current = false;
+  }, [visible]);
+
   const handleShow = () => {
     // Web は現在の visualViewport とフォーカス状態から計測する。
-    // ネイティブは onShow 内の自動フォーカスより Keyboard イベントが先に届く場合に備え、
-    // 入力欄へフォーカスする要求を先に記録する。
+    // ネイティブでは中央配置で1フレーム表示してから自動フォーカスする。
     if (Platform.OS === 'web') {
       const viewport = typeof window !== 'undefined' ? window.visualViewport : undefined;
       const active = typeof document !== 'undefined' ? document.activeElement : null;
@@ -396,15 +403,20 @@ export function Dialog({
         webKeyboardSessionRef.current = false;
         updateKeyboardState(false);
       }
-    } else {
-      dialogInputFocusRequestedRef.current = Boolean(onShow);
-      if (onShow) {
-        // 自動フォーカスがキーボード表示イベントより先に走るため、イベント待ちの間も
-        // 下余白をなくし、ダイアログをキーボード回避後の領域の下端に配置する。
-        // KeyboardAvoidingView が OS ごとのキーボード表示領域を反映する。
-        nativeKeyboardSessionRef.current = true;
-        updateKeyboardState(true);
+    } else if (onShow) {
+      // フォーカス予定だけでキーボード表示中のレイアウトへ先回りしない。
+      // まず既定の中央位置で Modal を表示し、次フレームで入力欄へフォーカスする。
+      // ダイアログが表示された後のキーボードによる移動は Keyboard イベントに任せる。
+      if (nativeShowFrameRef.current !== null) {
+        cancelAnimationFrame(nativeShowFrameRef.current);
       }
+      nativeShowFrameRef.current = requestAnimationFrame(() => {
+        nativeShowFrameRef.current = null;
+        if (!visible) return;
+        dialogInputFocusRequestedRef.current = true;
+        onShow();
+      });
+      return;
     }
     onShow?.();
   };

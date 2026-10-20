@@ -7,6 +7,12 @@ const fail = (error: unknown): never => {
   throw error;
 };
 
+const chunks = <T>(items: T[], size: number): T[][] => {
+  const result: T[][] = [];
+  for (let i = 0; i < items.length; i += size) result.push(items.slice(i, i + size));
+  return result;
+};
+
 /** Supabase（PostgreSQL + RLS）を使った RemoteApi 実装。RLS により自分の行だけが見える。 */
 export function createSupabaseRemote(client: SupabaseClient): RemoteApi {
   return {
@@ -16,21 +22,145 @@ export function createSupabaseRemote(client: SupabaseClient): RemoteApi {
       return Number(data);
     },
 
-    async fetchSince(table: TableName, cursor: number, limit: number) {
+    async latestServerSeq(table: TableName) {
       const { data, error } = await client
         .from(table)
-        .select('*')
-        .gt('server_seq', cursor)
-        .order('server_seq', { ascending: true })
-        .limit(limit);
+        .select('server_seq')
+        .order('server_seq', { ascending: false })
+        .limit(1)
+        .maybeSingle();
       if (error) return fail(error);
-      return (data ?? []) as RemoteRow[];
+      return Number(data?.server_seq ?? 0);
+    },
+
+    async fetchSince(
+      table: TableName,
+      cursor: number,
+      limit: number,
+      includeVisibleIds = [],
+      upperBound?: number,
+    ) {
+      const base = () => {
+        const query = client
+          .from(table)
+          .select('*')
+          .gt('server_seq', cursor)
+          .order('server_seq', { ascending: true });
+        return upperBound === undefined ? query : query.lte('server_seq', upperBound);
+      };
+
+      if (table !== 'tasks') {
+        const { data, error } = await base().limit(limit);
+        if (error) return fail(error);
+        return (data ?? []) as RemoteRow[];
+      }
+
+      // 通常同期では、サーバーにだけ存在するアーカイブ／ごみ箱の本文を取得しない。
+      // ローカルで表示中のタスクが別端末で非表示化された場合はそのIDだけ状態変更を取得し、
+      // 別端末で通常表示へ復元されたタスクは、この表示対象の取得で反映する。
+      // サーバーにだけ存在する非表示レコードの本文は、一覧ダイアログを開くまで取得しない。
+      const visible = () => base().is('deleted_at', null).is('archived_at', null);
+      const ids = [...new Set(includeVisibleIds)];
+      const combinedIdLimit = 150;
+      const requests: ReturnType<typeof base>[] = [];
+
+      if (ids.length <= combinedIdLimit) {
+        requests.push(
+          ids.length > 0
+            ? base()
+                .or(`and(deleted_at.is.null,archived_at.is.null),id.in.(${ids.join(',')})`)
+                .limit(limit)
+            : visible().limit(limit),
+        );
+      } else {
+        requests.push(visible().limit(limit));
+        // 表示中のタスクがリモート側でアーカイブ／削除された場合だけ、その行を取得する。
+        for (const part of chunks(ids, combinedIdLimit)) {
+          requests.push(
+            base().in('id', part).or('deleted_at.not.is.null,archived_at.not.is.null').limit(limit),
+          );
+        }
+      }
+
+      const results = await Promise.all(
+        requests.map(async (query) => {
+          const { data, error } = await query;
+          if (error) return fail(error);
+          return (data ?? []) as RemoteRow[];
+        }),
+      );
+      const byId = new Map<string, RemoteRow>();
+      for (const rows of results) {
+        for (const row of rows) byId.set(String(row.id), row);
+      }
+      return [...byId.values()]
+        .sort((a, b) => Number(a.server_seq) - Number(b.server_seq))
+        .slice(0, limit);
     },
 
     async fetchByIds(table: TableName, ids: string[]) {
-      const { data, error } = await client.from(table).select('*').in('id', ids);
-      if (error) return fail(error);
-      return (data ?? []) as RemoteRow[];
+      const rows: RemoteRow[] = [];
+      for (const part of chunks([...new Set(ids)], SYNC.maxIdsPerQuery)) {
+        if (part.length === 0) continue;
+        const { data, error } = await client.from(table).select('*').in('id', part);
+        if (error) return fail(error);
+        rows.push(...((data ?? []) as RemoteRow[]));
+      }
+      return rows;
+    },
+
+    async fetchHiddenForProject(projectId: string, kind: 'archive' | 'trash') {
+      const page = SYNC.hiddenIdsPageSize;
+      const tasks: RemoteRow[] = [];
+      const columns: RemoteRow[] = [];
+
+      for (let from = 0; ; from += page) {
+        // Keep the archive and trash query chains separate. Combining the two
+        // PostgREST builder types in a conditional expression can trigger
+        // TS2589 (excessively deep type instantiation) with Supabase's types.
+        let rows: RemoteRow[];
+        if (kind === 'archive') {
+          const { data, error } = await client
+            .from('tasks')
+            .select('*')
+            .eq('project_id', projectId)
+            .is('deleted_at', null)
+            .not('archived_at', 'is', null)
+            .order('id', { ascending: true })
+            .range(from, from + page - 1);
+          if (error) return fail(error);
+          rows = (data ?? []) as RemoteRow[];
+        } else {
+          const { data, error } = await client
+            .from('tasks')
+            .select('*')
+            .eq('project_id', projectId)
+            .not('deleted_at', 'is', null)
+            .order('id', { ascending: true })
+            .range(from, from + page - 1);
+          if (error) return fail(error);
+          rows = (data ?? []) as RemoteRow[];
+        }
+        tasks.push(...rows);
+        if (rows.length < page) break;
+      }
+
+      if (kind === 'trash') {
+        for (let from = 0; ; from += page) {
+          const { data, error } = await client
+            .from('kanban_columns')
+            .select('*')
+            .eq('project_id', projectId)
+            .not('deleted_at', 'is', null)
+            .order('id', { ascending: true })
+            .range(from, from + page - 1);
+          if (error) return fail(error);
+          const rows = (data ?? []) as RemoteRow[];
+          columns.push(...rows);
+          if (rows.length < page) break;
+        }
+      }
+      return { columns, tasks };
     },
 
     async upsert(table: TableName, rows: RemoteRow[]) {
@@ -39,35 +169,31 @@ export function createSupabaseRemote(client: SupabaseClient): RemoteApi {
     },
 
     async deleteByIds(table: TableName, ids: string[]) {
-      for (let i = 0; i < ids.length; i += SYNC.maxIdsPerQuery) {
-        const { error } = await client
-          .from(table)
-          .delete()
-          .in('id', ids.slice(i, i + SYNC.maxIdsPerQuery));
+      for (const part of chunks(ids, SYNC.maxIdsPerQuery)) {
+        const { error } = await client.from(table).delete().in('id', part);
         if (error) fail(error);
       }
     },
 
-    async fetchHiddenIds(table: TableName) {
-      const ids: string[] = [];
-      const page = SYNC.hiddenIdsPageSize;
-      for (let from = 0; ; from += page) {
-        const query = client
-          .from(table)
-          .select('id')
-          .order('id', { ascending: true })
-          .range(from, from + page - 1);
-        const filtered =
+    async deleteAllOwned(table: TableName, ownerId: string) {
+      const { error } = await client.from(table).delete().eq('owner_id', ownerId);
+      if (error) fail(error);
+    },
+
+    async fetchHiddenIds(table: TableName, ids: string[]) {
+      const hiddenIds: string[] = [];
+      for (const part of chunks([...new Set(ids)], SYNC.maxIdsPerQuery)) {
+        if (part.length === 0) continue;
+        let query = client.from(table).select('id').in('id', part);
+        query =
           table === 'kanban_columns'
             ? query.not('deleted_at', 'is', null)
             : query.or('deleted_at.not.is.null,archived_at.not.is.null');
-        const { data, error } = await filtered;
+        const { data, error } = await query;
         if (error) return fail(error);
-        const rows = (data ?? []) as { id: string }[];
-        ids.push(...rows.map((r) => r.id));
-        if (rows.length < page) break;
+        hiddenIds.push(...((data ?? []) as { id: string }[]).map((row) => row.id));
       }
-      return ids;
+      return hiddenIds;
     },
   };
 }

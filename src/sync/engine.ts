@@ -2,8 +2,8 @@ import { SYNC } from '@/config/limits';
 import { mergeRecords } from '@/domain/merge';
 import { fromRemoteRow, TABLE_NAMES, toRemoteRow } from '@/domain/schema';
 import type { AnyRecord, Snapshot, TableName } from '@/domain/types';
-import { setClockOffset } from '@/lib/clock';
 import type { RemoteApi, SyncResult } from './types';
+import { flushPendingRemoteDeletes } from './pendingDeletes';
 import { DAY_MS } from '@/lib/dates';
 
 /** エンジンが必要とする端末側の入出力（ストアとDBへの橋渡し）。 */
@@ -18,9 +18,13 @@ export interface LocalPort {
 }
 
 export interface SyncOptions {
+  /** この同期で固定したアカウントID（保留削除を同じ所有者に限定する）。 */
+  ownerId: string;
   /** ごみ箱の自動削除（保持日数）。null なら行わない */
   trashRetentionDays: number | null;
   now: () => number;
+  /** 同期専用時計を補正し、必要な場合だけアプリ全体の時計へ反映する。 */
+  onServerTime?: (serverNow: number) => void;
 }
 
 const rowsOf = (snap: Snapshot, table: TableName): AnyRecord[] =>
@@ -46,7 +50,11 @@ export async function runSync(
 ): Promise<SyncResult> {
   const result: SyncResult = { pushed: 0, pulled: 0, purged: 0 };
   const serverNow = await remote.serverTime();
-  setClockOffset(serverNow - Date.now());
+  opts.onServerTime?.(serverNow);
+
+  // 明示同期／自動同期の入口を通った場合だけ、手動／オフ中に端末へ保存した削除を送る。
+  // リモート削除が途中で失敗した場合はテーブル単位でキューを残し、次回同期で再試行する。
+  await flushPendingRemoteDeletes(remote, opts.ownerId);
 
   // ---- Push ----
   for (const table of TABLE_NAMES) {
@@ -94,9 +102,33 @@ export async function runSync(
   // ---- Pull ----
   for (const table of TABLE_NAMES) {
     let cursor = Number((await local.getMeta(cursorKey(table))) ?? 0);
+    // tasks では非表示レコードを通常のPull結果から除外するため、今回の差分範囲の上限を固定する。
+    // その範囲の表示対象差分を処理し終えたら、非表示だけの末尾を毎回検索し直さないようカーソルを進める。
+    const upperBound = table === 'tasks' ? await remote.latestServerSeq(table) : undefined;
+    if (upperBound !== undefined && upperBound <= cursor) continue;
+
     for (;;) {
-      const rows = await remote.fetchSince(table, cursor, SYNC.pageSize);
-      if (rows.length === 0) break;
+      const includeVisibleIds =
+        table === 'tasks'
+          ? local
+              .snapshot()
+              .tasks.filter((task) => task.deletedAt === null && task.archivedAt === null)
+              .map((task) => task.id)
+          : undefined;
+      const rows = await remote.fetchSince(
+        table,
+        cursor,
+        SYNC.pageSize,
+        includeVisibleIds,
+        upperBound,
+      );
+      if (rows.length === 0) {
+        if (upperBound !== undefined && cursor < upperBound) {
+          cursor = upperBound;
+          await local.setMeta(cursorKey(table), String(cursor));
+        }
+        break;
+      }
       const localMap = new Map(rowsOf(local.snapshot(), table).map((r) => [r.id, r]));
       const changes: AnyRecord[] = [];
       for (const raw of rows) {
@@ -116,7 +148,13 @@ export async function runSync(
       result.pulled += rows.length;
       cursor = Number(rows[rows.length - 1]!.server_seq);
       await local.setMeta(cursorKey(table), String(cursor));
-      if (rows.length < SYNC.pageSize) break;
+      if (rows.length < SYNC.pageSize) {
+        if (upperBound !== undefined && cursor < upperBound) {
+          cursor = upperBound;
+          await local.setMeta(cursorKey(table), String(cursor));
+        }
+        break;
+      }
     }
   }
 
@@ -143,7 +181,12 @@ export async function runSync(
           ('archivedAt' in r && (r as { archivedAt: number | null }).archivedAt !== null)),
     );
     if (hidden.length === 0) continue;
-    const existing = new Set(await remote.fetchHiddenIds(table));
+    const existing = new Set(
+      await remote.fetchHiddenIds(
+        table,
+        hidden.map((record) => record.id),
+      ),
+    );
     const gone = hidden.filter((r) => !existing.has(r.id)).map((r) => r.id);
     if (gone.length === 0) continue;
     await local.apply({}, [{ table, ids: gone }]);

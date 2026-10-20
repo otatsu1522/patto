@@ -1,33 +1,61 @@
 import NetInfo from '@react-native-community/netinfo';
 import { AppState, Platform } from 'react-native';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import { getSupabase } from '@/auth/supabase';
+import { acquireAccountWork } from '@/auth/accountWork';
+import { createSyncSupabaseClient, getFreshSession, getSupabase } from '@/auth/supabase';
 import { isAuthRequiredError, isNetworkError } from '@/auth/errors';
+import { mergeRecords } from '@/domain/merge';
+import { fromRemoteRow } from '@/domain/schema';
+import type { AnyRecord, TableName } from '@/domain/types';
 import { SYNC } from '@/config/limits';
 import { ERROR_CODES } from '@/config/errorCodes';
-import type { Project, KanbanColumn, Task } from '@/domain/types';
-import { nowMs } from '@/lib/clock';
-import { getDb, onLocalChange, useDataStore } from '@/store/dataStore';
+import { nowMs, setClockOffset } from '@/lib/clock';
+import { captureSyncLocalContext, onLocalChange } from '@/store/dataStore';
 import { useSettingsStore } from '@/store/settingsStore';
-import { runSync, type LocalPort } from './engine';
+import { runSync } from './engine';
 import { createSupabaseRemote } from './remoteSupabase';
 import { useSyncStore } from './status';
 
 interface SyncConfig {
   /** リモートアカウントを利用できる状態か（ローカル専用ではなく Supabase 設定済み） */
   isAccountAvailable: () => boolean;
-  onAuthRequired: () => void;
+  /** 現在開いているローカルDBと対応するリモートユーザーID */
+  getAccountId: () => string | null;
+  onAuthRequired: (ownerId: string) => void;
 }
 
 type SyncSource = 'manual' | 'automatic';
 type SyncOptions = { throwOnError?: boolean; force?: boolean; source?: SyncSource };
+type SyncOutcome = { success: boolean; error?: unknown };
+type PendingWaiter = {
+  options: SyncOptions;
+  resolve: (result: boolean) => void;
+  reject: (error: unknown) => void;
+};
+type PendingSync = {
+  ownerId: string;
+  source: SyncSource;
+  options: SyncOptions;
+  waiters: PendingWaiter[];
+  /** ログアウト開始前に受理した未開始要求の作業リース。 */
+  releaseWork: (() => void) | null;
+};
 
-let config: SyncConfig = { isAccountAvailable: () => false, onAuthRequired: () => {} };
+let config: SyncConfig = {
+  isAccountAvailable: () => false,
+  getAccountId: () => null,
+  onAuthRequired: () => {},
+};
 let running = false;
-let queuedSource: SyncSource | null = null;
+let runningPromise: Promise<SyncOutcome> | null = null;
+let syncAdmissionClosed = false;
+let syncMutationBarrier = false;
+let syncMutationLockTail: Promise<void> = Promise.resolve();
+let pendingSync: PendingSync | null = null;
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
 let retryCount = 0;
 let autoSyncForeground = true;
+let pendingSyncLifecycleAttached = false;
 
 function isAppForeground(): boolean {
   if (Platform.OS === 'web') {
@@ -49,104 +77,334 @@ async function isOnline(): Promise<boolean> {
   }
 }
 
-function localPort(): LocalPort {
-  const store = useDataStore.getState();
-  const db = getDb();
-  return {
-    snapshot: () => useDataStore.getState().snapshot(),
-    apply: (changes, removed) =>
-      store.applyRemote(
-        {
-          projects: changes.projects as Project[] | undefined,
-          columns: changes.kanban_columns as KanbanColumn[] | undefined,
-          tasks: changes.tasks as Task[] | undefined,
-        },
-        removed,
-      ),
-    getMeta: (k) => db.getMeta(k),
-    setMeta: (k, v) => db.setMeta(k, v),
-  };
-}
-
-/** 同期要求の発生元と現在の設定・アプリ状態から、同期を開始できるか判断する。 */
-function canStartSync(opts: SyncOptions): boolean {
-  // バックグラウンドでは新しい同期を開始しない。force は前景条件を満たした後、通常の判定を迂回する。
-  if (!isAppForeground()) return false;
+/** 同期要求の発生元・アカウント・前景状態から、新しい同期を開始できるか判断する。 */
+function canStartSync(opts: SyncOptions, ownerId: string): boolean {
+  if (!isAppForeground() || config.getAccountId() !== ownerId) return false;
+  // force はログイン直後の一回だけ同期モードを迂回する。アカウント一致と前景条件は必須。
   if (opts.force) return true;
   if (!config.isAccountAvailable()) return false;
   const mode = useSettingsStore.getState().settings.syncMode;
-  if (opts.source === 'automatic') {
-    return mode === 'auto' && autoSyncForeground && isAppForeground();
-  }
-  // 手動要求も前景でのみ開始する。背景へ移った後にキューが排出されても通信を始めない。
+  if (opts.source === 'automatic') return mode === 'auto' && autoSyncForeground;
   return mode !== 'off';
 }
 
-function queueSync(source: SyncSource): void {
-  // 手動要求は自動要求より優先する。自動要求だけが残った場合は実行直前にモードを再確認する。
-  if (queuedSource === null || source === 'manual') queuedSource = source;
+function resultForCaller(outcome: SyncOutcome, options: SyncOptions): boolean {
+  if (!outcome.success && options.throwOnError && outcome.error) throw outcome.error;
+  return outcome.success;
+}
+
+function resolvePending(pending: PendingSync, outcome: SyncOutcome): void {
+  for (const waiter of pending.waiters) {
+    try {
+      waiter.resolve(resultForCaller(outcome, waiter.options));
+    } catch (error) {
+      waiter.reject(error);
+    }
+  }
+}
+
+function attachPendingSyncLifecycle(): void {
+  if (pendingSyncLifecycleAttached) return;
+  pendingSyncLifecycleAttached = true;
+  const resume = () => {
+    if (isAppForeground()) drainPendingSync();
+  };
+  if (Platform.OS === 'web' && typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', resume);
+  } else {
+    AppState.addEventListener('change', (state) => {
+      if (state === 'active') drainPendingSync();
+    });
+  }
+}
+
+function discardPendingSync(pending: PendingSync): void {
+  if (pendingSync === pending) pendingSync = null;
+  resolvePending(pending, { success: false });
+  pending.releaseWork?.();
+  pending.releaseWork = null;
+}
+
+function drainPendingSync(allowMutationBarrier = false): boolean {
+  if (syncMutationBarrier && !allowMutationBarrier) return false;
+  const pending = pendingSync;
+  if (!pending) return false;
+
+  // Logout 開始後は、自動要求を新たに開始しない。
+  // すでに受理済みの明示的な手動要求は、前景で実行条件を満たせば先に完了させる。
+  if (
+    syncAdmissionClosed &&
+    (pending.source !== 'manual' || !pending.releaseWork || !isAppForeground())
+  ) {
+    discardPendingSync(pending);
+    return false;
+  }
+  if (running) return false;
+
+  if (config.getAccountId() !== pending.ownerId) {
+    discardPendingSync(pending);
+    return false;
+  }
+
+  if (!isAppForeground()) {
+    if (pending.source === 'automatic' || syncAdmissionClosed) discardPendingSync(pending);
+    return false;
+  }
+
+  if (!canStartSync({ ...pending.options, source: pending.source }, pending.ownerId)) {
+    discardPendingSync(pending);
+    return false;
+  }
+
+  pendingSync = null;
+  const reservedRelease = pending.releaseWork;
+  pending.releaseWork = null;
+  void startSync(
+    pending.ownerId,
+    { ...pending.options, source: pending.source },
+    reservedRelease,
+  ).then((outcome) => resolvePending(pending, outcome));
+  return true;
+}
+
+async function executeSync(ownerId: string, opts: SyncOptions): Promise<SyncOutcome> {
+  const status = useSyncStore.getState().set;
+  const belongsToCurrentAccount = () => config.getAccountId() === ownerId;
+  let localContext: ReturnType<typeof captureSyncLocalContext> | null = null;
+  try {
+    let syncClockOffsetMs = 0;
+    const online = await isOnline();
+    // アカウント切り替え中に準備が終わった場合、新しいユーザーの状態には何も反映しない。
+    if (!belongsToCurrentAccount()) return { success: false };
+    if (!online) {
+      status({ status: 'offline' });
+      scheduleRetry();
+      return { success: false, error: new Error(ERROR_CODES.offline) };
+    }
+
+    const client = getSupabase();
+    if (!client) return { success: false };
+    // 同期ボタン／自動同期／ログイン直後の同期として処理が開始された場合だけ、
+    // 期限切れ間近のセッションを必要に応じて更新する。手動／オフ中の定期更新は行わない。
+    const session = await getFreshSession(client, ownerId);
+    if (!belongsToCurrentAccount()) return { success: false };
+    if (!session) throw new Error(ERROR_CODES.authRequired);
+
+    // DB と認証トークンを同期開始時点に固定する。アカウント切り替え後も、
+    // リモート要求は開始時のユーザー、ローカル書き込みは開始時のDBだけを対象にする。
+    localContext = captureSyncLocalContext(ownerId);
+    if (!belongsToCurrentAccount()) return { success: false };
+    status({ status: 'syncing', error: null });
+    const settings = useSettingsStore.getState().settings;
+    const syncClient = createSyncSupabaseClient(session.access_token);
+    await runSync(createSupabaseRemote(syncClient), localContext, {
+      ownerId,
+      trashRetentionDays: settings.trashAutoDelete ? settings.trashRetentionDays : null,
+      // この同期専用の時計補正を使う。古いアカウントの応答で新しいアカウントの時計を変えない。
+      now: () => Date.now() + syncClockOffsetMs,
+      onServerTime: (serverNow) => {
+        syncClockOffsetMs = serverNow - Date.now();
+        if (belongsToCurrentAccount()) setClockOffset(syncClockOffsetMs);
+      },
+    });
+    if (belongsToCurrentAccount()) {
+      status({ status: 'idle', lastSyncedAt: nowMs(), error: null });
+      retryCount = 0;
+    }
+    return { success: true };
+  } catch (error) {
+    // 古いアカウントの同期エラーを新しいアカウントの状態や再認証フラグへ反映しない。
+    if (!belongsToCurrentAccount()) return { success: false };
+    if (isAuthRequiredError(error)) config.onAuthRequired(ownerId);
+    status({
+      status: isNetworkError(error) ? 'offline' : 'error',
+      error: (error as { message?: string })?.message ?? String(error),
+    });
+    scheduleRetry();
+    return { success: false, error };
+  } finally {
+    if (localContext) {
+      try {
+        await localContext.release();
+      } catch {
+        // DB の後片付けエラーで、同期結果や他アカウントの状態を上書きしない。
+      }
+    }
+  }
+}
+
+function startSync(
+  ownerId: string,
+  options: SyncOptions,
+  reservedReleaseWork: (() => void) | null = null,
+): Promise<SyncOutcome> {
+  if ((syncAdmissionClosed || syncMutationBarrier) && !reservedReleaseWork) {
+    return Promise.resolve({ success: false });
+  }
+  const releaseWork = reservedReleaseWork ?? acquireAccountWork(ownerId);
+  if (!releaseWork) return Promise.resolve({ success: false });
+
+  running = true;
+  const task = executeSync(ownerId, options);
+  runningPromise = task;
+  const settle = () => {
+    if (runningPromise === task) {
+      running = false;
+      runningPromise = null;
+      // 呼び出し元が同期結果を受け取れるよう、後続同期は次のタスクへ送る。
+      setTimeout(drainPendingSync, 0);
+    }
+    releaseWork();
+  };
+  void task.then(settle, settle);
+  return task;
+}
+
+function queueWhileRunning(ownerId: string, options: SyncOptions): Promise<boolean> {
+  attachPendingSyncLifecycle();
+  const source = options.source ?? 'manual';
+  if (pendingSync && pendingSync.ownerId !== ownerId) {
+    // 新しい現在アカウントの要求を優先し、旧アカウント由来の予約は実行しない。
+    if (config.getAccountId() !== ownerId) return Promise.resolve(false);
+    discardPendingSync(pendingSync);
+  }
+
+  let pending = pendingSync;
+  if (!pending) {
+    const releaseWork = acquireAccountWork(ownerId);
+    if (!releaseWork) return Promise.resolve(false);
+    pending = { ownerId, source, options: { ...options, source }, waiters: [], releaseWork };
+    pendingSync = pending;
+  } else if (source === 'manual' && pending.source === 'automatic') {
+    pending.source = 'manual';
+    pending.options = { ...pending.options, ...options, source: 'manual' };
+  } else if (source === pending.source && options.force && !pending.options.force) {
+    pending.options = { ...pending.options, ...options, source: pending.source };
+  }
+
+  return new Promise<boolean>((resolve, reject) => {
+    pending!.waiters.push({ options, resolve, reject });
+  });
 }
 
 /**
- * 今すぐ同期する。手動同期（画面を引く・ボタン）と自動同期の両方がここを通る。
- * throwOnError=true のときは失敗を呼び出し元に投げる（完全削除の前処理など）。
+ * 今すぐ同期する。実行中なら要求を1件にまとめ、完了後に必要な同期を1回実行する。
+ * 手動要求も破棄せず、同じアカウントの複数要求は一つの後続同期にまとめる。
  */
-export async function syncNow(opts: SyncOptions = {}): Promise<boolean> {
-  // force は初回ログイン時などの一回だけモード判定を迂回し、設定自体は変更しない。
+export function syncNow(opts: SyncOptions = {}): Promise<boolean> {
+  if (syncAdmissionClosed || syncMutationBarrier) return Promise.resolve(false);
   const source = opts.source ?? 'manual';
-  if (!canStartSync({ ...opts, source })) return false;
-  const client = getSupabase();
-  if (!client) return false;
-  if (running) {
-    queueSync(source);
-    return false;
+  const options = { ...opts, source };
+  const ownerId = config.getAccountId();
+  if (!ownerId || !canStartSync(options, ownerId)) return Promise.resolve(false);
+
+  if (running && runningPromise) {
+    // 切り替え後のアカウントの要求を、古いアカウントの実行結果として成功扱いしない。
+    return queueWhileRunning(ownerId, options);
   }
+  return startSync(ownerId, options).then((outcome) => resultForCaller(outcome, options));
+}
 
-  running = true;
-  const status = useSyncStore.getState().set;
-  try {
-    const online = await isOnline();
-    if (!online) {
-      status({ status: 'offline' });
-      if (opts.throwOnError) throw new Error(ERROR_CODES.offline);
-      return false;
+/**
+ * Logout の開始時に新しい同期の受付を閉じ、未開始のキューを解放する。
+ * すでに実行中の同期はキャンセルせず、通常どおり終了するまで待つ。
+ */
+export async function waitForSyncBeforeAccountExit(): Promise<void> {
+  syncAdmissionClosed = true;
+  if (pendingSync?.source === 'automatic') discardPendingSync(pendingSync);
+
+  while (runningPromise || pendingSync) {
+    if (runningPromise) {
+      const active = runningPromise;
+      try {
+        await active;
+      } catch {
+        // executeSync は通常結果を返すが、予期しない reject でも終了待ちは続ける。
+      }
+      continue;
     }
 
-    const { data, error: sessionError } = await client.auth.getSession();
-    if (sessionError) throw sessionError;
-    if (!data.session) throw new Error(ERROR_CODES.authRequired);
-    status({ status: 'syncing', error: null });
-    const settings = useSettingsStore.getState().settings;
-    await runSync(createSupabaseRemote(client), localPort(), {
-      trashRetentionDays: settings.trashAutoDelete ? settings.trashRetentionDays : null,
-      now: nowMs,
-      // 一度開始した同期は、途中でモードやアプリ状態が変わっても最後まで実行する。
-      // 背景中の新しい同期開始は canStartSync で抑止する。
-    });
-    status({ status: 'idle', lastSyncedAt: nowMs(), error: null });
-    retryCount = 0;
-    return true;
-  } catch (e) {
-    if (isAuthRequiredError(e)) config.onAuthRequired();
-    status({
-      status: isNetworkError(e) ? 'offline' : 'error',
-      error: (e as { message?: string })?.message ?? String(e),
-    });
-    scheduleRetry();
-    if (opts.throwOnError) throw e;
-    return false;
-  } finally {
-    running = false;
-    const nextSource = queuedSource;
-    queuedSource = null;
-    if (nextSource !== null) {
-      // モード変更後の自動要求は syncNow 側の最終判定で破棄される。
-      void syncNow({ source: nextSource });
-    }
+    const pending = pendingSync;
+    if (!pending) break;
+    // キューに入る前に受理した手動要求は、前景にいる場合はログアウト前に完了させる。
+    if (pending.source === 'manual' && isAppForeground() && drainPendingSync(true)) continue;
+
+    // オフへの切替、背景状態、アカウント変更などで開始条件を満たせない要求は
+    // まだ開始していないため、結果を false として解放する。実行中の同期は停止しない。
+    if (pendingSync === pending) discardPendingSync(pending);
   }
 }
 
-/** 自動同期モードのときだけ、指数バックオフで再試行する。 */
+/** アカウント退出または削除が完了した後、新しいセッションの同期を許可する。 */
+export function resumeSyncAfterAccountExit(): void {
+  syncAdmissionClosed = false;
+}
+
+/**
+ * データの破壊的変更を同期と並行させない。
+ * 新しい同期の受付を閉じ、実行中／事前受理済みの同期が完了してから解除関数を返す。
+ * 保護中の新しい同期要求は予約せず false を返す。実行中の同期はキャンセルしない。
+ * 解除後は必要な場合に限り、自動モードの追いつき同期を要求する。
+ */
+export async function acquireSyncMutationLock(
+  options: { scheduleAutomaticSync?: boolean } = {},
+): Promise<() => void> {
+  const previousLock = syncMutationLockTail;
+  let unlock!: () => void;
+  syncMutationLockTail = new Promise<void>((resolve) => {
+    unlock = resolve;
+  });
+  await previousLock;
+
+  syncMutationBarrier = true;
+  try {
+    const pendingAtEntry = pendingSync;
+    while (runningPromise || (pendingAtEntry !== null && pendingSync === pendingAtEntry)) {
+      if (runningPromise) {
+        const active = runningPromise;
+        try {
+          await active;
+        } catch {
+          // The active sync reports its own failure; maintenance can proceed after it settles.
+        }
+        continue;
+      }
+
+      const pending = pendingSync;
+      if (!pending) break;
+      if (isAppForeground() && drainPendingSync(true)) continue;
+      if (pendingSync === pending) discardPendingSync(pending);
+    }
+  } catch (error) {
+    syncMutationBarrier = false;
+    unlock();
+    throw error;
+  }
+
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    syncMutationBarrier = false;
+    unlock();
+    // Schedule only after the guarded mutation has finished. Manual/off modes never auto-sync.
+    setTimeout(() => {
+      drainPendingSync();
+      if (
+        options.scheduleAutomaticSync !== false &&
+        !syncAdmissionClosed &&
+        config.isAccountAvailable() &&
+        useSettingsStore.getState().settings.syncMode === 'auto' &&
+        autoSyncForeground &&
+        isAppForeground()
+      ) {
+        void syncNow({ source: 'automatic' });
+      }
+    }, 0);
+  };
+}
+
+/** 自動同期のときだけ、指数バックオフで再試行する。 */
 function scheduleRetry() {
   if (retryTimer) clearTimeout(retryTimer);
   retryTimer = null;
@@ -162,8 +420,7 @@ function scheduleRetry() {
   retryCount += 1;
   retryTimer = setTimeout(() => {
     retryTimer = null;
-    if (autoSyncForeground && isAppForeground() && !running)
-      void syncNow({ source: 'automatic' });
+    if (autoSyncForeground && isAppForeground()) void syncNow({ source: 'automatic' });
   }, wait);
 }
 
@@ -172,7 +429,8 @@ export function startAutoSync(ownerId: string): () => void {
   // モード確認を先に行い、手動／オフ時は DB 読み出しやイベント登録も行わない。
   if (
     useSettingsStore.getState().settings.syncMode !== 'auto' ||
-    !config.isAccountAvailable()
+    !config.isAccountAvailable() ||
+    config.getAccountId() !== ownerId
   ) {
     autoSyncForeground = false;
     return () => {};
@@ -204,18 +462,12 @@ export function startAutoSync(ownerId: string): () => void {
     retryTimer = null;
   };
 
-  void getDb()
-    .getMeta('lastSyncedAt')
-    .then((value) => {
-      if (value) useSyncStore.getState().set({ lastSyncedAt: Number(value) });
-    })
-    .catch(() => {});
-
   const canRunAutomaticWork = () => {
     if (
       disposed ||
       !foreground ||
       !config.isAccountAvailable() ||
+      config.getAccountId() !== ownerId ||
       useSettingsStore.getState().settings.syncMode !== 'auto'
     ) {
       return false;
@@ -262,12 +514,7 @@ export function startAutoSync(ownerId: string): () => void {
   };
 
   const startRealtimeSubscription = () => {
-    if (
-      Platform.OS !== 'web' ||
-      !client ||
-      !canRunAutomaticWork() ||
-      realtimeChannel !== null
-    ) {
+    if (Platform.OS !== 'web' || !client || !canRunAutomaticWork() || realtimeChannel !== null) {
       return;
     }
 
@@ -307,8 +554,10 @@ export function startAutoSync(ownerId: string): () => void {
     }
     if (!wasForeground || interval === null) scheduleInterval();
     startRealtimeSubscription();
-    // 非表示中の変更は、復帰後の同期で現在のサーバー状態に追いつく。
-    if (!wasForeground) kick();
+    // 実行中に予約された手動要求があれば、前景復帰後に先に処理する。
+    const pendingSyncStarted = drainPendingSync();
+    // 手動要求が開始できた場合は、その同期で復帰中の変更も取得するため重複予約しない。
+    if (!wasForeground && !pendingSyncStarted) kick();
   };
 
   cleanups.push(onLocalChange(kick));
@@ -389,4 +638,178 @@ export function startAutoSync(ownerId: string): () => void {
     autoSyncForeground = false;
     cleanups.forEach((cleanup) => cleanup());
   };
+}
+
+/**
+ * 自動モードでプロジェクトのアーカイブ／ごみ箱を開いたときだけ、サーバー上の非表示項目を取得する。
+ * 通常同期はローカルに存在しない非表示タスクの本文を取得しない。
+ * 取得中は同期入口を一時的に閉じるが、実行中の同期は停止せず完了を待つ。
+ */
+export async function refreshProjectHiddenRecords(
+  projectId: string,
+  kind: 'archive' | 'trash',
+): Promise<void> {
+  const ownerId = config.getAccountId();
+  if (
+    !projectId ||
+    !ownerId ||
+    !config.isAccountAvailable() ||
+    useSettingsStore.getState().settings.syncMode !== 'auto' ||
+    !isAppForeground()
+  ) {
+    return;
+  }
+
+  const releaseWork = acquireAccountWork(ownerId);
+  if (!releaseWork) return;
+  let releaseMutation: (() => void) | null = null;
+  let localContext: ReturnType<typeof captureSyncLocalContext> | null = null;
+  try {
+    releaseMutation = await acquireSyncMutationLock({ scheduleAutomaticSync: false });
+    // 待機中にログアウト／モード変更が完了した場合は、新しい通信を始めない。
+    if (
+      config.getAccountId() !== ownerId ||
+      !config.isAccountAvailable() ||
+      useSettingsStore.getState().settings.syncMode !== 'auto' ||
+      !isAppForeground()
+    ) {
+      return;
+    }
+
+    const client = getSupabase();
+    if (!client) return;
+    const session = await getFreshSession(client, ownerId);
+    if (!session?.access_token) {
+      config.onAuthRequired(ownerId);
+      throw new Error(ERROR_CODES.authRequired);
+    }
+    if (config.getAccountId() !== ownerId) return;
+
+    // アカウントとローカルDBを固定し、遅れて返った結果が別アカウントへ書き込まれないようにする。
+    localContext = captureSyncLocalContext(ownerId);
+    const snapshot = localContext.snapshot();
+    const knownTaskIds =
+      kind === 'archive'
+        ? snapshot.tasks
+            .filter(
+              (task) =>
+                task.projectId === projectId && task.deletedAt === null && task.archivedAt !== null,
+            )
+            .map((task) => task.id)
+        : snapshot.tasks
+            .filter((task) => task.projectId === projectId && task.deletedAt !== null)
+            .map((task) => task.id);
+    const knownColumnIds =
+      kind === 'trash'
+        ? snapshot.columns
+            .filter((column) => column.projectId === projectId && column.deletedAt !== null)
+            .map((column) => column.id)
+        : [];
+
+    const remote = createSupabaseRemote(createSyncSupabaseClient(session.access_token));
+    const listed = await remote.fetchHiddenForProject(projectId, kind);
+    // 一覧取得済みの非表示行をもう一度取得しない。ローカルにはあるが一覧にないIDだけ確認し、
+    // 別端末で復元された行やサーバーから完全削除された行を判別する。
+    const listedTaskIds = new Set(listed.tasks.map((row) => String(row.id)));
+    const listedColumnIds = new Set(listed.columns.map((row) => String(row.id)));
+    const [knownTasks, knownColumns] = await Promise.all([
+      remote.fetchByIds(
+        'tasks',
+        knownTaskIds.filter((id) => !listedTaskIds.has(id)),
+      ),
+      remote.fetchByIds(
+        'kanban_columns',
+        knownColumnIds.filter((id) => !listedColumnIds.has(id)),
+      ),
+    ]);
+    if (
+      listed.tasks.some((row) => row.owner_id !== ownerId) ||
+      knownTasks.some((row) => row.owner_id !== ownerId)
+    ) {
+      throw new Error(ERROR_CODES.authRequired);
+    }
+
+    const uniqueRows = (rows: Record<string, unknown>[]) => {
+      const byId = new Map<string, Record<string, unknown>>();
+      for (const row of rows) {
+        if (row.owner_id === ownerId) byId.set(String(row.id), row);
+      }
+      return [...byId.values()];
+    };
+    const remoteTasks = uniqueRows([...listed.tasks, ...knownTasks]);
+    const remoteColumns = uniqueRows([...listed.columns, ...knownColumns]);
+    if (
+      listed.columns.some((row) => row.owner_id !== ownerId) ||
+      knownColumns.some((row) => row.owner_id !== ownerId)
+    ) {
+      throw new Error(ERROR_CODES.authRequired);
+    }
+
+    const mergeRows = (
+      table: TableName,
+      rows: Record<string, unknown>[],
+      localRows: AnyRecord[],
+    ): AnyRecord[] => {
+      const localById = new Map(localRows.map((row) => [row.id, row]));
+      return rows.map((row) => {
+        const theirs = fromRemoteRow<AnyRecord>(table, row);
+        const mine = localById.get(theirs.id);
+        if (!mine) return theirs;
+        const { merged, differsFromRemote } = mergeRecords(table, mine, theirs);
+        return { ...merged, dirty: differsFromRemote };
+      });
+    };
+
+    const localHiddenTasks =
+      kind === 'archive'
+        ? snapshot.tasks.filter(
+            (task) =>
+              task.projectId === projectId && task.deletedAt === null && task.archivedAt !== null,
+          )
+        : snapshot.tasks.filter((task) => task.projectId === projectId && task.deletedAt !== null);
+    const localHiddenColumns =
+      kind === 'trash'
+        ? snapshot.columns.filter(
+            (column) => column.projectId === projectId && column.deletedAt !== null,
+          )
+        : [];
+    const taskIdsOnServer = new Set(remoteTasks.map((row) => String(row.id)));
+    const columnIdsOnServer = new Set(remoteColumns.map((row) => String(row.id)));
+    const removed: { table: TableName; ids: string[] }[] = [];
+    const missingTasks = localHiddenTasks
+      .filter((task) => !task.dirty && !taskIdsOnServer.has(task.id))
+      .map((task) => task.id);
+    const missingColumns = localHiddenColumns
+      .filter((column) => !column.dirty && !columnIdsOnServer.has(column.id))
+      .map((column) => column.id);
+    if (missingColumns.length > 0) removed.push({ table: 'kanban_columns', ids: missingColumns });
+    if (missingTasks.length > 0) removed.push({ table: 'tasks', ids: missingTasks });
+
+    await localContext.apply(
+      {
+        ...(remoteColumns.length > 0
+          ? { kanban_columns: mergeRows('kanban_columns', remoteColumns, snapshot.columns) }
+          : {}),
+        ...(remoteTasks.length > 0
+          ? { tasks: mergeRows('tasks', remoteTasks, snapshot.tasks) }
+          : {}),
+      },
+      removed,
+    );
+  } catch (error) {
+    if (isAuthRequiredError(error) && config.getAccountId() === ownerId) {
+      config.onAuthRequired(ownerId);
+    }
+    throw error;
+  } finally {
+    if (localContext) {
+      try {
+        await localContext.release();
+      } catch {
+        // A refresh result must not override a successful UI transition if the old DB has closed.
+      }
+    }
+    releaseMutation?.();
+    releaseWork();
+  }
 }

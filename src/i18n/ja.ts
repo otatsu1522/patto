@@ -86,6 +86,8 @@ export const ja = {
   'auth.guestConfirmLocalMessage':
     'この環境ではサーバー接続が設定されていないため、ゲストのデータはこの端末内だけに保存されます。クラウド同期、別端末への引き継ぎ、ゲストからアカウントへの切り替えは利用できません。必要なデータはシステム設定からエクスポートしてください。\n\nゲストを終了すると端末内のデータは削除され、復元できません。',
   'auth.signupSubmit': '登録する',
+  'auth.logoutBeforeSwitch':
+    '別のアカウントを使うには、先に現在のアカウントからログアウトしてください。',
   'auth.backToLogin': 'ログイン画面に戻る',
   'auth.showPassword': 'パスワードを表示',
   'auth.hidePassword': 'パスワードを隠す',
@@ -131,6 +133,8 @@ export const ja = {
   'auth.guestNote':
     'ゲストでも使えます。初回だけインターネット接続が必要で、以降はオフラインでも使えます。',
   'auth.reauthNeeded': 'ログインの有効期限が切れました。パスワードを入力すると同期が再開します。',
+  'auth.sessionMismatch':
+    '認証中のアカウントとデータの所有者が一致しません。安全のため処理を中止しました。アカウントを確認してから再試行してください。',
   'auth.reauthSubmit': '再ログイン',
   'auth.notConfigured': 'Supabase が未設定です。.env.local を設定してください。',
   'auth.notConfiguredGuest':
@@ -163,7 +167,7 @@ export const ja = {
   'sync.offlineMessage': 'インターネット接続を確認し、接続後にもう一度同期してください。',
   'sync.error': '同期に失敗しました',
   'sync.never': '未同期',
-  'sync.manualHint': '画面を下に引いて同期',
+  'sync.manualHint': '同期ボタンを押して同期',
   'sync.now': '今すぐ同期',
 
   // プロジェクト
@@ -267,13 +271,18 @@ export const ja = {
   'board.clearArchive': 'アーカイブのクリア',
   'board.moveArchiveToTrash': 'ごみ箱へ移動',
   'board.restoreAll': 'すべて元に戻す',
+  'board.hiddenRefreshFailed':
+    'サーバーのアーカイブ／ごみ箱を取得できませんでした。端末内の内容を表示しています。',
   'board.restoreAllFailed':
     'すべてを元に戻せませんでした。残っている項目を確認して再試行してください。',
   'board.openTrash': 'ごみ箱を見る',
   'board.clearTrash': 'ごみ箱のクリア',
   'board.clearArchiveMessage':
     'アーカイブ内のタスク {count} 件をごみ箱へ移動します。必要に応じて、ごみ箱から元に戻せます。',
-  'board.clearTrashMessage': 'ごみ箱の中身 {count} 件を完全に削除します。元に戻せません。',
+  'board.clearTrashMessage':
+    'ごみ箱の中身 {count} 件を完全に削除します。自動モードではサーバー上のデータも削除します。手動／オフでは通信せず端末から削除し、サーバーへの削除は次に同期が実行されたときに反映します。元に戻せません。',
+  'board.clearLocalFailed':
+    '削除要求を端末に保存できなかったため、削除していません。もう一度お試しください。',
   'board.clearNothing': 'クリアするものはありません',
   'board.clearNeedsSync': 'クリアは同期を行ってから実行します。インターネットに接続してください。',
   'board.clearSyncNotStarted':
@@ -330,6 +339,7 @@ export const ja = {
   'settings.changeDisplayName': '表示名を変更',
   'settings.profileSaved': '保存しました。',
   'settings.onlineOnly': 'この操作にはインターネット接続が必要です。',
+  'settings.accountLeaving': 'アカウントの終了処理中です。完了後にもう一度お試しください。',
   'settings.deleteAccount': 'アカウントを削除',
   'settings.deleteAccountWarning':
     'プロジェクト・カンバン・タスクなど、サーバー上のすべてのデータと、この端末のデータが削除されます。元に戻せません。先にエクスポートすることをおすすめします。',
@@ -375,12 +385,12 @@ export const ja = {
   'settings.qaAnswerPrefix': 'A.',
   'settings.resetAll': '初期化',
   'settings.resetAllHint':
-    'プロジェクト、カンバン、タスクと、このアプリの設定をすべて初期状態に戻します。アカウントは削除されません。',
+    'プロジェクト、カンバン、タスクと、このアプリの設定を初期状態に戻します。同期モードは変更しません。自動モードではサーバー上のデータも削除します。手動／オフでは通信せず削除要求を端末に保存し、次に同期が実行されたときに反映します。アカウント自体は削除されません。',
   'settings.resetAllTitle': 'すべてのデータを初期化しますか？',
   'settings.resetAllMessage':
-    'プロジェクト、カンバン、タスク、ごみ箱、アーカイブのデータをすべて削除し、設定を初期値に戻します。この操作は元に戻せません。アカウントは残ります。',
+    'プロジェクト、カンバン、タスク、ごみ箱、アーカイブのデータを削除し、同期モード以外の設定を初期値に戻します。自動モードではサーバー上のデータも削除します。手動／オフでは通信せず、削除要求を端末に保存して次回の同期時に反映します。この操作は元に戻せません。アカウント自体は残ります。',
   'settings.resetAllConfirm': 'すべて削除して初期化',
-  'settings.resetAllDone': 'データを削除し、設定を初期化しました。',
+  'settings.resetAllDone': 'データを削除し、同期モード以外の設定を初期化しました。',
   'settings.resetAllFailed':
     'データを初期化できませんでした。接続とログイン状態を確認してください。',
   'settings.emailChange': 'メールアドレスの変更',
@@ -428,7 +438,7 @@ export const ja = {
   'settings.trashClearAll': 'ごみ箱を空にする',
   'settings.archiveClearAll': 'アーカイブのクリア',
   'settings.trashClearAllMessage':
-    'ごみ箱内の {count} 件のデータを完全に削除します。元に戻せません。',
+    'ごみ箱内の {count} 件のデータを完全に削除します。自動モードではサーバー上のデータも削除します。手動／オフでは通信せず端末から削除し、サーバーへの削除は次に同期が実行されたときに反映します。元に戻せません。',
   'settings.archiveClearAllMessage':
     'アーカイブ内のタスク {count} 件をごみ箱へ移動します。必要に応じて、ごみ箱から元に戻せます。',
   'settings.clearPermanently': '完全に削除',
@@ -588,9 +598,9 @@ export const ja = {
   'settings.syncHint':
     '同期は、この端末のデータをサーバー（Supabase）と合わせる機能です。この設定は端末ごとなので、スマホとWebで別々に選べます。',
   'settings.syncModeOffDesc':
-    'オフ: 通常は同期しません。既存アカウントへのログイン時だけデータを一度同期し、その後は同期を行いません。',
+    'オフ: 通常のデータ同期を行いません。既存アカウントへのログイン時は初回同期を行います。認証トークンの自動更新も行わず、ログインやアカウント管理など明示的な操作に必要な通信だけを行います。オフ中に端末へ保存した削除要求は、同期モードを有効にして同期したときに反映します。',
   'settings.syncModeManualDesc':
-    '手動: 画面を下に引いたとき、同期アイコンやメニュー下部の同期表示をタップしたときだけ同期します。',
+    '手動: 自動同期、一覧を開いたときの通信、認証トークンの自動更新は行いません。プロジェクトタイトル横の同期アイコン、メニュー下部の同期表示、設定の「今すぐ同期」をタップしたときだけデータを同期します。ログインやアカウント管理など明示的な認証操作は別です。',
   'settings.syncModeAutoDesc':
     '自動: アプリを操作中に、変更後・定期確認・ネット復帰・起動／復帰時に同期します。Webではサーバー側の変更も反映します。アプリを切り替えて使っていない間は同期処理を停止します。',
   'settings.trashHint':
@@ -645,7 +655,7 @@ export const ja = {
   'about.body2':
     '操作はまず端末の中のデータベースに保存されるので、電波のない場所でも待たされずに使えます。ログインしたあとは、通信がなくても再ログインは要りません。',
   'about.body3':
-    '同じアカウントなら、スマホとWebでデータを共有できます。同期は、手動（画面を下に引く）と自動から選べ、スマホとWebで別々に設定できます。競合したときは、項目ごとに新しい変更を採用してマージします。',
+    '同じアカウントなら、スマホとWebでデータを共有できます。同期は、手動（同期ボタンを押したときだけ）と自動から選べ、スマホとWebで別々に設定できます。競合したときは、項目ごとに新しい変更を採用してマージします。',
   'about.body4':
     'アカウントを作らなくても「ゲスト」で使い始められ、あとから同じデータのままアカウントに切り替えられます。タスクはピン留め、期限（カレンダー選択）、色、DONEモード、アーカイブ、ごみ箱、検索に対応しています。',
   'about.body5':

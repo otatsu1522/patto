@@ -10,7 +10,7 @@ import {
 } from '@/config/tutorial';
 import { LIMITS } from '@/config/limits';
 import { TIMING } from '@/config/timing';
-import { openLocalDb, webTabDatabaseScope } from '@/db/sqliteDb';
+import { destroyLocalDb, openLocalDb, webTabDatabaseScope } from '@/db/sqliteDb';
 import type { LocalDb } from '@/db/types';
 import {
   buildColumn,
@@ -133,6 +133,103 @@ async function loadDbWithTimeout(db: LocalDb): Promise<Snapshot> {
 }
 
 let db: LocalDb | null = null;
+type SyncDbTarget = { ownerId: string; scope: string; db: LocalDb };
+type SyncContextRegistration = SyncDbTarget & { freeze: () => void };
+const syncContextRegistrations = new Set<SyncContextRegistration>();
+const dbLeaseCounts = new Map<LocalDb, number>();
+const dbLogicalScopes = new Map<LocalDb, string>();
+const pendingDbClose = new Set<LocalDb>();
+const pendingDbDestroyScopes = new Map<
+  string,
+  { promise: Promise<void>; resolve: () => void; reject: (error: unknown) => void }
+>();
+const destroyingDbScopes = new Set<string>();
+const dbScopeWaiters = new Map<string, Set<() => void>>();
+
+function hasDbLeaseForScope(scope: string): boolean {
+  for (const [leasedDb, count] of dbLeaseCounts) {
+    if (count > 0 && dbLogicalScopes.get(leasedDb) === scope) return true;
+  }
+  return false;
+}
+
+async function flushPendingDbDestruction(): Promise<void> {
+  for (const [scope, pending] of [...pendingDbDestroyScopes]) {
+    if (hasDbLeaseForScope(scope) || destroyingDbScopes.has(scope)) continue;
+    destroyingDbScopes.add(scope);
+    try {
+      await destroyLocalDb(scope);
+      pendingDbDestroyScopes.delete(scope);
+      pending.resolve();
+    } catch (error) {
+      pendingDbDestroyScopes.delete(scope);
+      pending.reject(error);
+    } finally {
+      destroyingDbScopes.delete(scope);
+    }
+  }
+}
+
+async function closeDbWhenUnused(target: LocalDb): Promise<void> {
+  if ((dbLeaseCounts.get(target) ?? 0) > 0) {
+    pendingDbClose.add(target);
+    return;
+  }
+  try {
+    await target.close();
+  } finally {
+    dbLogicalScopes.delete(target);
+    await flushPendingDbDestruction();
+  }
+}
+
+async function releaseDbLease(target: LocalDb): Promise<void> {
+  const count = dbLeaseCounts.get(target) ?? 0;
+  if (count > 1) {
+    dbLeaseCounts.set(target, count - 1);
+    return;
+  }
+  dbLeaseCounts.delete(target);
+  const scope = dbLogicalScopes.get(target);
+  let closeError: unknown;
+  if (pendingDbClose.delete(target)) {
+    try {
+      await target.close();
+    } catch (error) {
+      closeError = error;
+    } finally {
+      dbLogicalScopes.delete(target);
+    }
+  }
+  await flushPendingDbDestruction();
+  if (scope) {
+    const waiters = dbScopeWaiters.get(scope);
+    if (waiters) {
+      dbScopeWaiters.delete(scope);
+      waiters.forEach((resolve) => resolve());
+    }
+  }
+  if (closeError) throw closeError;
+}
+
+async function waitForScopeLeases(scope: string): Promise<void> {
+  while (hasDbLeaseForScope(scope)) {
+    await new Promise<void>((resolve) => {
+      const waiters = dbScopeWaiters.get(scope) ?? new Set<() => void>();
+      waiters.add(resolve);
+      dbScopeWaiters.set(scope, waiters);
+    });
+  }
+  const pendingDestroy = pendingDbDestroyScopes.get(scope);
+  if (pendingDestroy) await pendingDestroy.promise;
+}
+
+function freezeSyncContexts(ownerId: string, scope: string): void {
+  for (const context of syncContextRegistrations) {
+    if (context.ownerId === ownerId && context.scope === scope) context.freeze();
+  }
+}
+
 /** 同期層などから DB に直接アクセスするための入口 */
 export const getDb = (): LocalDb => {
   if (!db) throw new Error(DIAGNOSTIC_MESSAGES.databaseNotOpen);
@@ -161,6 +258,12 @@ interface DataState extends Snapshot {
   close: () => Promise<void>;
   /** 同期層からの書き込み（変更通知は発火しない） */
   applyRemote: (changes: Changes, removed?: { table: TableName; ids: string[] }[]) => Promise<void>;
+  /** 同期開始時に固定したDBへ書き込み、別アカウントのメモリ状態には触れない。 */
+  applyRemoteForSync: (
+    target: SyncDbTarget,
+    changes: Partial<Record<TableName, AnyRecord[]>>,
+    removed?: { table: TableName; ids: string[] }[],
+  ) => Promise<void>;
   reload: () => Promise<void>;
   snapshot: () => Snapshot;
 
@@ -226,18 +329,31 @@ interface DataState extends Snapshot {
 }
 
 export const useDataStore = create<DataState>((set, get) => {
-  /** 変更をメモリに反映し、DBへ保存して、変更通知を出す。 */
-  async function commit(changes: Changes, notify = true): Promise<void> {
-    set((s) => ({
-      projects: upsertById(s.projects, changes.projects),
-      columns: upsertById(s.columns, changes.columns),
-      tasks: upsertById(s.tasks, changes.tasks),
-    }));
-    const d = getDb();
-    await d.upsert('projects', changes.projects ?? []);
-    await d.upsert('kanban_columns', changes.columns ?? []);
-    await d.upsert('tasks', changes.tasks ?? []);
-    if (notify) changeListeners.forEach((fn) => fn());
+  /** 変更をメモリに反映し、対象DBへ保存して、必要な場合だけ変更通知を出す。 */
+  async function commit(changes: Changes, notify = true, target?: SyncDbTarget): Promise<void> {
+    const targetDb = target?.db ?? getDb();
+    const isTargetCurrent = () =>
+      !target ||
+      (db === target.db &&
+        get().ready &&
+        get().ownerId === target.ownerId &&
+        get().scope === target.scope);
+    if (isTargetCurrent()) {
+      set((s) => {
+        if (target && (s.ownerId !== target.ownerId || s.scope !== target.scope || !s.ready)) {
+          return s;
+        }
+        return {
+          projects: upsertById(s.projects, changes.projects),
+          columns: upsertById(s.columns, changes.columns),
+          tasks: upsertById(s.tasks, changes.tasks),
+        };
+      });
+    }
+    await targetDb.upsert('projects', changes.projects ?? []);
+    await targetDb.upsert('kanban_columns', changes.columns ?? []);
+    await targetDb.upsert('tasks', changes.tasks ?? []);
+    if (notify && isTargetCurrent()) changeListeners.forEach((fn) => fn());
   }
 
   const now = () => nowMs();
@@ -270,9 +386,19 @@ export const useDataStore = create<DataState>((set, get) => {
   }
 
   /** 既存のチュートリアルへ新しい説明タスクを追加し、未編集サンプルの既定色を更新する。 */
-  async function migrateTutorialTasks(notify = false): Promise<void> {
+  async function migrateTutorialTasks(notify = false, target?: SyncDbTarget): Promise<void> {
+    if (
+      target &&
+      (db !== target.db ||
+        !get().ready ||
+        get().ownerId !== target.ownerId ||
+        get().scope !== target.scope)
+    ) {
+      return;
+    }
     const state = get();
-    const d = getDb();
+    const d = target?.db ?? getDb();
+    const migrationOwnerId = target?.ownerId ?? state.ownerId;
     let tutorialProjectId = await d.getMeta('tutorialProjectId');
     const hasStoredTutorialId = !!tutorialProjectId;
     // メタデータは端末ローカルなので、別端末で同期された TUTORIAL も識別できるようにする。
@@ -435,7 +561,7 @@ export const useDataStore = create<DataState>((set, get) => {
             const template = todoTemplates[index]!;
             const createdAt = project.createdAt - index * 1000;
             const sample = buildTask(
-              owner(),
+              migrationOwnerId,
               createdAt,
               {
                 projectId: tutorialProjectId,
@@ -459,7 +585,7 @@ export const useDataStore = create<DataState>((set, get) => {
 
     // 起動途中に旧ユーザーの同期リスナーへ通知しない。dirty レコードは、認証確定後の同期で送信される。
     if (updatedTasks.length > 0 || newTasks.length > 0) {
-      await commit({ tasks: [...updatedTasks, ...newTasks] }, notify);
+      await commit({ tasks: [...updatedTasks, ...newTasks] }, notify, target);
     }
     // 保存は commit 成功後に行い、書き込み失敗時は次回起動で再試行できるようにする。
     if (tutorialTaskVersion !== TUTORIAL_TASKS_VERSION && canMarkTutorialVersion) {
@@ -478,19 +604,25 @@ export const useDataStore = create<DataState>((set, get) => {
 
     async open(scope, ownerId) {
       await enqueueDbLifecycle(async () => {
-        if (db && get().ready && get().scope === scope) {
-          if (get().ownerId !== ownerId) set({ ownerId });
+        if (db && get().ready && get().scope === scope && get().ownerId === ownerId) {
           return;
+        }
+        const previousState = get();
+        if (db && previousState.scope && previousState.ownerId) {
+          freezeSyncContexts(previousState.ownerId, previousState.scope);
         }
         set({ ready: false });
         if (db) {
           const previous = db;
           db = null;
-          await previous.close();
+          await closeDbWhenUnused(previous);
         }
+        // 同じアカウントへ短時間で戻った場合、旧同期のDB lease／サインアウト後の削除が終わるまで待つ。
+        await waitForScopeLeases(scope);
         const { db: opened, snapshot } = await openAndLoadDbWithTabFallback(scope);
         try {
           db = opened;
+          dbLogicalScopes.set(opened, scope);
           set({ ...snapshot, scope, ownerId, ready: true });
           // 見本タスクの色補完は起動を妨げる必須処理ではないため、失敗しても起動は継続する。
           try {
@@ -510,10 +642,14 @@ export const useDataStore = create<DataState>((set, get) => {
 
     async close() {
       await enqueueDbLifecycle(async () => {
+        const previousState = get();
+        if (db && previousState.scope && previousState.ownerId) {
+          freezeSyncContexts(previousState.ownerId, previousState.scope);
+        }
         if (db) {
           const previous = db;
           db = null;
-          await previous.close();
+          await closeDbWhenUnused(previous);
         }
         set({ ...emptySnapshot(), scope: null, ownerId: '', ready: false });
       });
@@ -558,6 +694,55 @@ export const useDataStore = create<DataState>((set, get) => {
         await migrateTutorialTasks(true);
       } catch {
         // 色補完に失敗しても同期自体は成功扱いとし、次回の起動／同期で再試行する。
+      }
+    },
+
+    async applyRemoteForSync(target, changes, removed = []) {
+      const targetDb = target.db;
+      const isTargetCurrent = () =>
+        db === targetDb &&
+        get().ready &&
+        get().ownerId === target.ownerId &&
+        get().scope === target.scope;
+      for (const r of removed) await targetDb.remove(r.table, r.ids);
+      if (isTargetCurrent()) {
+        set((s) => {
+          if (s.ownerId !== target.ownerId || s.scope !== target.scope || !s.ready) return s;
+          const drop = (table: TableName) =>
+            new Set(removed.filter((r) => r.table === table).flatMap((r) => r.ids));
+          const dp = drop('projects');
+          const dc = drop('kanban_columns');
+          const dt = drop('tasks');
+          return {
+            projects: upsertById(
+              s.projects.filter((x) => !dp.has(x.id)),
+              changes.projects as Project[] | undefined,
+            ),
+            columns: upsertById(
+              s.columns.filter((x) => !dc.has(x.id)),
+              changes.kanban_columns as KanbanColumn[] | undefined,
+            ),
+            tasks: upsertById(
+              s.tasks.filter((x) => !dt.has(x.id)),
+              changes.tasks as Task[] | undefined,
+            ),
+          };
+        });
+      }
+      await targetDb.upsert('projects', (changes.projects as Project[] | undefined) ?? []);
+      await targetDb.upsert(
+        'kanban_columns',
+        (changes.kanban_columns as KanbanColumn[] | undefined) ?? [],
+      );
+      await targetDb.upsert('tasks', (changes.tasks as Task[] | undefined) ?? []);
+      // 同期対象が引き続き表示中の場合だけ、既存のサンプルデータ補完を実行する。
+      // target を渡しているため、処理中にアカウントが切り替わっても書き込み先は変わらない。
+      if (isTargetCurrent()) {
+        try {
+          await migrateTutorialTasks(true, target);
+        } catch {
+          // 色補完の失敗は同期データの保存失敗として扱わず、次回に再試行する。
+        }
       }
     },
 
@@ -1088,3 +1273,110 @@ export const useDataStore = create<DataState>((set, get) => {
 
 export { purgeTargets };
 export type { AnyRecord, ColumnSortMode, TaskColorKey };
+
+export interface SyncLocalContext {
+  snapshot: () => Snapshot;
+  apply: (
+    changes: Partial<Record<TableName, AnyRecord[]>>,
+    removed: { table: TableName; ids: string[] }[],
+  ) => Promise<void>;
+  getMeta: (key: string) => Promise<string | null>;
+  setMeta: (key: string, value: string) => Promise<void>;
+  release: () => Promise<void>;
+}
+
+/**
+ * 同期開始時のアカウント／DBを固定する。画面のアカウントが切り替わっても、
+ * 実行中の同期は開始時のDBだけを書き換え、新しいアカウントのZustand状態には触れない。
+ */
+export function captureSyncLocalContext(expectedOwnerId: string): SyncLocalContext {
+  const initialState = useDataStore.getState();
+  if (!initialState.ready || initialState.ownerId !== expectedOwnerId || !initialState.scope) {
+    throw new Error('Sync local database does not match the active account');
+  }
+  const target: SyncDbTarget = {
+    ownerId: initialState.ownerId,
+    scope: initialState.scope,
+    db: getDb(),
+  };
+  dbLeaseCounts.set(target.db, (dbLeaseCounts.get(target.db) ?? 0) + 1);
+  let frozenSnapshot: Snapshot = initialState.snapshot();
+  let released = false;
+  const isCurrent = () => {
+    const state = useDataStore.getState();
+    return (
+      db === target.db &&
+      state.ready &&
+      state.ownerId === target.ownerId &&
+      state.scope === target.scope
+    );
+  };
+  const freeze = () => {
+    if (isCurrent()) frozenSnapshot = useDataStore.getState().snapshot();
+  };
+  const registration: SyncContextRegistration = {
+    ownerId: target.ownerId,
+    scope: target.scope,
+    db: target.db,
+    freeze,
+  };
+  syncContextRegistrations.add(registration);
+
+  const updateFrozenSnapshot = (
+    changes: Partial<Record<TableName, AnyRecord[]>>,
+    removed: { table: TableName; ids: string[] }[],
+  ) => {
+    const removedByTable = (table: TableName) =>
+      new Set(removed.filter((item) => item.table === table).flatMap((item) => item.ids));
+    frozenSnapshot = {
+      projects: upsertById(
+        frozenSnapshot.projects.filter((item) => !removedByTable('projects').has(item.id)),
+        changes.projects as Project[] | undefined,
+      ),
+      columns: upsertById(
+        frozenSnapshot.columns.filter((item) => !removedByTable('kanban_columns').has(item.id)),
+        changes.kanban_columns as KanbanColumn[] | undefined,
+      ),
+      tasks: upsertById(
+        frozenSnapshot.tasks.filter((item) => !removedByTable('tasks').has(item.id)),
+        changes.tasks as Task[] | undefined,
+      ),
+    };
+  };
+
+  return {
+    snapshot: () => {
+      if (isCurrent()) frozenSnapshot = useDataStore.getState().snapshot();
+      return frozenSnapshot;
+    },
+    apply: async (changes, removed) => {
+      await useDataStore.getState().applyRemoteForSync(target, changes, removed);
+      if (isCurrent()) frozenSnapshot = useDataStore.getState().snapshot();
+      else updateFrozenSnapshot(changes, removed);
+    },
+    getMeta: (key) => target.db.getMeta(key),
+    setMeta: (key, value) => target.db.setMeta(key, value),
+    release: async () => {
+      if (released) return;
+      released = true;
+      syncContextRegistrations.delete(registration);
+      await releaseDbLease(target.db);
+    },
+  };
+}
+
+/** サインアウト後のローカルDB削除。同期がそのDBを使用中なら、完了後に削除する。 */
+export function destroyLocalDbWhenUnused(scope: string): Promise<void> {
+  const existing = pendingDbDestroyScopes.get(scope);
+  if (existing) return existing.promise;
+  let resolve!: () => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<void>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  // 同期中かどうかにかかわらず削除要求を登録し、同じアカウントの再ログインと競合させない。
+  pendingDbDestroyScopes.set(scope, { promise, resolve, reject });
+  void flushPendingDbDestruction();
+  return promise;
+}

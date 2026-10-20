@@ -24,7 +24,7 @@ export interface AppSettings {
   showTaskDescription: boolean;
   showTaskDueDate: boolean;
   showTaskUpdatedAt: boolean;
-  /** この端末の同期モード。off=同期しない / manual=画面を引いた時・ボタンのみ / auto=自動 */
+  /** この端末の同期モード。off=同期しない / manual=明示的な同期ボタンのみ / auto=自動 */
   syncMode: SyncMode;
   /** 自動同期の定期確認間隔（秒）。バックグラウンドでは動作しない。 */
   autoSyncIntervalSeconds: AutoSyncIntervalSeconds;

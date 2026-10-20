@@ -24,6 +24,7 @@ import { UserActionError } from '@/domain/operationError';
 import { useBoardActions } from '@/features/useBoardActions';
 import { showUndoToast } from '@/features/undo';
 import { useManualSync } from '@/hooks/useManualSync';
+import { refreshProjectHiddenRecords } from '@/sync/controller';
 import { t } from '@/i18n';
 import {
   clampCursor,
@@ -77,11 +78,16 @@ export default function ProjectScreen() {
   const project = projects.find((p) => p.id === id);
   const projectActive = project ? isActive(project) : false;
   const cols = useMemo(() => (id ? columnsOf(columns, id) : []), [columns, id]);
+  // 通常のボード再計算では、ローカルに残っているアーカイブ／ごみ箱のタスクを先に除外する。
+  const visibleTasks = useMemo(
+    () => tasks.filter((task) => task.deletedAt === null && task.archivedAt === null),
+    [tasks],
+  );
   const tasksByColumn = useMemo(() => {
     const map = new Map<string, Task[]>();
-    for (const c of cols) map.set(c.id, tasksOf(tasks, c.id, c.sortMode));
+    for (const c of cols) map.set(c.id, tasksOf(visibleTasks, c.id, c.sortMode));
     return map;
-  }, [cols, tasks]);
+  }, [cols, visibleTasks]);
   const counts = cols.map((c) => tasksByColumn.get(c.id)?.length ?? 0);
 
   const actions = useBoardActions(id ?? '');
@@ -95,10 +101,41 @@ export default function ProjectScreen() {
   const [taskDetails, setTaskDetails] = useState<Task | null>(null);
   const [taskDetailsVisible, setTaskDetailsVisible] = useState(false);
   const [archiveKind, setArchiveKind] = useState<'archive' | 'trash' | null>(null);
+  const [archiveLoading, setArchiveLoading] = useState(false);
+  const [archiveLoadError, setArchiveLoadError] = useState<string | null>(null);
+  const archiveRequestId = useRef(0);
   const [dueDialogTaskId, setDueDialogTaskId] = useState<string | null>(null);
   const pendingArchiveClearRef = useRef<(() => void) | null>(null);
   const [cursor, setCursor] = useState<Cursor | null>(null);
   const follow = useRef<string | null>(null);
+
+  const openArchiveDialog = (kind: 'archive' | 'trash') => {
+    const requestId = ++archiveRequestId.current;
+    setArchiveKind(kind);
+    setArchiveLoadError(null);
+    const currentIdentity = useAuthStore.getState().identity;
+    const currentSyncMode = useSettingsStore.getState().settings.syncMode;
+    if (
+      !currentIdentity ||
+      currentIdentity.local ||
+      !isSupabaseConfigured ||
+      currentSyncMode !== 'auto'
+    ) {
+      setArchiveLoading(false);
+      return;
+    }
+
+    setArchiveLoading(true);
+    void refreshProjectHiddenRecords(id ?? '', kind)
+      .catch(() => {
+        if (archiveRequestId.current === requestId) {
+          setArchiveLoadError(t('board.hiddenRefreshFailed'));
+        }
+      })
+      .finally(() => {
+        if (archiveRequestId.current === requestId) setArchiveLoading(false);
+      });
+  };
 
   const duplicateFailed = (error: unknown) =>
     alert(
@@ -183,7 +220,10 @@ export default function ProjectScreen() {
     setColumnDialog(null);
     setTaskDetails(null);
     setTaskDetailsVisible(false);
+    archiveRequestId.current += 1;
     setArchiveKind(null);
+    setArchiveLoading(false);
+    setArchiveLoadError(null);
     setDueDialogTaskId(null);
   }, [id, projectActive]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -468,7 +508,7 @@ export default function ProjectScreen() {
       separator: true,
       onPress: () => void actions.archiveDone(),
     },
-    { label: t('board.openArchive'), icon: 'eye', onPress: () => setArchiveKind('archive') },
+    { label: t('board.openArchive'), icon: 'eye', onPress: () => openArchiveDialog('archive') },
     {
       label: t('board.clearArchive'),
       icon: 'delete',
@@ -479,7 +519,7 @@ export default function ProjectScreen() {
       label: t('board.openTrash'),
       icon: 'eye',
       separator: true,
-      onPress: () => setArchiveKind('trash'),
+      onPress: () => openArchiveDialog('trash'),
     },
     {
       label: t('board.clearTrash'),
@@ -792,7 +832,7 @@ export default function ProjectScreen() {
           onAddTask={(column) => openCreateTask(column.id)}
           onCopyTitle={() => showClipboardToast('task.copyTitle')}
           onCopyDescription={() => showClipboardToast('task.copyDescription')}
-          onRefresh={syncEnabled ? syncManually : undefined}
+          onRefresh={syncEnabled && syncMode === 'auto' ? syncManually : undefined}
         />
 
         {projectActive && cursor?.grabbed ? (
@@ -891,6 +931,8 @@ export default function ProjectScreen() {
       />
       <ArchiveDialog
         kind={projectActive ? archiveKind : null}
+        refreshing={archiveLoading}
+        refreshError={archiveLoadError}
         projectId={project.id}
         onClose={() => setArchiveKind(null)}
         onClear={() => {

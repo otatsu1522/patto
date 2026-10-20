@@ -6,13 +6,31 @@ export type RemoteRow = Record<string, unknown>;
 export interface RemoteApi {
   /** サーバー時刻（epoch ms） */
   serverTime(): Promise<number>;
-  /** server_seq が cursor より大きい行を昇順で取得 */
-  fetchSince(table: TableName, cursor: number, limit: number): Promise<RemoteRow[]>;
+  /** 指定テーブルで現在見えている最大の server_seq。差分取得の上限を固定する。 */
+  latestServerSeq(table: TableName): Promise<number>;
+  /**
+   * server_seq が cursor より大きく upperBound 以下の行を昇順で取得する。
+   * tasks では表示中IDの非表示化も検出する。
+   */
+  fetchSince(
+    table: TableName,
+    cursor: number,
+    limit: number,
+    includeVisibleIds?: string[],
+    upperBound?: number,
+  ): Promise<RemoteRow[]>;
   fetchByIds(table: TableName, ids: string[]): Promise<RemoteRow[]>;
+  /** 指定プロジェクトのアーカイブ／ごみ箱を開いたときだけ取得する非表示レコード。 */
+  fetchHiddenForProject(
+    projectId: string,
+    kind: 'archive' | 'trash',
+  ): Promise<{ columns: RemoteRow[]; tasks: RemoteRow[] }>;
   upsert(table: TableName, rows: RemoteRow[]): Promise<void>;
   deleteByIds(table: TableName, ids: string[]): Promise<void>;
-  /** 削除済み・アーカイブ済みの行のID一覧（完全削除の反映確認用） */
-  fetchHiddenIds(table: TableName): Promise<string[]>;
+  /** 所有者IDを指定し、そのユーザーのテーブル内データを削除する（初期化の保留要求）。 */
+  deleteAllOwned(table: TableName, ownerId: string): Promise<void>;
+  /** ローカルに残っている非表示レコードのIDだけ、サーバーにも存在するか確認する。 */
+  fetchHiddenIds(table: TableName, ids: string[]): Promise<string[]>;
 }
 
 export interface SyncResult {

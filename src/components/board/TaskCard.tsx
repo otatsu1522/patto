@@ -96,7 +96,7 @@ export function TaskCard({
   onMeasure,
   drag,
 }: Props) {
-  const { colors, taskColor, isDark, lineWidth, lineColor } = useTheme();
+  const { colors, taskColor, isDark, lineWidth, lineColor, fs } = useTheme();
   const lastDragEnd = useRef(0);
   const cardRef = useRef<View>(null);
   const registerCardRef = useCallback(
@@ -171,10 +171,10 @@ export function TaskCard({
             ) : null}
             <AppText
               variant="caption"
-              numberOfLines={UI_METRICS.text.singleLineMax}
+              numberOfLines={2}
               ellipsizeMode="tail"
               color={dueColor}
-              style={[styles.metadataText, strike]}
+              style={[styles.metadataText, { fontSize: fs(11) }, strike]}
             >
               {dueText}
             </AppText>
@@ -188,9 +188,9 @@ export function TaskCard({
             <AppText
               variant="caption"
               muted
-              numberOfLines={UI_METRICS.text.singleLineMax}
+              numberOfLines={2}
               ellipsizeMode="tail"
-              style={[styles.metadataText, strike]}
+              style={[styles.metadataText, { fontSize: fs(11) }, strike]}
             >
               {`${t('task.updatedShort')}: ${formatDateTime(task.updatedAt)}`}
             </AppText>
