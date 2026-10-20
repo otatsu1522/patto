@@ -23,6 +23,14 @@ let running = false;
 let queued = false;
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
 let retryCount = 0;
+let autoSyncForeground = true;
+
+function isAppForeground(): boolean {
+  if (Platform.OS === 'web') {
+    return typeof document === 'undefined' || document.visibilityState === 'visible';
+  }
+  return AppState.currentState === 'active';
+}
 
 export const configureSync = (c: SyncConfig) => {
   config = c;
@@ -117,12 +125,19 @@ export async function syncNow(
 function scheduleRetry() {
   if (retryTimer) clearTimeout(retryTimer);
   retryTimer = null;
-  if (useSettingsStore.getState().settings.syncMode !== 'auto' || !config.isEnabled()) return;
+  if (
+    useSettingsStore.getState().settings.syncMode !== 'auto' ||
+    !config.isEnabled() ||
+    !autoSyncForeground ||
+    !isAppForeground()
+  ) {
+    return;
+  }
   const wait = Math.min(SYNC.retryBaseMs * 2 ** retryCount, SYNC.retryMaxMs);
   retryCount += 1;
   retryTimer = setTimeout(() => {
     retryTimer = null;
-    if (!running) void syncNow();
+    if (autoSyncForeground && isAppForeground() && !running) void syncNow();
   }, wait);
 }
 
@@ -131,6 +146,26 @@ export function startAutoSync(ownerId: string): () => void {
   const cleanups: (() => void)[] = [];
   let debounce: ReturnType<typeof setTimeout> | null = null;
   let interval: ReturnType<typeof setTimeout> | null = null;
+  let disposed = false;
+  let foreground = isAppForeground();
+  autoSyncForeground = foreground;
+
+  const clearDebounce = () => {
+    if (debounce) clearTimeout(debounce);
+    debounce = null;
+  };
+
+  const clearIntervalTimer = () => {
+    if (interval) clearTimeout(interval);
+    interval = null;
+  };
+
+  const stopAutomaticTimers = () => {
+    clearDebounce();
+    clearIntervalTimer();
+    if (retryTimer) clearTimeout(retryTimer);
+    retryTimer = null;
+  };
 
   void getDb()
     .getMeta('lastSyncedAt')
@@ -141,24 +176,55 @@ export function startAutoSync(ownerId: string): () => void {
 
   if (useSettingsStore.getState().settings.syncMode !== 'auto') return () => {};
 
+  const canRunAutomaticWork = () => {
+    if (disposed || !foreground) return false;
+    if (
+      Platform.OS === 'web' &&
+      typeof document !== 'undefined' &&
+      document.visibilityState !== 'visible'
+    ) {
+      foreground = false;
+      autoSyncForeground = false;
+      stopAutomaticTimers();
+      return false;
+    }
+    return true;
+  };
+
   const kick = () => {
-    if (debounce) clearTimeout(debounce);
+    if (!canRunAutomaticWork()) return;
+    clearDebounce();
     debounce = setTimeout(() => {
       debounce = null;
-      void syncNow();
+      if (canRunAutomaticWork()) void syncNow();
     }, SYNC.debounceMs);
   };
 
   const scheduleInterval = () => {
-    if (interval) clearTimeout(interval);
+    clearIntervalTimer();
+    if (!canRunAutomaticWork()) return;
     interval = setTimeout(() => {
       interval = null;
+      if (!canRunAutomaticWork()) return;
       if (!running) void syncNow();
       scheduleInterval();
     }, useSettingsStore.getState().settings.autoSyncIntervalSeconds * 1000);
   };
 
-  void syncNow();
+  const updateForeground = (nextForeground: boolean) => {
+    if (disposed) return;
+    const wasForeground = foreground;
+    foreground = nextForeground;
+    autoSyncForeground = nextForeground;
+    if (!nextForeground) {
+      stopAutomaticTimers();
+      return;
+    }
+    if (!wasForeground || interval === null) scheduleInterval();
+    kick();
+  };
+
+  if (foreground) void syncNow();
   cleanups.push(onLocalChange(kick));
   scheduleInterval();
   cleanups.push(
@@ -177,9 +243,17 @@ export function startAutoSync(ownerId: string): () => void {
   cleanups.push(net);
 
   const app = AppState.addEventListener('change', (state) => {
-    if (state === 'active') kick();
+    updateForeground(Platform.OS === 'web' ? isAppForeground() : state === 'active');
   });
   cleanups.push(() => app.remove());
+
+  if (Platform.OS === 'web' && typeof document !== 'undefined') {
+    const handleVisibilityChange = () => {
+      updateForeground(document.visibilityState === 'visible');
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    cleanups.push(() => document.removeEventListener('visibilitychange', handleVisibilityChange));
+  }
 
   // Web はサーバー側の変更をリアルタイムに受け取る。
   const client = getSupabase();
@@ -197,9 +271,9 @@ export function startAutoSync(ownerId: string): () => void {
   }
 
   return () => {
-    if (debounce) clearTimeout(debounce);
-    if (interval) clearTimeout(interval);
-    if (retryTimer) clearTimeout(retryTimer);
+    disposed = true;
+    stopAutomaticTimers();
+    autoSyncForeground = false;
     cleanups.forEach((cleanup) => cleanup());
   };
 }
