@@ -45,7 +45,6 @@ export async function runSync(
   opts: SyncOptions,
 ): Promise<SyncResult> {
   const result: SyncResult = { pushed: 0, pulled: 0, purged: 0 };
-
   const serverNow = await remote.serverTime();
   setClockOffset(serverNow - Date.now());
 
@@ -80,6 +79,7 @@ export async function runSync(
         table,
         part.map((r) => toRemoteRow(table, r)),
       );
+      // 全バッチの送信が成功してからローカル状態を更新する。失敗時は dirty のまま再試行できる。
     }
     result.pushed += toPush.length;
     // 送信中にさらに編集された行は dirty を維持する
@@ -149,7 +149,6 @@ export async function runSync(
     await local.apply({}, [{ table, ids: gone }]);
     result.purged += gone.length;
   }
-
   await local.setMeta('lastSyncedAt', String(opts.now()));
   return result;
 }

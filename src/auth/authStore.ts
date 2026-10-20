@@ -210,12 +210,8 @@ export const useAuthStore = create<AuthState>((set, get) => {
           } else if (pendingLoginSync === '1') {
             await kv.remove(LOGIN_SYNC_PENDING_KEY);
           }
-          if (
-            savedNeedsReauth === '1' &&
-            identity.mode === 'account' &&
-            !identity.local &&
-            useSettingsStore.getState().settings.syncMode !== 'off'
-          ) {
+          // 再認証の要否はデータ同期モードとは独立して復元する。
+          if (savedNeedsReauth === '1' && identity.mode === 'account' && !identity.local) {
             set({ needsReauth: true });
           } else if (savedNeedsReauth === '1') {
             setNeedsReauthPersisted(false);
@@ -234,8 +230,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
             if (
               event === 'INITIAL_SESSION' &&
               current.identity?.mode === 'account' &&
-              !current.identity.local &&
-              useSettingsStore.getState().settings.syncMode !== 'off'
+              !current.identity.local
             ) {
               // セッションがない／別ユーザーなら再認証を要求し、その状態をリロード後も維持する。
               // セッションが存在するだけでは、直前に発生した認証エラーが解消したとは判断しない。

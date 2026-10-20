@@ -46,6 +46,7 @@ function Boot() {
   const { colors } = useTheme();
   const loaded = useSettingsStore((s) => s.loaded);
   const status = useAuthStore((s) => s.status);
+  const needsReauth = useAuthStore((s) => s.needsReauth);
   const bootstrapError = useAuthStore((s) => s.bootstrapError);
   const remoteIdentityId = useAuthStore((s) =>
     s.identity && !s.identity.local ? s.identity.userId : null,
@@ -93,50 +94,67 @@ function Boot() {
     };
   }, []);
 
-  // Supabase の user_metadata はアカウント共通。別端末で更新された表示名・メールを、
-  // フォーカス復帰時と表示中の定期確認で取り込み、端末内キャッシュのままにしない。
+  // user_metadata はアカウント共通。表示名・メールの定期確認はデータ同期とは別の処理。
+  // 認証状態の確認は同期モードに連動させず、アプリが前景にある間だけ定期タイマーを動かす。
   useEffect(() => {
-    if (!remoteIdentityId || !isSupabaseConfigured) return;
+    if (!remoteIdentityId || !isSupabaseConfigured || needsReauth) return;
+
+    let interval: ReturnType<typeof setInterval> | null = null;
+    const isForeground = () =>
+      Platform.OS === 'web'
+        ? typeof document !== 'undefined' && document.visibilityState === 'visible'
+        : AppState.currentState === 'active';
+    const stopTimer = () => {
+      if (interval !== null) clearInterval(interval);
+      interval = null;
+    };
     const refresh = () => {
-      if (Platform.OS === 'web') {
-        if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-          void useAuthStore.getState().refreshRemoteIdentity();
-        }
-      } else if (AppState.currentState === 'active') {
-        void useAuthStore.getState().refreshRemoteIdentity();
+      if (isForeground()) void useAuthStore.getState().refreshRemoteIdentity();
+    };
+    const startTimer = () => {
+      if (!isForeground()) {
+        stopTimer();
+        return;
+      }
+      if (interval === null) {
+        refresh();
+        interval = setInterval(refresh, TIMING.identityRefreshIntervalMs);
       }
     };
+    const handleForegroundChange = () => {
+      if (!isForeground()) {
+        stopTimer();
+        return;
+      }
+      if (interval === null) startTimer();
+      else refresh();
+    };
 
-    refresh();
-    const interval = setInterval(refresh, TIMING.identityRefreshIntervalMs);
+    startTimer();
     if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof document !== 'undefined') {
-      window.addEventListener('focus', refresh);
-      document.addEventListener('visibilitychange', refresh);
+      window.addEventListener('focus', handleForegroundChange);
+      document.addEventListener('visibilitychange', handleForegroundChange);
       return () => {
-        clearInterval(interval);
-        window.removeEventListener('focus', refresh);
-        document.removeEventListener('visibilitychange', refresh);
+        stopTimer();
+        window.removeEventListener('focus', handleForegroundChange);
+        document.removeEventListener('visibilitychange', handleForegroundChange);
       };
     }
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') refresh();
-    });
+    const subscription = AppState.addEventListener('change', handleForegroundChange);
     return () => {
-      clearInterval(interval);
+      stopTimer();
       subscription.remove();
     };
-  }, [remoteIdentityId]);
+  }, [remoteIdentityId, needsReauth]);
 
   useEffect(() => {
     configureSync({
-      isEnabled: () => {
-        const identity = useAuthStore.getState().identity;
-        return (
-          !!identity &&
-          !identity.local &&
-          isSupabaseConfigured &&
-          useSettingsStore.getState().settings.syncMode !== 'off'
-        );
+      // アカウント／接続設定の確認と同期モードの判断を分離する。
+      // 認証セッションの維持は Supabase Auth が管理し、データ同期の可否は controller が判断する。
+      isAccountAvailable: () => {
+        const authState = useAuthStore.getState();
+        const identity = authState.identity;
+        return !!identity && !identity.local && !authState.needsReauth && isSupabaseConfigured;
       },
       onAuthRequired: () => useAuthStore.getState().setNeedsReauth(true),
     });
@@ -149,11 +167,12 @@ function Boot() {
       !ready ||
       !ownerId ||
       isLocal ||
+      needsReauth ||
       !isSupabaseConfigured
     )
       return;
     return startAutoSync(ownerId);
-  }, [status, ready, ownerId, isLocal, syncMode]);
+  }, [status, ready, ownerId, isLocal, syncMode, needsReauth]);
 
   // 同期がオフ・端末内のみのときの、ごみ箱の自動削除（同期ありのときは同期処理が行う）
   useEffect(() => {
