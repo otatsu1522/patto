@@ -43,6 +43,8 @@ export const ICONS = {
   document: 'document-text-outline',
   download: 'download-outline',
   upload: 'cloud-upload-outline',
+  moveToInbox: 'cloud-download-outline',
+  outbox: 'cloud-upload-outline',
   cloudUpload: 'cloud-upload-outline',
   delete: 'trash-outline',
   deleteSweep: 'trash-outline',

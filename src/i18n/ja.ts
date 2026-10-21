@@ -188,11 +188,9 @@ export const ja = {
   'project.permanentDeleteMessage':
     '「{name}」と、その中のカンバン・タスクを完全に削除します。この操作は元に戻せません。',
   'project.permanentDeleteDone': 'プロジェクトを完全に削除しました',
-  'project.permanentDeleteFailed':
-    'プロジェクトを完全に削除できませんでした。もう一度お試しください。',
+  'project.permanentDeleteFailed': 'プロジェクトを完全に削除できませんでした。もう一度お試しください。',
   'project.empty': 'プロジェクトを選んでください',
-  'project.emptyHint':
-    'メニューから既存のプロジェクトを開くか、下のボタンから新しいプロジェクトを作成できます。',
+  'project.emptyHint': 'メニューから既存のプロジェクトを開くか、下のボタンから新しいプロジェクトを作成できます。',
   'project.copySuffix': ' のコピー',
 
   // カンバン
@@ -480,7 +478,7 @@ export const ja = {
   'about.mitLicense': 'MIT License',
   'about.website': 'アプリのWeb版',
   'about.license': 'ライセンス',
-  'about.licenseDescription': 'MIT ライセンスの本文を確認できます',
+  'about.licenseDescription': 'MIT ライセンスの本文を確認できます。',
   'about.terms': '利用規約',
   'about.privacy': 'プライバシーポリシー',
   'about.contact': 'お問い合わせ',

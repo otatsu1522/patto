@@ -412,14 +412,14 @@ export default function SystemSettings() {
               <Button
                 label={t('settings.import')}
                 variant="outline"
-                icon="download"
+                icon="moveToInbox"
                 onPress={() => void doImport()}
                 fullWidth
               />
               <Button
                 label={t('settings.export')}
                 variant="outline"
-                icon="upload"
+                icon="outbox"
                 onPress={() => void doExport()}
                 fullWidth
               />

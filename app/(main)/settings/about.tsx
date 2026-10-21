@@ -5,6 +5,7 @@ import { Logo } from '@/components/ui/Logo';
 import { LinkRow, Section } from '@/components/ui/Rows';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
+import { useLayoutMode } from '@/hooks/useLayout';
 import {
   APP_DISPLAY_COPYRIGHT,
   APP_LINKS,
@@ -14,11 +15,12 @@ import {
   APP_WEB_URL,
 } from '@/config/app';
 import { BOARD, UI_METRICS } from '@/config/layout';
-import { t, type StringKey } from '@/i18n';
+import { t } from '@/i18n';
 import { RADIUS, SPACING, useTheme } from '@/theme';
 
 export default function AboutScreen() {
   const scrollRef = useWebWheelScroll({ touchAction: 'pan-x pan-y' });
+  const { mode } = useLayoutMode();
   const router = useRouter();
   const { colors, lineWidth, lineColor } = useTheme();
   const links = [
@@ -31,7 +33,7 @@ export default function AboutScreen() {
     <View style={styles.fill}>
       <ScreenHeader title={t('settings.about')} />
       <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.content}>
-        <View style={styles.inner}>
+        <View style={[styles.inner, mode === 'compact' && styles.innerCompact]}>
           <View
             style={[
               styles.introCard,
@@ -46,15 +48,7 @@ export default function AboutScreen() {
               </AppText>
             </View>
             <View style={styles.body}>
-              {(
-                [
-                  'about.body1',
-                  'about.body2',
-                  'about.body3',
-                  'about.body4',
-                  'about.body5',
-                ] as StringKey[]
-              ).map((key) => (
+              {(['about.body1', 'about.body2', 'about.body3'] as const).map((key) => (
                 <AppText key={key}>{t(key)}</AppText>
               ))}
             </View>
@@ -106,6 +100,8 @@ const styles = StyleSheet.create({
     maxWidth: BOARD.dialogMaxWidth + UI_METRICS.dialog.settingsPanelExtraWidth,
     gap: SPACING.xl,
   },
+  /** スマートフォンでは説明カードとリンク一覧の間隔を詰める。 */
+  innerCompact: { gap: SPACING.md },
   copyright: { textAlign: 'center', paddingTop: SPACING.xl, paddingBottom: SPACING.sm },
   introCard: {
     borderRadius: RADIUS.lg,
