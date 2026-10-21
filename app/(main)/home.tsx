@@ -2,14 +2,11 @@ import { Redirect } from 'expo-router';
 import { View, useWindowDimensions } from 'react-native';
 import { BoardHeader } from '@/components/board/BoardHeader';
 import { Sidebar } from '@/components/shell/Sidebar';
-import { Button } from '@/components/ui/Button';
-import { EmptyState } from '@/components/ui/EmptyState';
+import { ProjectSelectionEmptyState } from '@/components/shell/ProjectSelectionEmptyState';
 import { visibleProjects } from '@/domain/selectors';
 import { useLayoutMode } from '@/hooks/useLayout';
-import { t } from '@/i18n';
 import { useDataStore } from '@/store/dataStore';
 import { useSettingsStore } from '@/store/settingsStore';
-import { useUiStore } from '@/store/uiStore';
 
 /**
  * プロジェクトが開かれていないときの画面。最後に開いたプロジェクトがあればそちらへ移動する。
@@ -35,17 +32,7 @@ export default function HomeScreen() {
   return (
     <View style={{ flex: 1 }}>
       <BoardHeader menuOnly />
-      <EmptyState
-        title={t('project.empty')}
-        hint={t('project.emptyHint')}
-        action={
-          <Button
-            label={t('menu.newProject')}
-            icon="add"
-            onPress={() => useUiStore.getState().requestNewProject()}
-          />
-        }
-      />
+      <ProjectSelectionEmptyState />
     </View>
   );
 }

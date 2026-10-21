@@ -18,6 +18,8 @@ interface Props {
   /** ラベルの表示スタイル。 */
   labelVariant?: 'body' | 'label';
   labelMuted?: boolean;
+  /** ラベルの下に表示する説明文。 */
+  description?: string;
 }
 
 /** パレットから色を選ぶ。先頭の null 選択肢はデフォルト色を表し、斜線は表示しない。 */
@@ -29,6 +31,7 @@ export function ColorPicker({
   noneLabel = t('color.none'),
   labelVariant = 'label',
   labelMuted = true,
+  description,
 }: Props) {
   const { colors, taskColor, isDark, controlLineWidth } = useTheme();
   return (
@@ -36,6 +39,11 @@ export function ColorPicker({
       <AppText variant={labelVariant} muted={labelMuted}>
         {label}
       </AppText>
+      {description ? (
+        <AppText variant="caption" muted>
+          {description}
+        </AppText>
+      ) : null}
       <View style={styles.row}>
         <Pressable
           accessibilityRole="button"

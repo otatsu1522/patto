@@ -103,11 +103,13 @@ export function SwitchRow({
   value,
   onChange,
   hint,
+  labelVariant = 'body',
 }: {
   label: string;
   value: boolean;
   onChange: (v: boolean) => void;
   hint?: string;
+  labelVariant?: 'body' | 'label';
 }) {
   const { colors, isDark, controlLineColor } = useTheme();
   const hasCustomControlColor = useSettingsStore((s) => s.settings.controlBorderColor !== null);
@@ -132,7 +134,7 @@ export function SwitchRow({
   return (
     <View style={styles.row}>
       <View style={styles.flex}>
-        <AppText>{label}</AppText>
+        <AppText variant={labelVariant}>{label}</AppText>
         {hint ? (
           <AppText variant="caption" muted>
             {hint}

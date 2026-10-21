@@ -151,8 +151,18 @@ export default function SystemSettings() {
       {label}
     </AppText>
   );
+  const settingTitle = (value: string) => (
+    <AppText variant="label" style={styles.settingTitle}>
+      {value}
+    </AppText>
+  );
   const hint = (value: string) => (
     <AppText variant="caption" muted style={styles.hint}>
+      {value}
+    </AppText>
+  );
+  const fieldHint = (value: string) => (
+    <AppText variant="caption" muted style={styles.fieldHint}>
       {value}
     </AppText>
   );
@@ -176,55 +186,55 @@ export default function SystemSettings() {
             />
           </Section>
           <Section title={t('settings.screenBorderGroup')}>
-            {hint(t('settings.borderWidthHint'))}
-            <ChoiceRow<'1' | '2' | '3'>
-              label={t('settings.borderWidth')}
-              value={String(settings.borderWidth) as '1' | '2' | '3'}
-              onChange={(v) => update({ borderWidth: Number(v) as 1 | 2 | 3 })}
-              options={[
-                { value: '1', label: '1 px' },
-                { value: '2', label: '2 px' },
-                { value: '3', label: '3 px' },
-              ]}
-            />
+            <View style={styles.settingBlock}>
+              {settingTitle(t('settings.borderWidth'))}
+              {fieldHint(t('settings.borderWidthHint'))}
+              <ChoiceRow<'1' | '2' | '3'>
+                value={String(settings.borderWidth) as '1' | '2' | '3'}
+                onChange={(v) => update({ borderWidth: Number(v) as 1 | 2 | 3 })}
+                options={[
+                  { value: '1', label: '1 px' },
+                  { value: '2', label: '2 px' },
+                  { value: '3', label: '3 px' },
+                ]}
+              />
+            </View>
             <View style={styles.borderColorPicker}>
-              <AppText variant="caption" muted>
-                {t('settings.borderColorHint')}
-              </AppText>
               <ColorPicker
                 label={t('settings.borderColor')}
                 value={settings.borderColor}
                 onChange={(v) => update({ borderColor: v })}
+                description={t('settings.borderColorHint')}
                 noneColor={colors.border}
                 noneLabel={t('settings.borderColorDefault')}
-                labelVariant="body"
+                labelVariant="label"
                 labelMuted={false}
               />
             </View>
           </Section>
           <Section title={t('settings.controlBorderGroup')}>
-            {hint(t('settings.controlBorderWidthHint'))}
-            <ChoiceRow<'1' | '2' | '3'>
-              label={t('settings.controlBorderWidth')}
-              value={String(settings.controlBorderWidth) as '1' | '2' | '3'}
-              onChange={(v) => update({ controlBorderWidth: Number(v) as 1 | 2 | 3 })}
-              options={[
-                { value: '1', label: '1 px' },
-                { value: '2', label: '2 px' },
-                { value: '3', label: '3 px' },
-              ]}
-            />
+            <View style={styles.settingBlock}>
+              {settingTitle(t('settings.controlBorderWidth'))}
+              {fieldHint(t('settings.controlBorderWidthHint'))}
+              <ChoiceRow<'1' | '2' | '3'>
+                value={String(settings.controlBorderWidth) as '1' | '2' | '3'}
+                onChange={(v) => update({ controlBorderWidth: Number(v) as 1 | 2 | 3 })}
+                options={[
+                  { value: '1', label: '1 px' },
+                  { value: '2', label: '2 px' },
+                  { value: '3', label: '3 px' },
+                ]}
+              />
+            </View>
             <View style={styles.borderColorPicker}>
-              <AppText variant="caption" muted>
-                {t('settings.controlBorderColorHint')}
-              </AppText>
               <ColorPicker
                 label={t('settings.controlBorderColor')}
                 value={settings.controlBorderColor}
                 onChange={(v) => update({ controlBorderColor: v })}
+                description={t('settings.controlBorderColorHint')}
                 noneColor={colors.border}
                 noneLabel={t('settings.borderColorDefault')}
-                labelVariant="body"
+                labelVariant="label"
                 labelMuted={false}
               />
             </View>
@@ -254,21 +264,25 @@ export default function SystemSettings() {
                 { value: 'detailed', label: t('settings.density.detailed') },
               ]}
             />
-            {hint(t('settings.cardFieldsHint'))}
+            {settingTitle(t('settings.cardFields'))}
+            {fieldHint(t('settings.cardFieldsHint'))}
             <SwitchRow
               label={t('settings.showDescription')}
               value={settings.showTaskDescription}
               onChange={(v) => update({ showTaskDescription: v })}
+              labelVariant="label"
             />
             <SwitchRow
               label={t('settings.showDueDate')}
               value={settings.showTaskDueDate}
               onChange={(v) => update({ showTaskDueDate: v })}
+              labelVariant="label"
             />
             <SwitchRow
               label={t('settings.showUpdatedAt')}
               value={settings.showTaskUpdatedAt}
               onChange={(v) => update({ showTaskUpdatedAt: v })}
+              labelVariant="label"
             />
           </Section>
 
@@ -279,14 +293,13 @@ export default function SystemSettings() {
               label={t('settings.toast')}
               value={settings.toastEnabled}
               onChange={(v) => update({ toastEnabled: v })}
+              labelVariant="label"
             />
             {settings.toastEnabled ? (
               <View style={styles.toastCategories}>
                 <View style={styles.toastDuration}>
-                  <AppText style={styles.toastDurationText}>{t('settings.toastDuration')}</AppText>
-                  <AppText variant="caption" muted style={styles.toastDurationText}>
-                    {t('settings.toastDurationHint')}
-                  </AppText>
+                  {settingTitle(t('settings.toastDuration'))}
+                  {fieldHint(t('settings.toastDurationHint'))}
                   <ChoiceRow<string>
                     value={String(settings.toastDurationSeconds)}
                     onChange={(v) => update({ toastDurationSeconds: Number(v) })}
@@ -296,32 +309,35 @@ export default function SystemSettings() {
                     }))}
                   />
                 </View>
-                <AppText variant="caption" muted style={styles.toastCategoriesHint}>
-                  {t('settings.toastCategoriesHint')}
-                </AppText>
+                {settingTitle(t('settings.toastCategoriesTitle'))}
+                {fieldHint(t('settings.toastCategoriesHint'))}
                 <SwitchRow
                   label={t('settings.clipboardToast')}
                   hint={t('settings.clipboardToastHint')}
                   value={settings.clipboardToastEnabled}
                   onChange={(v) => update({ clipboardToastEnabled: v })}
+                  labelVariant="label"
                 />
                 <SwitchRow
                   label={t('settings.toastCategory.movement')}
                   hint={t('settings.toastCategory.movementHint')}
                   value={settings.toastCategories.includes('movement')}
                   onChange={(v) => setToastCategory('movement', v)}
+                  labelVariant="label"
                 />
                 <SwitchRow
                   label={t('settings.toastCategory.editing')}
                   hint={t('settings.toastCategory.editingHint')}
                   value={settings.toastCategories.includes('editing')}
                   onChange={(v) => setToastCategory('editing', v)}
+                  labelVariant="label"
                 />
                 <SwitchRow
                   label={t('settings.toastCategory.system')}
                   hint={t('settings.toastCategory.systemHint')}
                   value={settings.toastCategories.includes('system')}
                   onChange={(v) => setToastCategory('system', v)}
+                  labelVariant="label"
                 />
               </View>
             ) : null}
@@ -331,9 +347,7 @@ export default function SystemSettings() {
             {syncAvailable ? (
               <>
                 <View style={styles.syncModeBlock}>
-                  <AppText variant="label" style={styles.settingGroupTitle}>
-                    {t('settings.syncMode')}
-                  </AppText>
+                  {settingTitle(t('settings.syncMode'))}
                   <View style={styles.syncDescs}>
                     <AppText variant="caption" muted>
                       ・{t('settings.syncModeOffDesc')}
@@ -357,10 +371,8 @@ export default function SystemSettings() {
                 </View>
                 {settings.syncMode === 'auto' ? (
                   <View style={styles.syncModeBlock}>
-                    <AppText variant="label" style={styles.settingGroupTitle}>
-                      {t('settings.autoSyncInterval')}
-                    </AppText>
-                    {hint(t('settings.autoSyncIntervalHint'))}
+                    {settingTitle(t('settings.autoSyncInterval'))}
+                    {fieldHint(t('settings.autoSyncIntervalHint'))}
                     <ChoiceRow<AutoSyncIntervalChoice>
                       value={String(settings.autoSyncIntervalSeconds) as AutoSyncIntervalChoice}
                       onChange={(value) =>
@@ -420,13 +432,12 @@ export default function SystemSettings() {
               hint={t('settings.trashAutoDeleteHint')}
               value={settings.trashAutoDelete}
               onChange={(v) => update({ trashAutoDelete: v })}
+              labelVariant="label"
             />
             {settings.trashAutoDelete ? (
               <View style={styles.trashRetentionBlock}>
-                <AppText variant="label" style={styles.settingGroupTitle}>
-                  {t('settings.trashRetention')}
-                </AppText>
-                {hint(t('settings.trashRetentionHint'))}
+                {settingTitle(t('settings.trashRetention'))}
+                {fieldHint(t('settings.trashRetentionHint'))}
                 <ChoiceRow<'7' | '30' | '90'>
                   value={String(settings.trashRetentionDays) as '7' | '30' | '90'}
                   onChange={(value) => update({ trashRetentionDays: Number(value) })}
@@ -489,22 +500,25 @@ const styles = StyleSheet.create({
   },
   category: { marginTop: SPACING.md, paddingHorizontal: SPACING.sm },
   hint: { padding: SPACING.lg, paddingBottom: 0 },
+  settingTitle: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.lg },
+  fieldHint: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.xs, paddingBottom: 0 },
+  settingBlock: { gap: SPACING.xs },
   syncModeBlock: { gap: SPACING.xs },
-  syncDescs: { gap: SPACING.xs, paddingHorizontal: SPACING.lg },
-  settingGroupTitle: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.lg },
+  syncDescs: {
+    gap: SPACING.xs,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.xs,
+  },
   trashRetentionBlock: { gap: SPACING.xs },
   syncAction: { padding: SPACING.lg, paddingTop: SPACING.sm, gap: SPACING.sm },
   syncInProgressButton: { opacity: 1 },
   syncLast: { textAlign: 'center' },
   toastCategories: { paddingTop: SPACING.xs },
-  toastDuration: { paddingVertical: SPACING.sm, gap: SPACING.sm },
-  toastDurationText: { paddingHorizontal: SPACING.lg },
+  toastDuration: { gap: SPACING.xs },
   borderColorPicker: {
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    gap: SPACING.sm,
+    paddingVertical: SPACING.lg,
   },
-  toastCategoriesHint: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.xs },
   actionButtons: { padding: SPACING.lg, paddingTop: SPACING.sm, gap: SPACING.sm },
   resetButton: { padding: SPACING.lg, paddingTop: SPACING.sm },
 });

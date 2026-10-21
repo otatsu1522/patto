@@ -450,6 +450,33 @@ function AccountSections() {
         </View>
       </Section>
 
+      <Section title={t('settings.logout')}>
+        <View style={styles.form}>
+          <AppText variant="caption" muted>
+            {t('settings.logoutMessage')}
+          </AppText>
+          <Button
+            label={t('settings.logout')}
+            variant="outline"
+            icon="logout"
+            onPress={async () => {
+              const pending = pendingCount();
+              const result = await confirm({
+                title: t('settings.logoutTitle'),
+                message:
+                  pending > 0
+                    ? t('settings.logoutPending', { count: pending })
+                    : t('settings.logoutMessage'),
+                confirmLabel: t('settings.logoutNow'),
+                destructive: true,
+              });
+              if (result === 'confirm') await useAuthStore.getState().signOut();
+            }}
+            fullWidth
+          />
+        </View>
+      </Section>
+
       <Section title={t('settings.deleteAccount')}>
         <View style={styles.form}>
           <AppText variant="caption" muted>

@@ -6,7 +6,7 @@ import { useAuthStore } from '@/auth/authStore';
 import { ArchiveDialog } from '@/components/board/ArchiveDialog';
 import { BoardHeader } from '@/components/board/BoardHeader';
 import { BoardView, type BoardViewHandle } from '@/components/board/BoardView';
-import { EmptyState } from '@/components/ui/EmptyState';
+import { ProjectSelectionEmptyState } from '@/components/shell/ProjectSelectionEmptyState';
 import { ColumnDialog } from '@/components/board/NameDialogs';
 import { RecordDetailsDialog } from '@/components/board/RecordDetailsDialog';
 import { CalendarDialog } from '@/components/ui/CalendarDialog';
@@ -558,24 +558,9 @@ export default function ProjectScreen() {
     return [
       { label: t('column.rename'), icon: 'edit', onPress: () => setColumnDialog({ column }) },
       {
-        label: index === 0 ? t('column.moveToLast') : t('column.moveLeft'),
-        icon: 'left',
-        disabled: cols.length <= 1,
-        onPress: () =>
-          void moveColumnWithUndo(column.id, index === 0 ? cols.length - 1 : index - 1),
-      },
-      {
-        label: index === cols.length - 1 ? t('column.moveToFirst') : t('column.moveRight'),
-        icon: 'right',
-        disabled: cols.length <= 1,
-        onPress: () =>
-          void moveColumnWithUndo(column.id, index === cols.length - 1 ? 0 : index + 1),
-      },
-      {
         label: `${t('column.sortMode')}: ${currentSortLabel}`,
         icon: 'sort',
         inlineIcon: currentDirectionIcon,
-        separator: true,
         accordionItems: sortMenuModes.map((m) => {
           const selected = currentSort === m;
           const direction = selected ? sortDirection(column.sortMode) : sortDirection(m);
@@ -604,8 +589,24 @@ export default function ProjectScreen() {
         onPress: () => undefined,
       },
       {
+        label: index === 0 ? t('column.moveToLast') : t('column.moveLeft'),
+        icon: 'left',
+        disabled: cols.length <= 1,
+        separator: true,
+        onPress: () =>
+          void moveColumnWithUndo(column.id, index === 0 ? cols.length - 1 : index - 1),
+      },
+      {
+        label: index === cols.length - 1 ? t('column.moveToFirst') : t('column.moveRight'),
+        icon: 'right',
+        disabled: cols.length <= 1,
+        onPress: () =>
+          void moveColumnWithUndo(column.id, index === cols.length - 1 ? 0 : index + 1),
+      },
+      {
         label: column.isDoneColumn ? t('column.unsetDone') : t('column.setDone'),
         icon: column.isDoneColumn ? 'doneModeOutline' : 'doneMode',
+        separator: true,
         onPress: () => void updateColumnWithUndo(column.id, { isDoneColumn: !column.isDoneColumn }),
       },
       {
@@ -834,11 +835,7 @@ export default function ProjectScreen() {
       <View style={styles.fill}>
         <BoardView
           header={header}
-          emptyContent={
-            !projectActive ? (
-              <EmptyState title={t('project.empty')} hint={t('project.emptyHint')} />
-            ) : undefined
-          }
+          emptyContent={!projectActive ? <ProjectSelectionEmptyState /> : undefined}
           resetKey={id}
           ref={boardRef}
           columns={projectActive ? cols : []}

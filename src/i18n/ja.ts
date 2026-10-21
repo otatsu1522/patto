@@ -124,7 +124,7 @@ export const ja = {
   'menu.archivedProjects': 'アーカイブ済みのプロジェクト',
   'menu.archivedProjectsCount': 'アーカイブ済みのプロジェクト ({count})',
   'menu.trashProjectsCount': 'ごみ箱のプロジェクト ({count})',
-  'menu.noProjects': 'プロジェクトがありません。最初のプロジェクトを作りましょう。',
+  'menu.noProjects': 'プロジェクトがありません。',
   'menu.guestBadge': 'ゲスト',
   'menu.open': 'メニューを開く',
   'menu.toggle': 'メニューの開閉',
@@ -191,7 +191,8 @@ export const ja = {
   'project.permanentDeleteFailed':
     'プロジェクトを完全に削除できませんでした。もう一度お試しください。',
   'project.empty': 'プロジェクトを選んでください',
-  'project.emptyHint': 'メニューからプロジェクトを選ぶか、新しく作成します。',
+  'project.emptyHint':
+    'メニューから既存のプロジェクトを開くか、下のボタンから新しいプロジェクトを作成できます。',
   'project.copySuffix': ' のコピー',
 
   // カンバン
@@ -378,11 +379,12 @@ export const ja = {
   'settings.toastDuration': '表示時間',
   'settings.toastDurationHint': 'トーストが自動で消えるまでの時間を設定します。',
   'settings.toastDurationSeconds': '{seconds} 秒',
+  'settings.toastCategoriesTitle': '通知の種類',
   'settings.screenBorderGroup': '画面の枠線・区切り線',
   'settings.controlBorderGroup': 'フォームやボタンなど、操作部品の枠線',
   'settings.borderWidth': '線の太さ',
   'settings.borderWidthHint': '画面の枠線・区切り線の太さを px 単位で設定します。',
-  'settings.controlBorderWidth': 'フォーム・ボタンの線の太さ',
+  'settings.controlBorderWidth': '線の太さ',
   'settings.controlBorderWidthHint':
     'フォームやボタンなど、操作部品の枠線の太さを px 単位で設定します。',
   'settings.borderColor': '線の色',

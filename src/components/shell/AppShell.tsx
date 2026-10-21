@@ -473,6 +473,16 @@ export function AppShell({ children }: { children: ReactNode }) {
     navigateToProject(next.id);
   };
 
+  // 設定から戻るときは、保存済みの最後のプロジェクトを優先する。
+  // ID が無効（アーカイブ／削除済みなど）なら、ホーム画面と同じく表示可能な先頭を使う。
+  const returnToLastProject = useCallback(() => {
+    const list = visibleProjects(useDataStore.getState().projects);
+    const lastProjectId = useSettingsStore.getState().settings.lastProjectId;
+    const target = list.find((project) => project.id === lastProjectId) ?? list[0];
+    if (target) navigateToProject(target.id);
+    else router.replace('/home');
+  }, [navigateToProject, router]);
+
   useShortcuts({
     toggleSidebar: () => {
       if (permanent) toggleCollapsed();
@@ -508,10 +518,14 @@ export function AppShell({ children }: { children: ReactNode }) {
         lastBackPress.current = 0;
         return true;
       }
-      // 設定トップはプロジェクト画面と同じ最上位画面として扱い、
-      // 端末の戻る操作で直前のプロジェクトへ戻ってちらつくことを防ぐ。
-      const mainScreen =
-        pathname === '/home' || pathname.startsWith('/project/') || pathname === '/settings';
+      // 設定トップから戻る場合は、履歴上の直前画面ではなく保存済みのプロジェクトへ戻る。
+      // プロジェクト画面に戻った後の戻る操作で、終了確認トーストを表示する。
+      if (pathname === '/settings') {
+        lastBackPress.current = 0;
+        returnToLastProject();
+        return true;
+      }
+      const mainScreen = pathname === '/home' || pathname.startsWith('/project/');
       if (!mainScreen && router.canGoBack()) {
         router.back();
         return true;
@@ -532,7 +546,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       return true;
     });
     return () => subscription.remove();
-  }, [mode, pathname, router, toast, closeSettingsDrawer]);
+  }, [mode, pathname, router, toast, closeSettingsDrawer, returnToLastProject]);
 
   // モバイルWebのブラウザー戻るもAndroidと同じ2段階にする。
   // 1回目は現在の履歴エントリを復元してトーストを表示し、2回目はブラウザー標準へ渡す。
@@ -561,10 +575,19 @@ export function AppShell({ children }: { children: ReactNode }) {
         return;
       }
 
-      const mainScreen =
-        currentPath === '/home' ||
-        currentPath.startsWith('/project/') ||
-        currentPath === '/settings';
+      if (currentPath === '/settings') {
+        const entry = browserHistoryEntryRef.current;
+        if (entry) {
+          // ブラウザーの戻るで設定より前の履歴へ抜けないよう、現在の画面を復元してから遷移する。
+          event.stopImmediatePropagation();
+          window.history.pushState(entry.state, '', entry.href);
+        }
+        lastBackPress.current = 0;
+        returnToLastProject();
+        return;
+      }
+
+      const mainScreen = currentPath === '/home' || currentPath.startsWith('/project/');
       if (!mainScreen) return;
 
       const now = Date.now();
@@ -585,7 +608,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
     window.addEventListener('popstate', onPopState, true);
     return () => window.removeEventListener('popstate', onPopState, true);
-  }, [mode, toast, closeSettingsDrawer]);
+  }, [mode, toast, closeSettingsDrawer, returnToLastProject]);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.surface, paddingTop: insets.top }]}>

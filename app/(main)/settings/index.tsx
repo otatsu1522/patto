@@ -32,6 +32,16 @@ export default function SettingsIndex() {
     });
     if (result === 'confirm') await useAuthStore.getState().signOut();
   };
+  const leaveGuest = async () => {
+    if (!identity || !isGuest) return;
+    const result = await confirm({
+      title: t('settings.guestLeaveTitle'),
+      message: t('settings.guestLeaveMessage'),
+      confirmLabel: t('settings.guestLeaveConfirm'),
+      destructive: true,
+    });
+    if (result === 'confirm') await useAuthStore.getState().leaveGuest();
+  };
 
   return (
     <View style={styles.fill}>
@@ -49,12 +59,12 @@ export default function SettingsIndex() {
               <AppText variant="body" muted style={styles.accountText}>
                 {isGuest ? t('settings.guestDescription') : identity?.email}
               </AppText>
-              {!isGuest && identity ? (
+              {identity ? (
                 <Button
-                  label={t('settings.logout')}
-                  variant="outline"
+                  label={isGuest ? t('settings.backToLogin') : t('settings.logout')}
+                  variant={isGuest ? 'outlineDanger' : 'outline'}
                   icon="logout"
-                  onPress={() => void logout()}
+                  onPress={() => void (isGuest ? leaveGuest() : logout())}
                   fullWidth
                   style={styles.logoutButton}
                 />
