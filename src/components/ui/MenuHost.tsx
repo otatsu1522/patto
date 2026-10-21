@@ -84,6 +84,7 @@ export function MenuProvider({ children }: { children: ReactNode }) {
         onPress: () => void | Promise<void>;
         isExpanded: boolean;
         isAccordionChild: boolean;
+        separatorAfter?: boolean;
       }[] = [
         {
           item,
@@ -107,6 +108,9 @@ export function MenuProvider({ children }: { children: ReactNode }) {
             key: `menu-${index}-child-${childIndex}`,
             isExpanded: false,
             isAccordionChild: true,
+            // アコーディオン項目自身に区切り線が指定されている場合は、
+            // 項目の上に常時表示し、展開内容の最後にも表示する。
+            separatorAfter: !!item.separator && childIndex === item.accordionItems!.length - 1,
             onPress: async () => {
               try {
                 await child.onPress();
@@ -132,7 +136,9 @@ export function MenuProvider({ children }: { children: ReactNode }) {
     height: number;
   } = { left: SPACING.sm, top: SPACING.sm, width, height: 0 };
   if (menu) {
-    const separatorCount = visibleRows.filter((row) => row.item.separator).length;
+    const separatorCount = visibleRows.filter(
+      (row) => row.item.separator || row.separatorAfter,
+    ).length;
     const desiredHeight =
       visibleRows.length * ITEM_HEIGHT + separatorCount * lineWidth + SPACING.sm + lineWidth * 2;
     // Safe-area の内側にメニューを収め、Android の下部ナビゲーション領域や
@@ -175,6 +181,7 @@ export function MenuProvider({ children }: { children: ReactNode }) {
     onPress: () => void,
     isExpanded = false,
     isAccordionChild = false,
+    separatorAfter = false,
   ) => (
     <View key={key}>
       {item.separator ? (
@@ -247,6 +254,9 @@ export function MenuProvider({ children }: { children: ReactNode }) {
           )}
         </Pressable>
       </View>
+      {separatorAfter ? (
+        <View style={[styles.sep, { backgroundColor: lineColor, height: lineWidth }]} />
+      ) : null}
     </View>
   );
 
@@ -286,6 +296,7 @@ export function MenuProvider({ children }: { children: ReactNode }) {
                     row.onPress,
                     row.isExpanded,
                     row.isAccordionChild,
+                    row.separatorAfter,
                   ),
                 )}
               </ScrollView>

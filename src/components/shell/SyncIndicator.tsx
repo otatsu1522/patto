@@ -36,7 +36,7 @@ export function useSyncLabel(): {
     return { icon: 'offline', label: t('sync.off'), color: normalColor, enabled: false };
   if (manualRequestCount > 0)
     return { icon: 'sync', label: t('sync.syncing'), color: colors.accent, enabled: true };
-  // 自動同期中は進行中アイコン・アクセント色へ切り替えず、最終同期時刻や未送信件数を表示する。
+  // 自動同期中は進行中アイコンやアクセント色を出さず、未送信件数と最終同期時刻から状態を表示する。
   const displayStatus = status === 'syncing' ? 'idle' : status;
   if (displayStatus === 'offline')
     return {
@@ -49,15 +49,10 @@ export function useSyncLabel(): {
     };
   if (displayStatus === 'error')
     return { icon: 'error', label: t('sync.error'), color: normalColor, enabled: true };
-  // オンライン時のアイコンは操作ボタンとして固定する。未送信件数は文字で示し、
-  // 自動同期によって pending が変化してもアイコン形状・色は変えない。
+  // 未送信の変更がある、またはまだ同期していない場合は同期前アイコンにする。
   return {
-    icon: 'sync',
-    label: last
-      ? t('sync.syncedAt', { time: formatTime(last) })
-      : pending > 0
-        ? t('sync.never')
-        : t('sync.synced'),
+    icon: pending > 0 || !last ? 'cloudUpload' : 'synced',
+    label: last ? t('sync.syncedAt', { time: formatTime(last) }) : t('sync.never'),
     pendingLabel: pending > 0 ? t('sync.pending', { count: pending }) : undefined,
     color: normalColor,
     enabled: true,

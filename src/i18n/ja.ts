@@ -123,6 +123,7 @@ export const ja = {
   'menu.searchEmpty': '一致するタスクはありません',
   'menu.archivedProjects': 'アーカイブ済みのプロジェクト',
   'menu.archivedProjectsCount': 'アーカイブ済みのプロジェクト ({count})',
+  'menu.trashProjectsCount': 'ごみ箱のプロジェクト ({count})',
   'menu.noProjects': 'プロジェクトがありません。最初のプロジェクトを作りましょう。',
   'menu.guestBadge': 'ゲスト',
   'menu.open': 'メニューを開く',
@@ -181,6 +182,14 @@ export const ja = {
   'project.unarchiveAction': 'アーカイブを解除',
   'project.deleteTitle': 'プロジェクトを削除',
   'project.deleteMessage': '「{name}」と、その中のカンバン・タスクをごみ箱に移します。',
+  'project.restoreDone': 'プロジェクトを元に戻しました',
+  'project.restoreTrashFailed': 'プロジェクトを元に戻せませんでした。もう一度お試しください。',
+  'project.permanentDeleteTitle': 'プロジェクトを完全に削除',
+  'project.permanentDeleteMessage':
+    '「{name}」と、その中のカンバン・タスクを完全に削除します。この操作は元に戻せません。',
+  'project.permanentDeleteDone': 'プロジェクトを完全に削除しました',
+  'project.permanentDeleteFailed':
+    'プロジェクトを完全に削除できませんでした。もう一度お試しください。',
   'project.empty': 'プロジェクトを選んでください',
   'project.emptyHint': 'メニューからプロジェクトを選ぶか、新しく作成します。',
   'project.copySuffix': ' のコピー',

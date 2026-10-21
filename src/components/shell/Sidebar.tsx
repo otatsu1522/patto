@@ -8,6 +8,7 @@ import { BOARD, GESTURE, UI_METRICS } from '@/config/layout';
 import { archivedProjects, visibleProjects } from '@/domain/selectors';
 import type { Project } from '@/domain/types';
 import { UserActionError } from '@/domain/operationError';
+import { clearBucket } from '@/features/maintenance';
 import { showUndoToast } from '@/features/undo';
 import { useManualSync } from '@/hooks/useManualSync';
 import { useProjectNavigation } from '@/hooks/useProjectNavigation';
@@ -20,7 +21,7 @@ import { useUiStore } from '@/store/uiStore';
 import { FONT, SPACING, useTheme, ICON_SIZE, ICON_BUTTON_BOX, LAYER, OPACITY } from '@/theme';
 import { ProjectDialog } from '../board/NameDialogs';
 import { AppText } from '../ui/AppText';
-import { DropdownMenu } from '../ui/DropdownMenu';
+import { DropdownMenu, type MenuItem } from '../ui/DropdownMenu';
 import { useFeedback } from '../ui/FeedbackProvider';
 import { Icon } from '../ui/Icon';
 import { IconButton } from '../ui/IconButton';
@@ -53,6 +54,7 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
   const tasks = useDataStore((s) => s.tasks);
   const [editing, setEditing] = useState<Project | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [showTrash, setShowTrash] = useState(false);
   const projectScrollRef = useWebWheelScroll({ touchScroll: true, touchAction: 'pan-y' });
   const onSwipeCloseRef = useRef(onSwipeClose);
   useEffect(() => {
@@ -119,6 +121,13 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
   const favorites = list.filter((p) => p.isFavorite);
   const normals = list.filter((p) => !p.isFavorite);
   const archived = useMemo(() => archivedProjects(projects), [projects]);
+  const trashedProjects = useMemo(
+    () =>
+      projects
+        .filter((p) => p.deletedAt !== null)
+        .sort((a, b) => (b.deletedAt ?? 0) - (a.deletedAt ?? 0)),
+    [projects],
+  );
   // プロジェクトごとのタスク数（削除・アーカイブ済みは含めない。DONEモードのタスクは含める）
   const taskCounts = useMemo(() => {
     const liveColumns = new Set(columns.filter((c) => c.deletedAt === null).map((c) => c.id));
@@ -175,10 +184,94 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
     // メニューは開いたまま、右側の内容だけを空にする。
   };
 
+  const restoreTrashedProject = async (p: Project) => {
+    try {
+      await useDataStore.getState().restoreItem('project', p.id);
+      toast(t('project.restoreDone'), undefined, { category: 'editing' });
+    } catch {
+      alert(t('common.error'), t('project.restoreTrashFailed'));
+    }
+  };
+
+  const permanentlyDeleteTrashedProject = async (p: Project) => {
+    const answer = await confirm({
+      title: t('project.permanentDeleteTitle'),
+      message: t('project.permanentDeleteMessage', { name: p.title }),
+      confirmLabel: t('settings.clearPermanently'),
+      destructive: true,
+    });
+    if (answer !== 'confirm') return;
+
+    try {
+      const result = await clearBucket('trash', p.id, true);
+      if (!result.ok) {
+        alert(t('common.error'), result.message);
+        return;
+      }
+      if (result.count === 0) return;
+      toast(t('project.permanentDeleteDone'), undefined, { category: 'system' });
+    } catch {
+      alert(t('common.error'), t('project.permanentDeleteFailed'));
+    }
+  };
+
   const row = (p: Project) => {
     // 選択中の行は、ホバー（薄いグレー）と区別できるよう文字色と背景を反転する
     const selected = currentId === p.id;
     const fg = selected ? colors.onPrimary : colors.text;
+    const archiveMenuItem: MenuItem = {
+      label: p.archivedAt ? t('project.unarchiveAction') : t('project.archiveAction'),
+      icon: 'archive',
+      onPress: () => {
+        const previousArchivedAt = p.archivedAt;
+        const archived = previousArchivedAt === null;
+        void (async () => {
+          await useDataStore.getState().setProjectArchived(p.id, archived);
+          showUndoToast(
+            toast,
+            t(archived ? 'toast.projectArchived' : 'toast.projectUnarchived'),
+            () => useDataStore.getState().updateProject(p.id, { archivedAt: previousArchivedAt }),
+            'editing',
+          );
+        })();
+      },
+    };
+    const deleteMenuItem: MenuItem = {
+      label: t('common.delete'),
+      icon: 'trash',
+      destructive: true,
+      separator: true,
+      onPress: () => void removeProject(p),
+    };
+    const menuItems: MenuItem[] = p.archivedAt
+      ? [archiveMenuItem, deleteMenuItem]
+      : [
+          { label: t('project.edit'), icon: 'edit', onPress: () => setEditing(p) },
+          {
+            label: p.isFavorite ? t('common.unfavorite') : t('common.favorite'),
+            icon: p.isFavorite ? 'unpin' : 'pin',
+            onPress: () => {
+              const isFavorite = !p.isFavorite;
+              void (async () => {
+                await useDataStore.getState().updateProject(p.id, { isFavorite });
+                showUndoToast(
+                  toast,
+                  t(isFavorite ? 'toast.pinned' : 'toast.unpinned'),
+                  () => useDataStore.getState().updateProject(p.id, { isFavorite: p.isFavorite }),
+                  'editing',
+                );
+              })();
+            },
+          },
+          {
+            label: t('common.duplicate'),
+            icon: 'copy',
+            separator: true,
+            onPress: () => void duplicateProject(p),
+          },
+          archiveMenuItem,
+          deleteMenuItem,
+        ];
     return (
       <View
         key={p.id}
@@ -209,58 +302,7 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
           </AppText>
         </Pressable>
         <DropdownMenu
-          items={[
-            { label: t('project.edit'), icon: 'edit', onPress: () => setEditing(p) },
-            {
-              label: p.isFavorite ? t('common.unfavorite') : t('common.favorite'),
-              icon: p.isFavorite ? 'unpin' : 'pin',
-              onPress: () => {
-                const isFavorite = !p.isFavorite;
-                void (async () => {
-                  await useDataStore.getState().updateProject(p.id, { isFavorite });
-                  showUndoToast(
-                    toast,
-                    t(isFavorite ? 'toast.pinned' : 'toast.unpinned'),
-                    () => useDataStore.getState().updateProject(p.id, { isFavorite: p.isFavorite }),
-                    'editing',
-                  );
-                })();
-              },
-            },
-            {
-              label: t('common.duplicate'),
-              icon: 'copy',
-              separator: true,
-              onPress: () => void duplicateProject(p),
-            },
-            {
-              label: p.archivedAt ? t('project.unarchiveAction') : t('project.archiveAction'),
-              icon: 'archive',
-              onPress: () => {
-                const previousArchivedAt = p.archivedAt;
-                const archived = previousArchivedAt === null;
-                void (async () => {
-                  await useDataStore.getState().setProjectArchived(p.id, archived);
-                  showUndoToast(
-                    toast,
-                    t(archived ? 'toast.projectArchived' : 'toast.projectUnarchived'),
-                    () =>
-                      useDataStore
-                        .getState()
-                        .updateProject(p.id, { archivedAt: previousArchivedAt }),
-                    'editing',
-                  );
-                })();
-              },
-            },
-            {
-              label: t('common.delete'),
-              icon: 'trash',
-              destructive: true,
-              separator: true,
-              onPress: () => void removeProject(p),
-            },
-          ]}
+          items={menuItems}
           trigger={(openMenu) => (
             <IconButton
               icon="more"
@@ -276,6 +318,58 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
       </View>
     );
   };
+
+  const trashedProjectRow = (p: Project) => (
+    <View key={p.id} style={[styles.item, { backgroundColor: 'transparent' }]}>
+      <View style={styles.itemMain}>
+        <View
+          style={[
+            styles.dot,
+            {
+              backgroundColor: p.color ? taskColor(p.color) : 'transparent',
+              borderColor: p.color ? 'transparent' : colors.border,
+              borderWidth: lineWidth,
+            },
+          ]}
+        />
+        <AppText
+          numberOfLines={UI_METRICS.text.singleLineMax}
+          ellipsizeMode="tail"
+          bold
+          color={colors.text}
+          style={styles.projectTitle}
+        >
+          {p.title}
+        </AppText>
+      </View>
+      <DropdownMenu
+        items={[
+          {
+            label: t('common.undo'),
+            icon: 'restore',
+            onPress: () => void restoreTrashedProject(p),
+          },
+          {
+            label: t('settings.clearPermanently'),
+            icon: 'deleteForever',
+            destructive: true,
+            separator: true,
+            onPress: () => void permanentlyDeleteTrashedProject(p),
+          },
+        ]}
+        trigger={(openMenu) => (
+          <IconButton
+            icon="more"
+            label={p.title}
+            color={colors.textMuted}
+            onPress={openMenu}
+            box={ICON_BUTTON_BOX.large}
+            size={ICON_SIZE.xl}
+          />
+        )}
+      />
+    </View>
+  );
 
   return (
     <View
@@ -376,16 +470,39 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
                 onPress={() => setShowArchived((v) => !v)}
                 style={styles.archiveToggle}
               >
-                <Icon
-                  name={showArchived ? 'down' : 'right'}
-                  size={ICON_SIZE.sm}
-                  color={colors.textMuted}
-                />
+                <View style={styles.archiveToggleIconSlot}>
+                  <Icon
+                    name={showArchived ? 'down' : 'right'}
+                    size={ICON_SIZE.sm}
+                    color={colors.textMuted}
+                  />
+                </View>
                 <AppText variant="caption" muted>
                   {t('menu.archivedProjectsCount', { count: archived.length })}
                 </AppText>
               </Pressable>
               {showArchived ? archived.map(row) : null}
+            </>
+          ) : null}
+          {trashedProjects.length > 0 ? (
+            <>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setShowTrash((v) => !v)}
+                style={styles.archiveToggle}
+              >
+                <View style={styles.archiveToggleIconSlot}>
+                  <Icon
+                    name={showTrash ? 'down' : 'right'}
+                    size={ICON_SIZE.sm}
+                    color={colors.textMuted}
+                  />
+                </View>
+                <AppText variant="caption" muted>
+                  {t('menu.trashProjectsCount', { count: trashedProjects.length })}
+                </AppText>
+              </Pressable>
+              {showTrash ? trashedProjects.map(trashedProjectRow) : null}
             </>
           ) : null}
         </View>
@@ -557,8 +674,13 @@ const styles = StyleSheet.create({
   archiveToggle: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.xs,
-    padding: SPACING.lg,
+    gap: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+  },
+  archiveToggleIconSlot: {
+    width: ICON_SIZE.xl,
+    alignItems: 'center',
   },
   footer: { paddingTop: 0, paddingBottom: SPACING.xs },
   syncTextRow: {

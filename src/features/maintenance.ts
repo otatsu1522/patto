@@ -31,7 +31,11 @@ const accountWorkUnavailable = (): ClearResult => ({
  * 自動モードだけサーバー操作を即時実行する。手動／オフではローカルに削除要求を保存し、
  * 次に同期が許可されたときに送る。開始済みの同期は中断しない。
  */
-export async function clearBucket(kind: ClearKind, projectId?: string): Promise<ClearResult> {
+export async function clearBucket(
+  kind: ClearKind,
+  projectId?: string,
+  includeProject = false,
+): Promise<ClearResult> {
   const identity = useAuthStore.getState().identity;
   if (!identity) return accountWorkUnavailable();
   const releaseWork = acquireAccountWork(identity.userId);
@@ -43,7 +47,22 @@ export async function clearBucket(kind: ClearKind, projectId?: string): Promise<
       return accountWorkUnavailable();
     }
 
-    const initialTargets = purgeTargets(initialStore.snapshot(), kind, projectId);
+    const targetsForCurrentScope = (snapshot: ReturnType<typeof initialStore.snapshot>) => {
+      const targets = purgeTargets(snapshot, kind, projectId);
+      // サイドバーの「ごみ箱のプロジェクト」から完全削除するときだけ、
+      // プロジェクト本体も子のカンバン・タスクと同時に物理削除する。
+      // 通常のプロジェクト内ごみ箱クリアでは、従来どおりプロジェクト本体を対象にしない。
+      if (kind === 'trash' && includeProject && projectId) {
+        const project = snapshot.projects.find((item) => item.id === projectId);
+        if (!project || project.deletedAt === null) {
+          return { projects: [], columns: [], tasks: [] };
+        }
+        targets.projects = [project.id];
+      }
+      return targets;
+    };
+
+    const initialTargets = targetsForCurrentScope(initialStore.snapshot());
     if (countTargets(initialTargets) === 0) return { ok: true, count: 0 };
 
     // 手動／オフでは、この操作自体が同期やリモート要求を開始しない。
@@ -78,7 +97,7 @@ export async function clearBucket(kind: ClearKind, projectId?: string): Promise<
       }
 
       // 同期待ちの間にローカル内容が変化している可能性があるため、対象は操作直前に再取得する。
-      const targets = purgeTargets(currentStore.snapshot(), kind, projectId);
+      const targets = targetsForCurrentScope(currentStore.snapshot());
       const count = countTargets(targets);
       if (count === 0) return { ok: true, count: 0 };
 

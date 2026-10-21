@@ -26,6 +26,7 @@ import { visibleProjects, archivedProjects } from '@/domain/selectors';
 import { t } from '@/i18n';
 import { formatDateTime } from '@/lib/dates';
 import { useManualSync } from '@/hooks/useManualSync';
+import { useSyncLabel } from '@/components/shell/SyncIndicator';
 import { useDataStore } from '@/store/dataStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useSyncStore } from '@/sync/status';
@@ -41,6 +42,7 @@ const AUTO_SYNC_INTERVAL_OPTIONS = AUTO_SYNC_INTERVAL_SECONDS.map((seconds) => (
 export default function SystemSettings() {
   const { confirm, toast, alert } = useFeedback();
   const syncManually = useManualSync();
+  const syncLabel = useSyncLabel();
   const { colors } = useTheme();
   const [syncRequested, setSyncRequested] = useState(false);
   const settings = useSettingsStore((s) => s.settings);
@@ -374,7 +376,7 @@ export default function SystemSettings() {
                   <Button
                     label={syncInProgress ? t('sync.syncing') : t('settings.syncNow')}
                     variant="outline"
-                    icon={syncInProgress ? 'sync' : 'cloudUpload'}
+                    icon={syncInProgress ? 'sync' : syncLabel.icon}
                     disabled={settings.syncMode === 'off' || syncInProgress}
                     textColor={syncInProgress ? colors.accent : undefined}
                     style={syncInProgress ? styles.syncInProgressButton : undefined}

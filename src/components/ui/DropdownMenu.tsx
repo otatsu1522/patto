@@ -9,7 +9,7 @@ export interface MenuItem {
   icon?: IconKey;
   destructive?: boolean;
   disabled?: boolean;
-  /** この項目の上に区切り線を入れる */
+  /** この項目の上に区切り線を入れる。アコーディオン項目の場合は、展開内容の下にも表示する。 */
   separator?: boolean;
   /** アイコンのみ控えめなテーマ色で表示する */
   mutedIcon?: boolean;

@@ -606,7 +606,6 @@ export default function ProjectScreen() {
       {
         label: column.isDoneColumn ? t('column.unsetDone') : t('column.setDone'),
         icon: column.isDoneColumn ? 'doneModeOutline' : 'doneMode',
-        separator: true,
         onPress: () => void updateColumnWithUndo(column.id, { isDoneColumn: !column.isDoneColumn }),
       },
       {
