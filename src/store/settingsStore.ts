@@ -5,6 +5,8 @@ import {
   AUTO_SYNC_INTERVAL_SECONDS,
   TOAST_CATEGORIES,
   TOAST_DURATION_SECONDS,
+  TRASH_RETENTION_DAYS,
+  type TrashRetentionDays,
   type AppSettings,
   type ToastCategory,
 } from '@/config/defaults';
@@ -60,6 +62,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
     if (!AUTO_SYNC_INTERVAL_SECONDS.includes(settings.autoSyncIntervalSeconds)) {
       settings.autoSyncIntervalSeconds = 60;
+      normalized = true;
+    }
+    if (!TRASH_RETENTION_DAYS.includes(settings.trashRetentionDays as TrashRetentionDays)) {
+      settings.trashRetentionDays = TRASH.retentionDays;
       normalized = true;
     }
     if (!TOAST_DURATION_SECONDS.some((seconds) => seconds === settings.toastDurationSeconds)) {

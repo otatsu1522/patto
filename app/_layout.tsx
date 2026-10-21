@@ -98,7 +98,9 @@ function Boot() {
   // 同期状態はアカウントごとに表示し、切り替え前の状態を引き継がない。
   // 最終同期時刻はローカルDBから読むため、オフ／手動モードでも通信は発生しない。
   useEffect(() => {
-    useSyncStore.getState().set({ status: 'idle', lastSyncedAt: null, error: null });
+    useSyncStore
+      .getState()
+      .set({ status: 'idle', activeSource: null, lastSyncedAt: null, error: null });
     if (!ready || !ownerId) return;
     let cancelled = false;
     void getDb()

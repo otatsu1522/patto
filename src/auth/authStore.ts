@@ -53,6 +53,8 @@ interface AuthState {
   identity: Identity | null;
   /** ログインの有効期限切れなどで、再ログインが必要な状態 */
   needsReauth: boolean;
+  /** オフ／手動モードで、利用者が明示的なオンライン操作を行ったときだけ再認証ダイアログを許可する。 */
+  reauthPromptRequested: boolean;
   /** 起動処理に失敗した場合の表示用メッセージ。 */
   bootstrapError: string | null;
 
@@ -77,6 +79,7 @@ interface AuthState {
   updateDisplayName: (name: string) => Promise<AuthResult>;
   deleteAccount: () => Promise<AuthResult>;
   setNeedsReauth: (v: boolean) => void;
+  setReauthPromptRequested: (v: boolean) => void;
 }
 
 const notConfigured = (): AuthResult => ({ ok: false, message: t('auth.notConfigured') });
@@ -100,7 +103,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
   /** 再認証要求は、リロードで消えてしまわないよう端末にも保存する。 */
   function setNeedsReauthPersisted(required: boolean) {
-    set({ needsReauth: required });
+    set(required ? { needsReauth: true } : { needsReauth: false, reauthPromptRequested: false });
     // 非同期ストレージへの書き込み順を保ち、直前の値で上書きされないようにする。
     needsReauthPersistence = needsReauthPersistence
       .then(async () => {
@@ -216,13 +219,18 @@ export const useAuthStore = create<AuthState>((set, get) => {
         }
         const session = identity ? await getFreshSession(client, identity.userId) : null;
         if (!identity || !session || !session.access_token) {
-          if (identity) set({ identity, status: identity.mode });
+          if (identity) {
+            get().setNeedsReauth(true);
+            set({ identity, status: identity.mode });
+          }
           return { ok: false, message: t('auth.sessionMismatch') };
         }
         // Edge Function も開始時の認証トークンに固定する。共有セッションが変わっても別ユーザーを削除しない。
         const scopedClient = createSyncSupabaseClient(session.access_token);
         const { error } = await scopedClient.functions.invoke('delete-account');
         if (error) {
+          const response = (error as { context?: Response }).context;
+          if (isAuthRequiredError(error) || response?.status === 401) get().setNeedsReauth(true);
           if (identity) set({ identity, status: identity.mode });
           return { ok: false, message: mapAuthError(error) };
         }
@@ -260,6 +268,8 @@ export const useAuthStore = create<AuthState>((set, get) => {
       await clearLocalIdentity();
       return { ok: true };
     } catch (error) {
+      // 明示的なアカウント削除で認証エラーが判明した場合も、再認証を案内する。
+      if (action === 'deleteAccount' && isAuthRequiredError(error)) get().setNeedsReauth(true);
       // 破棄前に失敗した場合は、現在のアカウントを画面に戻す。
       if (identity && get().identity?.userId === identity.userId) {
         set({ identity, status: identity.mode });
@@ -293,6 +303,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
     status: 'loading',
     identity: null,
     needsReauth: false,
+    reauthPromptRequested: false,
     bootstrapError: null,
 
     async bootstrap() {
@@ -483,8 +494,9 @@ export const useAuthStore = create<AuthState>((set, get) => {
           }
           await persist(latest);
           if (isCurrentAccountCheck()) set({ identity: latest });
-        } catch {
-          // オフラインでは端末内の表示を維持し、次回の前景復帰時に再取得する。
+        } catch (error) {
+          // 通信断では端末内の表示を維持する。認証エラーは自動モードでも再認証要求として記録する。
+          if (isAuthRequiredError(error) && isCurrentAccountCheck()) get().setNeedsReauth(true);
         } finally {
           releaseWork();
         }
@@ -731,13 +743,17 @@ export const useAuthStore = create<AuthState>((set, get) => {
       try {
         // 明示されたアカウント編集操作の一部として、期限切れ間近のセッションだけ更新する。
         const session = await getFreshSession(client, identity.userId);
-        if (!session) return { ok: false, message: t('auth.sessionMismatch') };
+        if (!session) {
+          get().setNeedsReauth(true);
+          return { ok: false, message: t('auth.sessionMismatch') };
+        }
         // Supabase Auth で現在のパスワードを検証し、そのまま新しいパスワードへ変更する。
         const { error } = await client.auth.updateUser({
           password: next,
           current_password: current,
         });
         if (error) {
+          if (isAuthRequiredError(error)) get().setNeedsReauth(true);
           const code = (error.code ?? '').toLowerCase();
           const message = error.message.toLowerCase();
           if (code === 'current_password_mismatch' || message.includes('current password')) {
@@ -755,8 +771,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
           }
           return { ok: false, message: mapAuthError(error) };
         }
+        get().setNeedsReauth(false);
         return { ok: true };
       } catch (e) {
+        if (isAuthRequiredError(e)) get().setNeedsReauth(true);
         return fail(e, t('settings.onlineOnly'));
       } finally {
         releaseWork();
@@ -773,7 +791,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
       try {
         const normalized = normalizeEmail(email);
         const session = await getFreshSession(client, identity.userId);
-        if (!session) return { ok: false, message: t('auth.sessionMismatch') };
+        if (!session) {
+          get().setNeedsReauth(true);
+          return { ok: false, message: t('auth.sessionMismatch') };
+        }
         // Auth の通常 updateUser({ email }) は確認メールを伴うため、認証済みの呼び出し元を
         // Edge Function 側で検証し、Admin API で本人のメールアドレスを直接更新する。
         const { data, error } = await client.functions.invoke<{ email?: string }>('change-email', {
@@ -781,6 +802,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
         });
         if (error) {
           const response = (error as { context?: Response }).context;
+          if (isAuthRequiredError(error) || response?.status === 401) get().setNeedsReauth(true);
           if (response && typeof response.clone === 'function') {
             try {
               const payload = (await response.clone().json()) as {
@@ -800,8 +822,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
         const next = { ...identity, email: updatedEmail };
         await persist(next);
         set({ identity: next });
+        get().setNeedsReauth(false);
         return { ok: true, message: t('settings.emailChanged') };
       } catch (e) {
+        if (isAuthRequiredError(e)) get().setNeedsReauth(true);
         return fail(e, t('settings.onlineOnly'));
       } finally {
         releaseWork();
@@ -820,12 +844,18 @@ export const useAuthStore = create<AuthState>((set, get) => {
           const client = getSupabase();
           if (!client) return notConfigured();
           const session = await getFreshSession(client, identity.userId);
-          if (!session) return { ok: false, message: t('auth.sessionMismatch') };
+          if (!session) {
+            get().setNeedsReauth(true);
+            return { ok: false, message: t('auth.sessionMismatch') };
+          }
           // 先にサーバーへ保存し、失敗したのに端末だけ成功表示になることを防ぐ。
           const { data, error } = await client.auth.updateUser({
             data: { display_name: normalized },
           });
-          if (error) return { ok: false, message: mapAuthError(error) };
+          if (error) {
+            if (isAuthRequiredError(error)) get().setNeedsReauth(true);
+            return { ok: false, message: mapAuthError(error) };
+          }
           next = {
             ...next,
             email: data.user.email ?? identity.email,
@@ -834,8 +864,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
         }
         await persist(next);
         set({ identity: next });
+        if (!identity.local) get().setNeedsReauth(false);
         return { ok: true };
       } catch (e) {
+        if (isAuthRequiredError(e)) get().setNeedsReauth(true);
         return fail(e, t('settings.onlineOnly'));
       } finally {
         releaseWork();
@@ -853,6 +885,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
     },
 
     setNeedsReauth: (v) => setNeedsReauthPersisted(v),
+    setReauthPromptRequested: (v) => set({ reauthPromptRequested: v }),
   };
 });
 

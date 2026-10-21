@@ -115,9 +115,23 @@ export function RecordDetailsDialog({
     iconActionLabel?: string,
   ) => (
     <View style={styles.section} key={label}>
-      <AppText variant="caption" muted style={styles.fieldLabel}>
-        {label}
-      </AppText>
+      {onIconPress ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={iconActionLabel}
+          hitSlop={4}
+          onPress={onIconPress}
+          style={styles.actionLabel}
+        >
+          <AppText variant="caption" muted style={styles.fieldLabel}>
+            {label}
+          </AppText>
+        </Pressable>
+      ) : (
+        <AppText variant="caption" muted style={styles.fieldLabel}>
+          {label}
+        </AppText>
+      )}
       <View style={styles.valueRow}>
         {icon ? (
           onIconPress ? (
@@ -134,13 +148,31 @@ export function RecordDetailsDialog({
             <Icon name={icon} size={ICON_SIZE.md} color={colors.textMuted} />
           )
         ) : null}
-        <AppText
-          selectable
-          color={placeholder ? colors.textMuted : colors.text}
-          style={styles.value}
-        >
-          {value}
-        </AppText>
+        {onIconPress ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={iconActionLabel}
+            hitSlop={4}
+            onPress={onIconPress}
+            style={styles.actionValue}
+          >
+            <AppText
+              selectable
+              color={placeholder ? colors.textMuted : colors.text}
+              style={styles.value}
+            >
+              {value}
+            </AppText>
+          </Pressable>
+        ) : (
+          <AppText
+            selectable
+            color={placeholder ? colors.textMuted : colors.text}
+            style={styles.value}
+          >
+            {value}
+          </AppText>
+        )}
       </View>
     </View>
   );
@@ -243,7 +275,7 @@ export function RecordDetailsDialog({
         </View>
         {detail(
           t('task.favorite'),
-          task.isFavorite ? t('common.yes') : t('common.no'),
+          task.isFavorite ? t('task.favoritePinned') : t('task.favoriteNotPinned'),
           false,
           task.isFavorite ? 'pin' : 'unpin',
           () => onToggleFavorite(task),
@@ -270,7 +302,7 @@ export function RecordDetailsDialog({
         <View style={[styles.dateRow, { borderTopColor: lineColor, borderTopWidth: lineWidth }]}>
           <View style={styles.dateCell}>
             <View style={styles.dateLabel}>
-              <Icon name="edit" size={ICON_SIZE.md} color={colors.textMuted} />
+              <Icon name="calendarAddOn" size={ICON_SIZE.md} color={colors.textMuted} />
               <AppText variant="caption" muted style={styles.fieldLabel}>
                 {t('common.createdAt')}
               </AppText>
@@ -281,7 +313,7 @@ export function RecordDetailsDialog({
           </View>
           <View style={styles.dateCell}>
             <View style={styles.dateLabel}>
-              <Icon name="refresh" size={ICON_SIZE.md} color={colors.textMuted} />
+              <Icon name="calendarClock" size={ICON_SIZE.md} color={colors.textMuted} />
               <AppText variant="caption" muted style={styles.fieldLabel}>
                 {t('common.updatedAt')}
               </AppText>
@@ -309,6 +341,8 @@ const styles = StyleSheet.create({
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   locationName: { flexShrink: 1 },
   section: { gap: SPACING.xs },
+  actionLabel: { alignSelf: 'flex-start' },
+  actionValue: { flexShrink: 1, minWidth: 0 },
   fieldLabel: { alignSelf: 'flex-start' },
   dateLabel: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs },
   valueRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, minWidth: 0 },

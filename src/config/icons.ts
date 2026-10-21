@@ -33,6 +33,8 @@ export const ICONS = {
   edit: 'create-outline',
   copy: 'copy-outline',
   calendar: 'calendar-outline',
+  calendarAddOn: 'calendar-outline',
+  calendarClock: 'calendar-outline',
   check: 'checkmark',
   person: 'person-circle-outline',
   info: 'information-circle-outline',
@@ -54,6 +56,7 @@ export const ICONS = {
   forward: 'chevron-forward',
   down: 'chevron-down',
   up: 'chevron-up',
+  sort: 'swap-vertical-outline',
   sortAsc: 'arrow-up-outline',
   sortDesc: 'arrow-down-outline',
 } as const satisfies Record<string, IconName>;

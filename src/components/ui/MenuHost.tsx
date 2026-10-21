@@ -51,12 +51,15 @@ export function MenuProvider({ children }: { children: ReactNode }) {
   const win = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [menu, setMenu] = useState<{ anchor: Rect; items: MenuItem[] } | null>(null);
+  const [expandedItemIndex, setExpandedItemIndex] = useState<number | null>(null);
 
   const hide = useCallback(() => {
     setMenu(null);
+    setExpandedItemIndex(null);
     useUiStore.getState().setDropdownMenuOpen(false);
   }, []);
   const show = useCallback((anchor: Rect, items: MenuItem[]) => {
+    setExpandedItemIndex(null);
     useUiStore.getState().setDropdownMenuOpen(true);
     setMenu({ anchor, items });
   }, []);
@@ -68,6 +71,60 @@ export function MenuProvider({ children }: { children: ReactNode }) {
     BOARD.menuMinWidth + UI_METRICS.menu.popupWidthExtra,
     Math.max(0, win.width - SPACING.md * 2),
   );
+
+  // 表示行を一度だけ組み立て、メニューの高さ計算と実際の描画で同じ配列を使う。
+  // これにより、アコーディオンを開いた時に高さだけ変わって子項目が描画されない不整合を防ぐ。
+  const visibleRows = useMemo(() => {
+    if (!menu) return [];
+    return menu.items.flatMap((item, index) => {
+      const expanded = !!item.accordionItems && expandedItemIndex === index;
+      const rows: {
+        item: MenuItem;
+        key: string;
+        onPress: () => void | Promise<void>;
+        isExpanded: boolean;
+        isAccordionChild: boolean;
+      }[] = [
+        {
+          item,
+          key: `menu-${index}`,
+          isExpanded: expanded,
+          isAccordionChild: false,
+          onPress: () => {
+            if (item.accordionItems) {
+              setExpandedItemIndex((current) => (current === index ? null : index));
+              return;
+            }
+            hide();
+            void item.onPress();
+          },
+        },
+      ];
+      if (expanded && item.accordionItems) {
+        rows.push(
+          ...item.accordionItems.map((child, childIndex) => ({
+            item: child,
+            key: `menu-${index}-child-${childIndex}`,
+            isExpanded: false,
+            isAccordionChild: true,
+            onPress: async () => {
+              try {
+                await child.onPress();
+              } finally {
+                // 並び替えは選択後もメニューを開いたままにし、最新の選択・方向を表示する。
+                const refreshedItems = item.refreshMenuItems?.();
+                if (refreshedItems) {
+                  setMenu((current) => (current ? { ...current, items: refreshedItems } : current));
+                }
+              }
+            },
+          })),
+        );
+      }
+      return rows;
+    });
+  }, [menu, expandedItemIndex, hide]);
+
   let menuLayout: {
     left: number;
     top: number;
@@ -75,9 +132,9 @@ export function MenuProvider({ children }: { children: ReactNode }) {
     height: number;
   } = { left: SPACING.sm, top: SPACING.sm, width, height: 0 };
   if (menu) {
-    const separatorCount = menu.items.filter((item) => item.separator).length;
+    const separatorCount = visibleRows.filter((row) => row.item.separator).length;
     const desiredHeight =
-      menu.items.length * ITEM_HEIGHT + separatorCount * lineWidth + SPACING.sm + lineWidth * 2;
+      visibleRows.length * ITEM_HEIGHT + separatorCount * lineWidth + SPACING.sm + lineWidth * 2;
     // Safe-area の内側にメニューを収め、Android の下部ナビゲーション領域や
     // ステータスバー領域にメニュー項目が重ならないようにする。
     const safeTop = Math.max(insets.top, 0) + SPACING.sm;
@@ -110,7 +167,88 @@ export function MenuProvider({ children }: { children: ReactNode }) {
     menuLayout = { left, top, width, height };
   }
 
-  const hasIcons = menu?.items.some((i) => i.icon) ?? false;
+  const hasIcons = visibleRows.some((row) => row.item.icon);
+
+  const renderMenuItem = (
+    item: MenuItem,
+    key: string,
+    onPress: () => void,
+    isExpanded = false,
+    isAccordionChild = false,
+  ) => (
+    <View key={key}>
+      {item.separator ? (
+        <View style={[styles.sep, { backgroundColor: lineColor, height: lineWidth }]} />
+      ) : null}
+      <View style={styles.menuRow}>
+        <Pressable
+          accessibilityRole="menuitem"
+          accessibilityState={item.accordionItems ? { expanded: isExpanded } : undefined}
+          disabled={item.disabled}
+          onPress={onPress}
+          style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
+            styles.item,
+            isAccordionChild ? styles.accordionChildItem : undefined,
+            {
+              backgroundColor: pressed || (hovered && canHover) ? colors.hover : 'transparent',
+              opacity: item.disabled ? OPACITY.disabled : OPACITY.fullyVisible,
+            },
+          ]}
+        >
+          {hasIcons ? (
+            <View style={styles.iconSlot}>
+              {item.icon ? (
+                <Icon
+                  name={item.icon}
+                  size={ICON_SIZE.lg}
+                  color={
+                    item.destructive
+                      ? colors.danger
+                      : item.mutedIcon
+                        ? colors.textMuted
+                        : colors.text
+                  }
+                />
+              ) : null}
+            </View>
+          ) : null}
+          {item.inlineIcon || item.accordionItems ? (
+            <View style={styles.labelWithInlineIcon}>
+              <AppText
+                color={
+                  item.destructive ? colors.danger : item.mutedIcon ? colors.textMuted : colors.text
+                }
+                numberOfLines={UI_METRICS.text.singleLineMax}
+                style={styles.inlineLabel}
+              >
+                {item.label}
+              </AppText>
+              {item.inlineIcon ? (
+                <Icon name={item.inlineIcon} size={ICON_SIZE.md} color={colors.textMuted} />
+              ) : null}
+              {item.accordionItems ? (
+                <Icon
+                  name={isExpanded ? 'up' : 'down'}
+                  size={ICON_SIZE.md}
+                  color={colors.textMuted}
+                />
+              ) : null}
+            </View>
+          ) : (
+            <AppText
+              color={
+                item.destructive ? colors.danger : item.mutedIcon ? colors.textMuted : colors.text
+              }
+              numberOfLines={UI_METRICS.text.singleLineMax}
+              style={styles.label}
+            >
+              {item.label}
+            </AppText>
+          )}
+        </Pressable>
+      </View>
+    </View>
+  );
 
   return (
     <Ctx.Provider value={host}>
@@ -141,87 +279,15 @@ export function MenuProvider({ children }: { children: ReactNode }) {
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
               >
-                {menu.items.map((item, i) => (
-                  <View key={`${item.label}-${i}`}>
-                    {item.separator ? (
-                      <View
-                        style={[styles.sep, { backgroundColor: lineColor, height: lineWidth }]}
-                      />
-                    ) : null}
-                    <View style={styles.menuRow}>
-                      <Pressable
-                        accessibilityRole="menuitem"
-                        disabled={item.disabled}
-                        onPress={() => {
-                          hide();
-                          item.onPress();
-                        }}
-                        style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
-                          styles.item,
-                          {
-                            backgroundColor:
-                              pressed || (hovered && canHover) ? colors.hover : 'transparent',
-                            opacity: item.disabled ? OPACITY.disabled : OPACITY.fullyVisible,
-                          },
-                        ]}
-                      >
-                        {hasIcons ? (
-                          <View style={styles.iconSlot}>
-                            {item.icon ? (
-                              <Icon
-                                name={item.icon}
-                                size={ICON_SIZE.lg}
-                                color={
-                                  item.destructive
-                                    ? colors.danger
-                                    : item.mutedIcon
-                                      ? colors.textMuted
-                                      : colors.text
-                                }
-                              />
-                            ) : null}
-                          </View>
-                        ) : null}
-                        {item.inlineIcon ? (
-                          <View style={styles.labelWithInlineIcon}>
-                            <AppText
-                              color={
-                                item.destructive
-                                  ? colors.danger
-                                  : item.mutedIcon
-                                    ? colors.textMuted
-                                    : colors.text
-                              }
-                              numberOfLines={UI_METRICS.text.singleLineMax}
-                              style={styles.inlineLabel}
-                            >
-                              {item.label}
-                            </AppText>
-                            <Icon
-                              name={item.inlineIcon}
-                              size={ICON_SIZE.md}
-                              color={colors.textMuted}
-                            />
-                          </View>
-                        ) : (
-                          <AppText
-                            color={
-                              item.destructive
-                                ? colors.danger
-                                : item.mutedIcon
-                                  ? colors.textMuted
-                                  : colors.text
-                            }
-                            numberOfLines={UI_METRICS.text.singleLineMax}
-                            style={styles.label}
-                          >
-                            {item.label}
-                          </AppText>
-                        )}
-                      </Pressable>
-                    </View>
-                  </View>
-                ))}
+                {visibleRows.map((row) =>
+                  renderMenuItem(
+                    row.item,
+                    row.key,
+                    row.onPress,
+                    row.isExpanded,
+                    row.isAccordionChild,
+                  ),
+                )}
               </ScrollView>
             </View>
           </View>
@@ -251,6 +317,7 @@ const styles = StyleSheet.create({
     gap: SPACING.md,
     paddingHorizontal: SPACING.lg,
   },
+  accordionChildItem: { paddingLeft: SPACING.lg },
   labelWithInlineIcon: {
     flex: 1,
     minWidth: 0,

@@ -58,8 +58,8 @@
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "export:web": "expo export --platform web && node scripts/verify-web-assets.mjs",
-    "build:android": "npx eas-cli build --platform android --profile preview",
-    "build:ios": "npx eas-cli build --platform ios --profile preview"
+    "build:android:preview": "npx eas-cli build --platform android --profile preview",
+    "build:ios:preview": "npx eas-cli build --platform ios --profile preview"
   },
   "description": "Patto - KANBAN TODO APP",
   "license": "MIT"

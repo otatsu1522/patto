@@ -56,7 +56,12 @@ export default function SystemSettings() {
   const identity = useAuthStore((s) => s.identity);
   const lastSyncedAt = useSyncStore((s) => s.lastSyncedAt);
   const syncStatus = useSyncStore((s) => s.status);
-  const syncInProgress = syncStatus === 'syncing' || syncRequested;
+  const activeSyncSource = useSyncStore((s) => s.activeSource);
+  const manualRequestCount = useSyncStore((s) => s.manualRequestCount);
+  const syncInProgress =
+    (syncStatus === 'syncing' && activeSyncSource !== 'automatic') ||
+    manualRequestCount > 0 ||
+    syncRequested;
   const syncAvailable = !!identity && !identity.local && isSupabaseConfigured;
   const scrollRef = useWebWheelScroll({ touchAction: 'pan-x pan-y' });
 
@@ -323,31 +328,38 @@ export default function SystemSettings() {
             {hint(syncAvailable ? t('settings.syncHint') : t('settings.syncLocalOnly'))}
             {syncAvailable ? (
               <>
-                <ChoiceRow<SyncMode>
-                  label={t('settings.syncMode')}
-                  value={settings.syncMode}
-                  onChange={(v) => update({ syncMode: v })}
-                  options={[
-                    { value: 'off', label: t('settings.syncMode.off') },
-                    { value: 'manual', label: t('settings.syncMode.manual') },
-                    { value: 'auto', label: t('settings.syncMode.auto') },
-                  ]}
-                />
-                <View style={styles.syncDescs}>
-                  <AppText variant="caption" muted>
-                    {t('settings.syncModeOffDesc')}
+                <View style={styles.syncModeBlock}>
+                  <AppText variant="label" style={styles.settingGroupTitle}>
+                    {t('settings.syncMode')}
                   </AppText>
-                  <AppText variant="caption" muted>
-                    {t('settings.syncModeManualDesc')}
-                  </AppText>
-                  <AppText variant="caption" muted>
-                    {t('settings.syncModeAutoDesc')}
-                  </AppText>
+                  <View style={styles.syncDescs}>
+                    <AppText variant="caption" muted>
+                      ・{t('settings.syncModeOffDesc')}
+                    </AppText>
+                    <AppText variant="caption" muted>
+                      ・{t('settings.syncModeManualDesc')}
+                    </AppText>
+                    <AppText variant="caption" muted>
+                      ・{t('settings.syncModeAutoDesc')}
+                    </AppText>
+                  </View>
+                  <ChoiceRow<SyncMode>
+                    value={settings.syncMode}
+                    onChange={(v) => update({ syncMode: v })}
+                    options={[
+                      { value: 'off', label: t('settings.syncMode.off') },
+                      { value: 'manual', label: t('settings.syncMode.manual') },
+                      { value: 'auto', label: t('settings.syncMode.auto') },
+                    ]}
+                  />
                 </View>
                 {settings.syncMode === 'auto' ? (
-                  <>
+                  <View style={styles.syncModeBlock}>
+                    <AppText variant="label" style={styles.settingGroupTitle}>
+                      {t('settings.autoSyncInterval')}
+                    </AppText>
+                    {hint(t('settings.autoSyncIntervalHint'))}
                     <ChoiceRow<AutoSyncIntervalChoice>
-                      label={t('settings.autoSyncInterval')}
                       value={String(settings.autoSyncIntervalSeconds) as AutoSyncIntervalChoice}
                       onChange={(value) =>
                         update({
@@ -356,8 +368,7 @@ export default function SystemSettings() {
                       }
                       options={AUTO_SYNC_INTERVAL_OPTIONS}
                     />
-                    {hint(t('settings.autoSyncIntervalHint'))}
-                  </>
+                  </View>
                 ) : null}
                 <View style={styles.syncAction}>
                   <Button
@@ -404,10 +415,27 @@ export default function SystemSettings() {
             {hint(t('settings.trashHint'))}
             <SwitchRow
               label={t('settings.trashAutoDelete')}
-              hint={t('settings.trashRetentionDays', { days: settings.trashRetentionDays })}
+              hint={t('settings.trashAutoDeleteHint')}
               value={settings.trashAutoDelete}
               onChange={(v) => update({ trashAutoDelete: v })}
             />
+            {settings.trashAutoDelete ? (
+              <View style={styles.trashRetentionBlock}>
+                <AppText variant="label" style={styles.settingGroupTitle}>
+                  {t('settings.trashRetention')}
+                </AppText>
+                {hint(t('settings.trashRetentionHint'))}
+                <ChoiceRow<'7' | '30' | '90'>
+                  value={String(settings.trashRetentionDays) as '7' | '30' | '90'}
+                  onChange={(value) => update({ trashRetentionDays: Number(value) })}
+                  options={[
+                    { value: '7', label: '7日' },
+                    { value: '30', label: '30日' },
+                    { value: '90', label: '90日' },
+                  ]}
+                />
+              </View>
+            ) : null}
             <View style={styles.actionButtons}>
               <Button
                 label={t('settings.archiveClearAll')}
@@ -459,7 +487,10 @@ const styles = StyleSheet.create({
   },
   category: { marginTop: SPACING.md, paddingHorizontal: SPACING.sm },
   hint: { padding: SPACING.lg, paddingBottom: 0 },
-  syncDescs: { gap: SPACING.xs, paddingHorizontal: SPACING.lg, paddingBottom: SPACING.sm },
+  syncModeBlock: { gap: SPACING.xs },
+  syncDescs: { gap: SPACING.xs, paddingHorizontal: SPACING.lg },
+  settingGroupTitle: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.lg },
+  trashRetentionBlock: { gap: SPACING.xs },
   syncAction: { padding: SPACING.lg, paddingTop: SPACING.sm, gap: SPACING.sm },
   syncInProgressButton: { opacity: 1 },
   syncLast: { textAlign: 'center' },

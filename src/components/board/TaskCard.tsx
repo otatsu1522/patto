@@ -183,7 +183,7 @@ export function TaskCard({
         {showUpdatedAt ? (
           <View style={styles.metadataItem}>
             {metadataIconsVisible ? (
-              <Icon name="refresh" size={ICON_SIZE.md} color={colors.textMuted} />
+              <Icon name="calendarClock" size={ICON_SIZE.md} color={colors.textMuted} />
             ) : null}
             <AppText
               variant="caption"

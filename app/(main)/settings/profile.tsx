@@ -25,6 +25,7 @@ import {
 } from '@/domain/validation';
 import { t } from '@/i18n';
 import { useDataStore } from '@/store/dataStore';
+import { useSettingsStore } from '@/store/settingsStore';
 import { SPACING, useTheme } from '@/theme';
 import { isTouchWeb } from '@/lib/hover';
 
@@ -257,6 +258,24 @@ function GuestSection({ local }: { local: boolean }) {
 function AccountSections() {
   const { confirm, toast } = useFeedback();
   const identity = useAuthStore((s) => s.identity);
+  const runExplicitAccountCloudAction = async <T,>(action: () => Promise<T>): Promise<T> => {
+    const auth = useAuthStore.getState();
+    const current = auth.identity;
+    if (current?.mode === 'account' && !current.local) {
+      if (useSettingsStore.getState().settings.syncMode !== 'auto') {
+        // オフ／手動では、明示した操作が認証エラーになった場合だけ再ログインを促す。
+        auth.setNeedsReauth(false);
+      }
+      auth.setReauthPromptRequested(true);
+    }
+    try {
+      return await action();
+    } finally {
+      const latest = useAuthStore.getState();
+      if (!latest.needsReauth) latest.setReauthPromptRequested(false);
+    }
+  };
+
   const [name, setName] = useState(identity?.displayName ?? '');
   const [nameMessage, setNameMessage] = useState<{ text: string; ok: boolean } | null>(null);
   const [email, setEmail] = useState(identity?.email ?? '');
@@ -285,7 +304,9 @@ function AccountSections() {
       setNameMessage({ text: error, ok: false });
       return;
     }
-    const res = await useAuthStore.getState().updateDisplayName(name);
+    const res = await runExplicitAccountCloudAction(() =>
+      useAuthStore.getState().updateDisplayName(name),
+    );
     setNameMessage(
       res.ok ? { text: t('settings.profileSaved'), ok: true } : { text: res.message, ok: false },
     );
@@ -300,7 +321,9 @@ function AccountSections() {
       return;
     }
     setEmailBusy(true);
-    const res = await useAuthStore.getState().changeEmail(email);
+    const res = await runExplicitAccountCloudAction(() =>
+      useAuthStore.getState().changeEmail(email),
+    );
     setEmailBusy(false);
     if (res.ok) {
       setEmailMessage({ text: res.message ?? t('settings.emailChanged'), ok: true });
@@ -313,7 +336,9 @@ function AccountSections() {
     setPwMessage(null);
     if (firstError(pwErrors.current, pwErrors.next, pwErrors.confirm)) return;
     setPwBusy(true);
-    const res = await useAuthStore.getState().changePassword(current, next);
+    const res = await runExplicitAccountCloudAction(() =>
+      useAuthStore.getState().changePassword(current, next),
+    );
     setPwBusy(false);
     if (res.ok) {
       setPwMessage({ text: t('settings.passwordChanged'), ok: true });
@@ -337,7 +362,7 @@ function AccountSections() {
       destructive: true,
     });
     if (r !== 'confirm') return;
-    const res = await useAuthStore.getState().deleteAccount();
+    const res = await runExplicitAccountCloudAction(() => useAuthStore.getState().deleteAccount());
     if (!res.ok) setDeleteMessage(res.message);
     else toast(t('settings.deleteAccountDone'), undefined, { category: 'system' });
   };

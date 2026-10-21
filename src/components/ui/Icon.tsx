@@ -37,7 +37,14 @@ export function Icon({ name, size = ICON_SIZE.xxl, color }: Props) {
       <Svg
         width={px}
         height={px}
-        viewBox={name === 'keyboard' || name === 'deleteSweep' ? '0 0 24 24' : '0 -960 960 960'}
+        viewBox={
+          name === 'keyboard' ||
+          name === 'deleteSweep' ||
+          name === 'calendarAddOn' ||
+          name === 'calendarClock'
+            ? '0 0 24 24'
+            : '0 -960 960 960'
+        }
       >
         <Path d={path} fill={tint} />
       </Svg>

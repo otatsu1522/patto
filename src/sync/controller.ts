@@ -177,7 +177,7 @@ async function executeSync(ownerId: string, opts: SyncOptions): Promise<SyncOutc
     // アカウント切り替え中に準備が終わった場合、新しいユーザーの状態には何も反映しない。
     if (!belongsToCurrentAccount()) return { success: false };
     if (!online) {
-      status({ status: 'offline' });
+      status({ status: 'offline', activeSource: null });
       scheduleRetry();
       return { success: false, error: new Error(ERROR_CODES.offline) };
     }
@@ -194,7 +194,7 @@ async function executeSync(ownerId: string, opts: SyncOptions): Promise<SyncOutc
     // リモート要求は開始時のユーザー、ローカル書き込みは開始時のDBだけを対象にする。
     localContext = captureSyncLocalContext(ownerId);
     if (!belongsToCurrentAccount()) return { success: false };
-    status({ status: 'syncing', error: null });
+    status({ status: 'syncing', activeSource: opts.source ?? 'manual', error: null });
     const settings = useSettingsStore.getState().settings;
     const syncClient = createSyncSupabaseClient(session.access_token);
     await runSync(createSupabaseRemote(syncClient), localContext, {
@@ -208,7 +208,7 @@ async function executeSync(ownerId: string, opts: SyncOptions): Promise<SyncOutc
       },
     });
     if (belongsToCurrentAccount()) {
-      status({ status: 'idle', lastSyncedAt: nowMs(), error: null });
+      status({ status: 'idle', activeSource: null, lastSyncedAt: nowMs(), error: null });
       retryCount = 0;
     }
     return { success: true };
@@ -218,6 +218,7 @@ async function executeSync(ownerId: string, opts: SyncOptions): Promise<SyncOutc
     if (isAuthRequiredError(error)) config.onAuthRequired(ownerId);
     status({
       status: isNetworkError(error) ? 'offline' : 'error',
+      activeSource: null,
       error: (error as { message?: string })?.message ?? String(error),
     });
     scheduleRetry();

@@ -5,7 +5,7 @@ import { useMenuHost } from './MenuHost';
 
 export interface MenuItem {
   label: string;
-  onPress: () => void;
+  onPress: () => void | Promise<void>;
   icon?: IconKey;
   destructive?: boolean;
   disabled?: boolean;
@@ -15,6 +15,10 @@ export interface MenuItem {
   mutedIcon?: boolean;
   /** ラベルの直後に表示するアイコン（例: 選択中の並び順の方向）。 */
   inlineIcon?: IconKey;
+  /** タップでメニュー内に展開・折りたたみする子項目。 */
+  accordionItems?: MenuItem[];
+  /** アコーディオンの子項目を選んだ後、最新状態からメニュー全体を再構築する。 */
+  refreshMenuItems?: () => MenuItem[];
 }
 
 interface Props {

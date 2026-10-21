@@ -11,7 +11,7 @@ import { RADIUS, SPACING, useTheme } from '@/theme';
 
 /** アプリの質問と回答。複数のアコーディオンを同時には開かない。 */
 export default function QaScreen() {
-  const { colors, lineWidth, lineColor } = useTheme();
+  const { colors, lineWidth, lineColor, fs } = useTheme();
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const scrollRef = useWebWheelScroll({ touchAction: 'pan-x pan-y' });
 
@@ -50,8 +50,17 @@ export default function QaScreen() {
                   </Pressable>
                   {isOpen ? (
                     <View style={styles.answer}>
-                      <AppText muted>
-                        <AppText muted bold>
+                      <AppText
+                        variant="caption"
+                        muted
+                        style={[styles.answerText, { fontSize: fs(13), lineHeight: fs(19) }]}
+                      >
+                        <AppText
+                          variant="caption"
+                          muted
+                          bold
+                          style={{ fontSize: fs(13), lineHeight: fs(19) }}
+                        >
                           {t('settings.qaAnswerPrefix')}{' '}
                         </AppText>
                         {item.answer}
@@ -94,4 +103,5 @@ const styles = StyleSheet.create({
   },
   questionText: { flex: 1 },
   answer: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.lg },
+  answerText: { flexShrink: 1 },
 });

@@ -23,6 +23,7 @@ export function useSyncLabel(): {
   const identity = useAuthStore((s) => s.identity);
   const syncMode = useSettingsStore((s) => s.settings.syncMode);
   const status = useSyncStore((s) => s.status);
+  const manualRequestCount = useSyncStore((s) => s.manualRequestCount);
   const last = useSyncStore((s) => s.lastSyncedAt);
   const pending = useDataStore(
     (s) => [...s.projects, ...s.columns, ...s.tasks].filter((r) => r.dirty).length,
@@ -33,9 +34,11 @@ export function useSyncLabel(): {
   }
   if (syncMode === 'off')
     return { icon: 'offline', label: t('sync.off'), color: normalColor, enabled: false };
-  if (status === 'syncing')
+  if (manualRequestCount > 0)
     return { icon: 'sync', label: t('sync.syncing'), color: colors.accent, enabled: true };
-  if (status === 'offline')
+  // 自動同期中は進行中アイコン・アクセント色へ切り替えず、最終同期時刻や未送信件数を表示する。
+  const displayStatus = status === 'syncing' ? 'idle' : status;
+  if (displayStatus === 'offline')
     return {
       icon: 'offline',
       label: pending
@@ -44,19 +47,18 @@ export function useSyncLabel(): {
       color: normalColor,
       enabled: true,
     };
-  if (status === 'error')
+  if (displayStatus === 'error')
     return { icon: 'error', label: t('sync.error'), color: normalColor, enabled: true };
-  if (pending > 0)
-    return {
-      icon: 'cloudUpload',
-      label: last ? t('sync.syncedAt', { time: formatTime(last) }) : t('sync.never'),
-      pendingLabel: t('sync.pending', { count: pending }),
-      color: normalColor,
-      enabled: true,
-    };
+  // オンライン時のアイコンは操作ボタンとして固定する。未送信件数は文字で示し、
+  // 自動同期によって pending が変化してもアイコン形状・色は変えない。
   return {
-    icon: 'synced',
-    label: last ? t('sync.syncedAt', { time: formatTime(last) }) : t('sync.synced'),
+    icon: 'sync',
+    label: last
+      ? t('sync.syncedAt', { time: formatTime(last) })
+      : pending > 0
+        ? t('sync.never')
+        : t('sync.synced'),
+    pendingLabel: pending > 0 ? t('sync.pending', { count: pending }) : undefined,
     color: normalColor,
     enabled: true,
   };

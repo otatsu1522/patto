@@ -18,7 +18,7 @@ import { IconButton } from '@/components/ui/IconButton';
 import { isSupabaseConfigured } from '@/config/env';
 import { LIMITS } from '@/config/limits';
 import { columnsOf, isActive, tasksOf } from '@/domain/selectors';
-import type { ColumnSortBaseMode, KanbanColumn, Task } from '@/domain/types';
+import type { KanbanColumn, Task } from '@/domain/types';
 import { sortBaseMode, sortDirection, withSortDirection } from '@/domain/ordering';
 import { UserActionError } from '@/domain/operationError';
 import { useBoardActions } from '@/features/useBoardActions';
@@ -529,67 +529,100 @@ export default function ProjectScreen() {
     },
   ];
 
-  const sortLabel = (m: ColumnSortBaseMode) => {
-    const label =
-      m === 'updated'
-        ? t('column.sort.updated')
-        : m === 'created'
-          ? t('column.sort.created')
-          : m === 'due'
-            ? t('column.sort.due')
-            : m === 'color'
-              ? t('column.sort.color')
-              : t('column.sort.manual');
-    return `${t('column.sortMode')}: ${label}`;
+  // アコーディオンに表示する自動並び替え項目は、手動を除いた4種類。
+  // 閉じた状態でも現在の並び順と方向が分かるよう、親行に選択状態を表示する。
+  const sortMenuModes = ['updated', 'created', 'due', 'color'] as const;
+  const sortLabel = (m: (typeof sortMenuModes)[number]) => {
+    switch (m) {
+      case 'updated':
+        return t('column.sort.updated');
+      case 'created':
+        return t('column.sort.created');
+      case 'due':
+        return t('column.sort.due');
+      case 'color':
+        return t('column.sort.color');
+    }
   };
-  const columnMenu = (column: KanbanColumn, index: number): MenuItem[] => [
-    { label: t('column.rename'), icon: 'edit', onPress: () => setColumnDialog({ column }) },
-    {
-      label: index === 0 ? t('column.moveToLast') : t('column.moveLeft'),
-      icon: 'left',
-      disabled: cols.length <= 1,
-      onPress: () => void moveColumnWithUndo(column.id, index === 0 ? cols.length - 1 : index - 1),
-    },
-    {
-      label: index === cols.length - 1 ? t('column.moveToFirst') : t('column.moveRight'),
-      icon: 'right',
-      disabled: cols.length <= 1,
-      onPress: () => void moveColumnWithUndo(column.id, index === cols.length - 1 ? 0 : index + 1),
-    },
-    ...(['updated', 'created', 'due', 'color'] as const).map((m, i) => {
-      const selected = sortBaseMode(column.sortMode) === m;
-      const direction = selected ? sortDirection(column.sortMode) : sortDirection(m);
-      const nextDirection = direction === 'asc' ? 'desc' : 'asc';
-      return {
-        label: sortLabel(m),
-        icon: (selected ? 'check' : undefined) as MenuItem['icon'],
-        inlineIcon: direction === 'asc' ? ('sortAsc' as const) : ('sortDesc' as const),
-        separator: i === 0,
+  const columnMenu = (column: KanbanColumn, index: number): MenuItem[] => {
+    const currentSort = sortBaseMode(column.sortMode);
+    const currentSortLabel =
+      currentSort === 'manual' ? t('column.sort.manual') : sortLabel(currentSort);
+    const currentDirectionIcon =
+      currentSort === 'manual'
+        ? undefined
+        : sortDirection(column.sortMode) === 'asc'
+          ? ('sortAsc' as const)
+          : ('sortDesc' as const);
+
+    return [
+      { label: t('column.rename'), icon: 'edit', onPress: () => setColumnDialog({ column }) },
+      {
+        label: index === 0 ? t('column.moveToLast') : t('column.moveLeft'),
+        icon: 'left',
+        disabled: cols.length <= 1,
         onPress: () =>
-          void updateColumnWithUndo(column.id, {
-            sortMode: selected ? withSortDirection(m, nextDirection) : m,
-          }),
-      };
-    }),
-    {
-      label: column.isDoneColumn ? t('column.unsetDone') : t('column.setDone'),
-      icon: column.isDoneColumn ? 'doneModeOutline' : 'doneMode',
-      separator: true,
-      onPress: () => void updateColumnWithUndo(column.id, { isDoneColumn: !column.isDoneColumn }),
-    },
-    {
-      label: t('common.duplicate'),
-      icon: 'copy',
-      onPress: () => void duplicateColumnById(column.id),
-    },
-    {
-      label: t('common.delete'),
-      icon: 'trash',
-      destructive: true,
-      separator: true,
-      onPress: () => void actions.deleteColumn(column),
-    },
-  ];
+          void moveColumnWithUndo(column.id, index === 0 ? cols.length - 1 : index - 1),
+      },
+      {
+        label: index === cols.length - 1 ? t('column.moveToFirst') : t('column.moveRight'),
+        icon: 'right',
+        disabled: cols.length <= 1,
+        onPress: () =>
+          void moveColumnWithUndo(column.id, index === cols.length - 1 ? 0 : index + 1),
+      },
+      {
+        label: `${t('column.sortMode')}: ${currentSortLabel}`,
+        icon: 'sort',
+        inlineIcon: currentDirectionIcon,
+        separator: true,
+        accordionItems: sortMenuModes.map((m) => {
+          const selected = currentSort === m;
+          const direction = selected ? sortDirection(column.sortMode) : sortDirection(m);
+          const nextDirection = direction === 'asc' ? 'desc' : 'asc';
+          return {
+            label: sortLabel(m),
+            icon: (selected ? 'check' : undefined) as MenuItem['icon'],
+            inlineIcon: direction === 'asc' ? ('sortAsc' as const) : ('sortDesc' as const),
+            onPress: () =>
+              updateColumnWithUndo(column.id, {
+                sortMode: selected ? withSortDirection(m, nextDirection) : m,
+              }),
+          };
+        }),
+        // アコーディオン項目の選択後に、変更済みの並び順・方向とチェックを再読み込みする。
+        refreshMenuItems: () => {
+          const currentColumns = columnsOf(useDataStore.getState().columns, column.projectId);
+          const currentColumn = currentColumns.find((item) => item.id === column.id);
+          return currentColumn
+            ? columnMenu(
+                currentColumn,
+                currentColumns.findIndex((item) => item.id === column.id),
+              )
+            : [];
+        },
+        onPress: () => undefined,
+      },
+      {
+        label: column.isDoneColumn ? t('column.unsetDone') : t('column.setDone'),
+        icon: column.isDoneColumn ? 'doneModeOutline' : 'doneMode',
+        separator: true,
+        onPress: () => void updateColumnWithUndo(column.id, { isDoneColumn: !column.isDoneColumn }),
+      },
+      {
+        label: t('common.duplicate'),
+        icon: 'copy',
+        onPress: () => void duplicateColumnById(column.id),
+      },
+      {
+        label: t('common.delete'),
+        icon: 'trash',
+        destructive: true,
+        separator: true,
+        onPress: () => void actions.deleteColumn(column),
+      },
+    ];
+  };
 
   /** タスクをタップしたときのメニュー */
   const taskMenu = (task: Task): MenuItem[] => {

@@ -239,7 +239,9 @@ export async function resetAllData(): Promise<ClearResult> {
       try {
         await currentStore.purgeLocal(ids);
         useSettingsStore.getState().reset({ preserveSyncMode: true });
-        useSyncStore.getState().set({ status: 'idle', lastSyncedAt: null, error: null });
+        useSyncStore
+          .getState()
+          .set({ status: 'idle', activeSource: null, lastSyncedAt: null, error: null });
         return { ok: true, count };
       } catch {
         return { ok: false, message: t('settings.resetAllFailed') };

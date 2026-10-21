@@ -49,7 +49,7 @@ const dueText = (task: Task | null): string =>
  * 複製・アーカイブ・削除・ピン留めは、タスクをタップしたときのメニューから行う。
  */
 export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, onSubmit }: Props) {
-  const { colors, controlLineWidth, controlLineColor } = useTheme();
+  const { colors, controlLineWidth, controlLineColor, lineWidth, lineColor } = useTheme();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [color, setColor] = useState<TaskColorKey | null>(null);
@@ -275,20 +275,28 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
               ) : null}
             </View>
             {shownTask ? (
-              <View style={styles.dates}>
-                <View style={styles.dateLine}>
-                  <Icon name="edit" size={ICON_SIZE.md} color={colors.textMuted} />
-                  <AppText variant="caption" muted>
-                    {t('task.createdAt')}
-                    {t('common.labelValueSeparator')}
+              <View
+                style={[styles.dates, { borderTopColor: lineColor, borderTopWidth: lineWidth }]}
+              >
+                <View style={styles.dateCell}>
+                  <View style={styles.dateLabel}>
+                    <Icon name="calendarAddOn" size={ICON_SIZE.md} color={colors.textMuted} />
+                    <AppText variant="caption" muted style={styles.fieldLabel}>
+                      {t('common.createdAt')}
+                    </AppText>
+                  </View>
+                  <AppText selectable style={styles.dateValue}>
                     {formatDateTime(shownTask.createdAt)}
                   </AppText>
                 </View>
-                <View style={styles.dateLine}>
-                  <Icon name="refresh" size={ICON_SIZE.md} color={colors.textMuted} />
-                  <AppText variant="caption" muted>
-                    {t('task.updatedAt')}
-                    {t('common.labelValueSeparator')}
+                <View style={styles.dateCell}>
+                  <View style={styles.dateLabel}>
+                    <Icon name="calendarClock" size={ICON_SIZE.md} color={colors.textMuted} />
+                    <AppText variant="caption" muted style={styles.fieldLabel}>
+                      {t('common.updatedAt')}
+                    </AppText>
+                  </View>
+                  <AppText selectable style={styles.dateValue}>
                     {formatDateTime(shownTask.updatedAt)}
                   </AppText>
                 </View>
@@ -315,7 +323,10 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   dueRow: { flexDirection: 'row', alignItems: 'flex-end', gap: SPACING.sm },
   dueButton: { marginBottom: UI_METRICS.board.dueButtonBaselineAdjustment },
-  dateLine: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs },
+  dateLabel: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs },
+  fieldLabel: { alignSelf: 'flex-start' },
+  dateCell: { flex: 1, minWidth: 0, gap: SPACING.xs },
+  dateValue: { flexShrink: 1, minWidth: 0 },
   field: { gap: SPACING.xs },
   select: {
     flexDirection: 'row',
@@ -338,11 +349,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     minHeight: BOARD.touchTarget,
   },
-  /** 作成日と更新日: 横に並べて中央寄せ、間に余白 */
+  /** 作成日と更新日: 詳細ダイアログと同じ区切り線＋2列レイアウト */
   dates: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    gap: SPACING.md,
-    marginBottom: -SPACING.sm,
+    gap: SPACING.lg,
+    paddingTop: SPACING.md,
   },
 });

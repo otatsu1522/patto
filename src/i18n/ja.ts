@@ -132,7 +132,8 @@ export const ja = {
   'auth.needOnlineFirst': '初回のログイン（ゲスト開始を含む）にはインターネット接続が必要です。',
   'auth.guestNote':
     'ゲストでも使えます。初回だけインターネット接続が必要で、以降はオフラインでも使えます。',
-  'auth.reauthNeeded': 'ログインの有効期限が切れました。パスワードを入力すると同期が再開します。',
+  'auth.reauthNeeded':
+    'クラウド操作を続けるには再ログインが必要です。パスワードを入力してください。',
   'auth.sessionMismatch':
     '認証中のアカウントとデータの所有者が一致しません。安全のため処理を中止しました。アカウントを確認してから再試行してください。',
   'auth.reauthSubmit': '再ログイン',
@@ -197,6 +198,7 @@ export const ja = {
   'column.setDone': 'DONEモードにする',
   'column.unsetDone': 'DONEモードを解除',
   'column.sortMode': '並び順',
+  'column.sortAccordion': '並び替え',
   'column.sort.ascending': '昇順',
   'column.sort.descending': '降順',
   'column.sortDirectionAction': '{sort}を{direction}にする',
@@ -241,6 +243,8 @@ export const ja = {
   'task.dueHint': 'YYYY-MM-DD',
   'task.dueInvalid': '日付の形式が正しくありません（例: YYYY-MM-DD）',
   'task.favorite': 'ピン留め',
+  'task.favoritePinned': 'ピン留め済み',
+  'task.favoriteNotPinned': 'ピン留めされていない',
   'task.createdAt': '作成日',
   'task.completedAt': '完了日',
   'task.updatedAt': '更新日',
@@ -434,7 +438,11 @@ export const ja = {
   'settings.importFailed': '読み込めませんでした。Trello の JSON ファイルを選んでください。',
   'settings.trashSection': 'ごみ箱',
   'settings.trashAutoDelete': 'ごみ箱を自動で削除する',
+  'settings.trashAutoDeleteHint':
+    'オンにすると、指定日数を過ぎたごみ箱の項目を完全削除します。日数が経過した瞬間に動くタイマーではなく、次の同期または端末内の整理時に処理します。同期オフでは端末内のみを削除し、サーバーへは通信しません。',
   'settings.trashRetention': '削除までの日数',
+  'settings.trashRetentionHint':
+    '7・30・90日から選びます。期限を過ぎた項目は、次の同期または端末内の整理時に削除します。同期オフでは端末内のみが対象です。',
   'settings.trashClearAll': 'ごみ箱を空にする',
   'settings.archiveClearAll': 'アーカイブのクリア',
   'settings.trashClearAllMessage':
@@ -604,7 +612,7 @@ export const ja = {
   'settings.syncModeAutoDesc':
     '自動: アプリを操作中に、変更後・定期確認・ネット復帰・起動／復帰時に同期します。Webではサーバー側の変更も反映します。アプリを切り替えて使っていない間は同期処理を停止します。',
   'settings.trashHint':
-    '削除したものは「ごみ箱」に入り、復元できます。自動削除を有効にすると、設定日数の経過後にごみ箱内のデータを完全に削除します。「ごみ箱を空にする」は、ごみ箱内を今すぐ完全に削除します。アーカイブは、完了したタスクなどを隠して保管する機能です。「アーカイブのクリア」はアーカイブ内のタスクをごみ箱へ移動するため、必要に応じて復元できます。',
+    '削除したものは「ごみ箱」に入り、保持期間内なら復元できます。自動削除は期限到達と同時に動くタイマーではなく、次の同期または端末内の整理時に実行します。同期オフでは端末内だけを削除し、サーバーへは通信しません。「ごみ箱を空にする」はごみ箱内を今すぐ完全に削除します。アーカイブは完了したタスクなどを隠して保管する機能で、「アーカイブのクリア」はアーカイブ内のタスクをごみ箱へ移動します。',
   'settings.trashRetentionDays': '{days} 日後に削除',
   'settings.toastSection': '通知',
   'settings.toastHint':
@@ -651,19 +659,15 @@ export const ja = {
   'shortcut.info10':
     'U は、操作結果のトーストに表示される「元に戻す」と同じ履歴を使います。対象は、タスクの作成・編集（所属カンバンの変更を含む）・移動・手動並べ替え・ピン留め・期限変更・複製・アーカイブ／DONEタスクの一括アーカイブ・削除（ごみ箱へ移動）、カンバンの追加・編集（名前・色・並び順モード・DONE設定）・移動／並べ替え・複製・削除、プロジェクトの追加・編集（名前・説明・色）・ピン留め・アーカイブ／解除・複製・削除（ごみ箱へ移動）です。トースト全体または該当する通知分類がOFFの場合、その操作はUndo履歴に追加されません。',
   'about.body1':
-    'Patto は、オフラインでも使えるシンプルなカンバン式のTODOアプリです。プロジェクトの中にカンバン（列）を並べ、タスクのカードを動かして、いまやることを整理できます。',
+    'Patto は、プロジェクトとカンバンでタスクを整理するアプリです。カードを動かすだけで、作業の進み具合と次にやることをひと目で把握できます。',
   'about.body2':
-    '操作はまず端末の中のデータベースに保存されるので、電波のない場所でも待たされずに使えます。ログインしたあとは、通信がなくても再ログインは要りません。',
+    'データは端末に保存されるため、オフラインでも使えます。ゲストで始め、同じデータのままアカウントへ移行できます。同期は手動・自動から選べます。',
   'about.body3':
-    '同じアカウントなら、スマホとWebでデータを共有できます。同期は、手動（同期ボタンを押したときだけ）と自動から選べ、スマホとWebで別々に設定できます。競合したときは、項目ごとに新しい変更を採用してマージします。',
-  'about.body4':
-    'アカウントを作らなくても「ゲスト」で使い始められ、あとから同じデータのままアカウントに切り替えられます。タスクはピン留め、期限（カレンダー選択）、色、DONEモード、アーカイブ、ごみ箱、検索に対応しています。',
-  'about.body5':
-    'PCではキーボードだけでも操作できます（設定でキーを変更できます）。ほかのアプリへ移すときのために、Trello形式のインポート・エクスポートも用意しています。',
+    '期限・ピン留め・色・検索でタスクを整理。完了した作業はアーカイブやごみ箱で管理でき、Trello形式の入出力にも対応しています。',
   'about.tech': '利用サービス',
-  'about.tech.expo': 'スマホでもWebでも利用できます',
-  'about.tech.supabase': 'アカウントとデータを保存・同期します',
-  'about.tech.cloudflare': 'Web版を利用できます',
+  'about.tech.expo': 'iOS・Android・Webアプリを開発する基盤です。',
+  'about.tech.supabase': 'ログインとクラウドデータの保存・同期を担います。',
+  'about.tech.cloudflare': 'Web版を配信するホスティングサービスです。',
 } as const;
 
 export type StringKey = keyof typeof ja;
