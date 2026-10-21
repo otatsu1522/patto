@@ -14,7 +14,7 @@ import {
   APP_WEB_URL,
 } from '@/config/app';
 import { BOARD, UI_METRICS } from '@/config/layout';
-import { t } from '@/i18n';
+import { t, type StringKey } from '@/i18n';
 import { RADIUS, SPACING, useTheme } from '@/theme';
 
 export default function AboutScreen() {
