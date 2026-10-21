@@ -5,7 +5,6 @@ import { Logo } from '@/components/ui/Logo';
 import { LinkRow, Section } from '@/components/ui/Rows';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
-import { useLayoutMode } from '@/hooks/useLayout';
 import {
   APP_DISPLAY_COPYRIGHT,
   APP_LINKS,
@@ -20,7 +19,6 @@ import { RADIUS, SPACING, useTheme } from '@/theme';
 
 export default function AboutScreen() {
   const scrollRef = useWebWheelScroll({ touchAction: 'pan-x pan-y' });
-  const { mode } = useLayoutMode();
   const router = useRouter();
   const { colors, lineWidth, lineColor } = useTheme();
   const links = [
@@ -33,7 +31,7 @@ export default function AboutScreen() {
     <View style={styles.fill}>
       <ScreenHeader title={t('settings.about')} />
       <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.content}>
-        <View style={[styles.inner, mode === 'compact' && styles.innerCompact]}>
+        <View style={styles.inner}>
           <View
             style={[
               styles.introCard,
@@ -100,8 +98,6 @@ const styles = StyleSheet.create({
     maxWidth: BOARD.dialogMaxWidth + UI_METRICS.dialog.settingsPanelExtraWidth,
     gap: SPACING.xl,
   },
-  /** スマートフォンでは説明カードとリンク一覧の間隔を詰める。 */
-  innerCompact: { gap: SPACING.md },
   copyright: { textAlign: 'center', paddingTop: SPACING.xl, paddingBottom: SPACING.sm },
   introCard: {
     borderRadius: RADIUS.lg,
