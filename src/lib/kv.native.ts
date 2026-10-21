@@ -7,4 +7,9 @@ export const kv = {
   remove: async (key: string): Promise<void> => {
     await Storage.removeItemAsync(key);
   },
+  getRequired: (key: string): Promise<string | null> => Storage.getItemAsync(key),
+  setRequired: (key: string, value: string): Promise<void> => Storage.setItemAsync(key, value),
+  removeRequired: async (key: string): Promise<void> => {
+    await Storage.removeItemAsync(key);
+  },
 };

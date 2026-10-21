@@ -473,12 +473,12 @@ export function AppShell({ children }: { children: ReactNode }) {
     navigateToProject(next.id);
   };
 
-  // 設定から戻るときは、保存済みの最後のプロジェクトを優先する。
-  // ID が無効（アーカイブ／削除済みなど）なら、ホーム画面と同じく表示可能な先頭を使う。
+  // 設定から戻るときは、保存済みの最後のプロジェクトが有効な場合だけ戻る。
+  // 利用できない場合は別のプロジェクトを勝手に選ばず、プロジェクト選択画面へ戻る。
   const returnToLastProject = useCallback(() => {
     const list = visibleProjects(useDataStore.getState().projects);
     const lastProjectId = useSettingsStore.getState().settings.lastProjectId;
-    const target = list.find((project) => project.id === lastProjectId) ?? list[0];
+    const target = list.find((project) => project.id === lastProjectId);
     if (target) navigateToProject(target.id);
     else router.replace('/home');
   }, [navigateToProject, router]);

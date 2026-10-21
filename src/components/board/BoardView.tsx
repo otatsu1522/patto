@@ -895,7 +895,7 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
                 // プロジェクト未選択時も右側に案内を出し、横スクロールでメニューを開閉できるようにする。
                 <View
                   key="empty-deleted-project-page"
-                  pointerEvents="none"
+                  pointerEvents="box-none"
                   style={{
                     width: geo.columnWidth,
                     height: size.height,

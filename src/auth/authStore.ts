@@ -42,8 +42,10 @@ export interface Identity {
   userId: string;
   email: string;
   displayName: string;
-  /** Supabase を使わない端末内だけのゲスト（Supabase 未設定時） */
+  /** Supabase を使わない端末内だけのゲスト、またはサーバー削除完了後の一時的なローカル状態 */
   local?: boolean;
+  /** サーバー削除が完了済みで、端末データの削除だけ再試行する状態 */
+  remoteDeleted?: boolean;
 }
 
 export type AuthResult = { ok: true; message?: string } | { ok: false; message: string };
@@ -71,8 +73,8 @@ interface AuthState {
   continueAsGuest: () => Promise<AuthResult>;
   /** ゲストにメールとパスワードを紐付け、同じユーザーIDのままアカウントにする */
   upgradeGuest: (email: string, password: string, displayName: string) => Promise<AuthResult>;
-  leaveGuest: () => Promise<void>;
-  signOut: () => Promise<void>;
+  leaveGuest: () => Promise<AuthResult>;
+  signOut: () => Promise<AuthResult>;
   reauthenticate: (password: string) => Promise<AuthResult>;
   changePassword: (current: string, next: string) => Promise<AuthResult>;
   changeEmail: (email: string) => Promise<AuthResult>;
@@ -97,6 +99,15 @@ export const useAuthStore = create<AuthState>((set, get) => {
       if (identity) await kv.set(IDENTITY_KEY, JSON.stringify(identity));
       else await kv.remove(IDENTITY_KEY);
     });
+    identityPersistence = operation.catch(() => {});
+    await operation;
+  }
+
+  /** サーバー削除済み状態など、再試行の安全性に必要な印だけは永続化失敗を検知する。 */
+  async function persistRequiredIdentity(identity: Identity): Promise<void> {
+    const operation = identityPersistence.then(() =>
+      kv.setRequired(IDENTITY_KEY, JSON.stringify(identity)),
+    );
     identityPersistence = operation.catch(() => {});
     await operation;
   }
@@ -203,6 +214,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
       return notConfigured();
     }
 
+    let exitIdentity = identity;
     set({ status: 'loading' });
     const accountShutdown = identity ? beginAccountShutdown(identity.userId) : Promise.resolve();
     // この呼び出しは await より前に受付を閉じる。稼働中の同期そのものは完了まで待つ。
@@ -214,14 +226,14 @@ export const useAuthStore = create<AuthState>((set, get) => {
       if (action === 'deleteAccount') {
         const client = getSupabase();
         if (!client) {
-          if (identity) set({ identity, status: identity.mode });
+          if (exitIdentity) set({ identity: exitIdentity, status: exitIdentity.mode });
           return notConfigured();
         }
         const session = identity ? await getFreshSession(client, identity.userId) : null;
         if (!identity || !session || !session.access_token) {
           if (identity) {
             get().setNeedsReauth(true);
-            set({ identity, status: identity.mode });
+            set({ identity: exitIdentity, status: exitIdentity?.mode ?? 'signedOut' });
           }
           return { ok: false, message: t('auth.sessionMismatch') };
         }
@@ -231,48 +243,130 @@ export const useAuthStore = create<AuthState>((set, get) => {
         if (error) {
           const response = (error as { context?: Response }).context;
           if (isAuthRequiredError(error) || response?.status === 401) get().setNeedsReauth(true);
-          if (identity) set({ identity, status: identity.mode });
+          if (exitIdentity) set({ identity: exitIdentity, status: exitIdentity.mode });
           return { ok: false, message: mapAuthError(error) };
         }
-      } else if (action === 'leaveGuest' && identity && !identity.local) {
-        // ゲスト終了時は本人のセッションを確認してからサーバー削除を試みる。
-        // オフラインやセッション不一致時も、従来どおり端末からの退出は続ける。
-        try {
-          const client = getSupabase();
-          if (client) {
-            const session = await getFreshSession(client, identity.userId);
-            if (session?.access_token) {
-              const scopedClient = createSyncSupabaseClient(session.access_token);
-              await scopedClient.functions.invoke('delete-account');
-            }
+        // サーバー削除は完了したため、端末側の削除だけ失敗した場合に再試行できるよう、
+        // 同じIDのローカルゲスト状態を保存する。再試行時に削除APIを二重に呼ばない。
+        if (identity) {
+          exitIdentity = {
+            mode: 'guest',
+            userId: identity.userId,
+            email: '',
+            displayName: '',
+            local: true,
+            remoteDeleted: true,
+          };
+          set({ identity: exitIdentity, status: 'loading' });
+          try {
+            await persistRequiredIdentity(exitIdentity);
+          } catch {
+            // 後段で必須永続化を再確認し、失敗したまま端末データを削除しない。
           }
+        }
+      } else if (
+        action === 'leaveGuest' &&
+        identity &&
+        !identity.local &&
+        !identity.remoteDeleted
+      ) {
+        // サーバー側のゲスト削除に失敗した場合は、端末データを消さずに終了を中止する。
+        const client = getSupabase();
+        if (!client) {
+          set({ identity: exitIdentity, status: exitIdentity?.mode ?? 'signedOut' });
+          return notConfigured();
+        }
+        const session = await getFreshSession(client, identity.userId);
+        if (!session?.access_token) {
+          get().setNeedsReauth(true);
+          set({ identity: exitIdentity, status: exitIdentity?.mode ?? 'signedOut' });
+          return { ok: false, message: t('auth.sessionMismatch') };
+        }
+        const scopedClient = createSyncSupabaseClient(session.access_token);
+        const { error } = await scopedClient.functions.invoke('delete-account');
+        if (error) {
+          const response = (error as { context?: Response }).context;
+          if (isAuthRequiredError(error) || response?.status === 401) get().setNeedsReauth(true);
+          set({ identity: exitIdentity, status: exitIdentity?.mode ?? 'signedOut' });
+          return { ok: false, message: mapAuthError(error) };
+        }
+        // サーバー削除後に端末削除が失敗しても、次回はリモート削除を繰り返さず再試行できる。
+        exitIdentity = {
+          mode: 'guest',
+          userId: identity.userId,
+          email: '',
+          displayName: '',
+          local: true,
+          remoteDeleted: true,
+        };
+        set({ identity: exitIdentity, status: 'loading' });
+        try {
+          await persistRequiredIdentity(exitIdentity);
         } catch {
-          /* オフラインなど */
+          // 後段で必須永続化を再確認し、失敗したまま端末データを削除しない。
         }
       }
 
-      // すべての既存作業が終わってから DB を閉じ、ユーザー単位のファイルを削除する。
-      try {
-        await useDataStore.getState().close();
-      } catch {
-        // 認証情報を残したままサインアウトだけが失敗することを避ける。
-      }
-      if (identity) {
+      // サーバー削除済みの印が永続化できなければ、端末データはまだ削除しない。
+      // 次回終了操作でこの印を再保存してから、端末側の削除を再試行する。
+      if (exitIdentity?.remoteDeleted) {
         try {
-          await destroyLocalDbWhenUnused(identity.userId);
+          await persistRequiredIdentity(exitIdentity);
         } catch {
-          // DB エラーがあってもセッションの終了とローカル認証情報の消去は続ける。
+          set({ identity: exitIdentity, status: exitIdentity.mode });
+          return { ok: false, message: t('auth.localCleanupFailed') };
         }
       }
+
+      // DBクローズとDBファイル削除の失敗を区別する。削除が成功すればクローズ側の
+      // 例外は最終結果に影響しないが、ファイル削除自体の失敗は成功扱いにしない。
+      let closeError: unknown = null;
+      try {
+        await useDataStore.getState().close();
+      } catch (error) {
+        closeError = error;
+      }
+
+      let destroyError: unknown = null;
+      if (exitIdentity) {
+        try {
+          await destroyLocalDbWhenUnused(exitIdentity.userId);
+        } catch (error) {
+          destroyError = error;
+        }
+      }
+
+      if (destroyError || (!exitIdentity && closeError)) {
+        // 削除に失敗したら認証状態は維持し、DBを再オープンして未削除データを使えるようにする。
+        if (exitIdentity) {
+          try {
+            await useDataStore.getState().open(exitIdentity.userId, exitIdentity.userId);
+          } catch {
+            // 再オープンも失敗した場合でも、削除失敗を認証成功に見せかけない。
+          }
+          set({ identity: exitIdentity, status: exitIdentity.mode });
+        }
+        return { ok: false, message: t('auth.localCleanupFailed') };
+      }
+
       await signOutRemote(identity?.userId ?? null);
       await clearLocalIdentity();
       return { ok: true };
     } catch (error) {
-      // 明示的なアカウント削除で認証エラーが判明した場合も、再認証を案内する。
-      if (action === 'deleteAccount' && isAuthRequiredError(error)) get().setNeedsReauth(true);
-      // 破棄前に失敗した場合は、現在のアカウントを画面に戻す。
-      if (identity && get().identity?.userId === identity.userId) {
-        set({ identity, status: identity.mode });
+      // 明示的な削除／ゲスト終了で認証エラーが判明した場合は、再認証を案内する。
+      if ((action === 'deleteAccount' || action === 'leaveGuest') && isAuthRequiredError(error)) {
+        get().setNeedsReauth(true);
+      }
+      // 破棄前に失敗した場合は、最新の identity を維持して画面に戻す。
+      if (exitIdentity && get().identity?.userId === exitIdentity.userId) {
+        if (!useDataStore.getState().ready) {
+          try {
+            await useDataStore.getState().open(exitIdentity.userId, exitIdentity.userId);
+          } catch {
+            // 元データを再度開けなかった場合も、処理エラー自体は呼び出し元へ返す。
+          }
+        }
+        set({ identity: exitIdentity, status: exitIdentity.mode });
       }
       return { ok: false, message: mapAuthError(error) };
     } finally {
@@ -718,11 +812,11 @@ export const useAuthStore = create<AuthState>((set, get) => {
     },
 
     async leaveGuest() {
-      await exitAccount('leaveGuest');
+      return exitAccount('leaveGuest');
     },
 
     async signOut() {
-      await exitAccount('signOut');
+      return exitAccount('signOut');
     },
 
     async reauthenticate(password) {

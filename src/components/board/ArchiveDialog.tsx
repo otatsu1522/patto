@@ -97,7 +97,16 @@ export function ArchiveDialog({
   return (
     <Dialog
       visible={kind !== null}
-      title={kind === 'trash' ? t('board.trashTitle') : t('board.archiveTitle')}
+      title={
+        <View style={styles.dialogTitle}>
+          <AppText variant="title" numberOfLines={UI_METRICS.text.singleLineMax}>
+            {kind === 'trash' ? t('board.trashTitle') : t('board.archiveTitle')}
+          </AppText>
+          <AppText variant="body" muted>
+            {rows.length}
+          </AppText>
+        </View>
+      }
       onClose={onClose}
       onDismiss={
         waitingForClearDismiss
@@ -168,6 +177,13 @@ export function ArchiveDialog({
 }
 
 const styles = StyleSheet.create({
+  dialogTitle: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: SPACING.xs,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

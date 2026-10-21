@@ -27,7 +27,7 @@ import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
 
 interface Props {
   visible: boolean;
-  title: string;
+  title: ReactNode;
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
@@ -508,13 +508,15 @@ export function Dialog({
           >
             <AuthInputFocusProvider value={handleDialogInputFocus}>
               <View style={styles.header}>
-                <AppText
-                  variant="title"
-                  style={styles.title}
-                  numberOfLines={UI_METRICS.text.singleLineMax}
-                >
-                  {title}
-                </AppText>
+                <View style={styles.title}>
+                  {typeof title === 'string' || typeof title === 'number' ? (
+                    <AppText variant="title" numberOfLines={UI_METRICS.text.singleLineMax}>
+                      {title}
+                    </AppText>
+                  ) : (
+                    title
+                  )}
+                </View>
                 {dismissible ? (
                   <IconButton icon="close" label={t('common.close')} onPress={onClose} />
                 ) : (

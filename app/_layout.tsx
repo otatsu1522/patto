@@ -31,16 +31,30 @@ import { SPACING, ThemeProvider, useTheme } from '@/theme';
 const isolated = (): boolean =>
   (globalThis as { crossOriginIsolated?: boolean }).crossOriginIsolated !== false;
 const RETRY_KEY = 'patto:isolation-retry';
-if (
-  Platform.OS === 'web' &&
-  typeof window !== 'undefined' &&
-  !isolated() &&
-  window.location.pathname === '/'
-) {
-  if (!window.sessionStorage.getItem(RETRY_KEY)) {
-    window.sessionStorage.setItem(RETRY_KEY, '1');
-    window.location.replace('/login');
+const shouldRetryIsolationRedirect = (): boolean => {
+  if (
+    Platform.OS !== 'web' ||
+    typeof window === 'undefined' ||
+    isolated() ||
+    window.location.pathname !== '/'
+  ) {
+    return false;
   }
+
+  // sessionStorage へのアクセス自体が例外になるブラウザー設定もあるため、
+  // 読み書きの両方を保護し、未処理例外でアプリの初期化を止めない。
+  try {
+    if (window.sessionStorage.getItem(RETRY_KEY)) return false;
+    window.sessionStorage.setItem(RETRY_KEY, '1');
+    return true;
+  } catch {
+    // 一度だけのリダイレクトを保証できない場合は、繰り返し遷移を避けて起動処理へ進む。
+    return false;
+  }
+};
+
+if (shouldRetryIsolationRedirect()) {
+  window.location.replace('/login');
 }
 
 function Boot() {

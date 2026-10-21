@@ -1,4 +1,4 @@
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { t } from '@/i18n';
@@ -16,6 +16,7 @@ export function ProjectSelectionEmptyState() {
             label={t('project.create')}
             variant="outline"
             icon="add"
+            style={Platform.OS === 'web' ? ({ cursor: 'pointer' } as never) : undefined}
             onPress={() => useUiStore.getState().requestNewProject()}
           />
         }

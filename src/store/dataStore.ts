@@ -646,12 +646,18 @@ export const useDataStore = create<DataState>((set, get) => {
         if (db && previousState.scope && previousState.ownerId) {
           freezeSyncContexts(previousState.ownerId, previousState.scope);
         }
+        let closeError: unknown = null;
         if (db) {
           const previous = db;
           db = null;
-          await closeDbWhenUnused(previous);
+          try {
+            await closeDbWhenUnused(previous);
+          } catch (error) {
+            closeError = error;
+          }
         }
         set({ ...emptySnapshot(), scope: null, ownerId: '', ready: false });
+        if (closeError) throw closeError;
       });
     },
 

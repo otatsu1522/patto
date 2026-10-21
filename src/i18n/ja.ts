@@ -89,6 +89,8 @@ export const ja = {
   'auth.logoutBeforeSwitch':
     '別のアカウントを使うには、先に現在のアカウントからログアウトしてください。',
   'auth.backToLogin': 'ログイン画面に戻る',
+  'auth.localCleanupFailed':
+    '端末内のデータを削除できませんでした。データが残っている可能性があります。再試行してください。',
   'auth.showPassword': 'パスワードを表示',
   'auth.hidePassword': 'パスワードを隠す',
   'auth.error.invalidCredentials': 'メールアドレスまたはパスワードが違います。',
@@ -122,6 +124,7 @@ export const ja = {
   'menu.searchClear': '検索文字をクリア',
   'menu.searchEmpty': '一致するタスクはありません',
   'menu.archivedProjects': 'アーカイブ済みのプロジェクト',
+  'menu.trashProjects': 'ごみ箱のプロジェクト',
   'menu.archivedProjectsCount': 'アーカイブ済みのプロジェクト ({count})',
   'menu.trashProjectsCount': 'ごみ箱のプロジェクト ({count})',
   'menu.noProjects': 'プロジェクトがありません。',

@@ -159,7 +159,7 @@ function Message({ text, ok }: { text: string | null; ok?: boolean }) {
 }
 
 function GuestSection({ local }: { local: boolean }) {
-  const { confirm } = useFeedback();
+  const { confirm, alert } = useFeedback();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -192,7 +192,10 @@ function GuestSection({ local }: { local: boolean }) {
       confirmLabel: t('settings.guestLeaveConfirm'),
       destructive: true,
     });
-    if (r === 'confirm') await useAuthStore.getState().leaveGuest();
+    if (r === 'confirm') {
+      const result = await useAuthStore.getState().leaveGuest();
+      if (!result.ok) alert(t('common.error'), result.message);
+    }
   };
 
   return (
@@ -256,7 +259,7 @@ function GuestSection({ local }: { local: boolean }) {
 }
 
 function AccountSections() {
-  const { confirm, toast } = useFeedback();
+  const { confirm, toast, alert } = useFeedback();
   const identity = useAuthStore((s) => s.identity);
   const runExplicitAccountCloudAction = async <T,>(action: () => Promise<T>): Promise<T> => {
     const auth = useAuthStore.getState();
@@ -363,8 +366,14 @@ function AccountSections() {
     });
     if (r !== 'confirm') return;
     const res = await runExplicitAccountCloudAction(() => useAuthStore.getState().deleteAccount());
-    if (!res.ok) setDeleteMessage(res.message);
-    else toast(t('settings.deleteAccountDone'), undefined, { category: 'system' });
+    if (!res.ok) {
+      if (useAuthStore.getState().identity?.mode !== 'account') {
+        // サーバー削除後に端末削除だけ失敗すると、この画面はゲスト表示へ切り替わる。
+        alert(t('common.error'), res.message);
+      } else {
+        setDeleteMessage(res.message);
+      }
+    } else toast(t('settings.deleteAccountDone'), undefined, { category: 'system' });
   };
 
   return (
@@ -470,7 +479,10 @@ function AccountSections() {
                 confirmLabel: t('settings.logoutNow'),
                 destructive: true,
               });
-              if (result === 'confirm') await useAuthStore.getState().signOut();
+              if (result === 'confirm') {
+                const exitResult = await useAuthStore.getState().signOut();
+                if (!exitResult.ok) alert(t('common.error'), exitResult.message);
+              }
             }}
             fullWidth
           />

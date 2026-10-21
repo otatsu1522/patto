@@ -148,17 +148,27 @@ export async function openLocalDb(scope: string): Promise<LocalDb> {
   };
 }
 
+function isMissingDatabaseError(error: unknown): boolean {
+  const detail = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  return /DatabaseNotFoundException|database .+ not found|no such file or directory|ENOENT/i.test(
+    detail,
+  );
+}
+
 export async function destroyLocalDb(scope: string): Promise<void> {
   const names = new Set([`${dbNameFor(scope)}.db`]);
   const tabScope = webTabDatabaseScope(scope);
   if (tabScope) names.add(`${dbNameFor(tabScope)}.db`);
-  await Promise.all(
+  const results = await Promise.allSettled(
     [...names].map(async (name) => {
       try {
         await SQLite.deleteDatabaseAsync(name);
-      } catch {
-        /* 存在しない場合は無視 */
+      } catch (error) {
+        // 起動時に作成されていないタブ用DBなど、「元から存在しない」場合だけ成功扱いにする。
+        if (!isMissingDatabaseError(error)) throw error;
       }
     }),
   );
+  const failed = results.find((result) => result.status === 'rejected');
+  if (failed?.status === 'rejected') throw failed.reason;
 }

@@ -8,10 +8,7 @@ import { useLayoutMode } from '@/hooks/useLayout';
 import { useDataStore } from '@/store/dataStore';
 import { useSettingsStore } from '@/store/settingsStore';
 
-/**
- * プロジェクトが開かれていないときの画面。最後に開いたプロジェクトがあればそちらへ移動する。
- * スマホでは、メニュー（プロジェクト一覧）をそのまま画面いっぱいに表示する。
- */
+/** プロジェクトが開かれていないときの画面。最後に開いたプロジェクトがあればそちらへ移動する。 */
 export default function HomeScreen() {
   const projects = useDataStore((s) => s.projects);
   const lastId = useSettingsStore((s) => s.settings.lastProjectId);
@@ -29,6 +26,7 @@ export default function HomeScreen() {
       </View>
     );
   }
+
   return (
     <View style={{ flex: 1 }}>
       <BoardHeader menuOnly />

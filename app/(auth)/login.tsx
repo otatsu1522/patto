@@ -19,7 +19,8 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitted, setSubmitted] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [loginBusy, setLoginBusy] = useState(false);
+  const [guestBusy, setGuestBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   const required = () => (password.length === 0 ? t('validation.required') : null);
@@ -27,16 +28,21 @@ export default function LoginScreen() {
   const passwordError = submitted ? required() : null;
 
   const submit = async () => {
+    if (loginBusy || guestBusy) return;
     setSubmitted(true);
     setMessage(null);
     if (firstError(validateEmail(email), required())) return;
-    setBusy(true);
-    const res = await useAuthStore.getState().signIn(email, password);
-    setBusy(false);
-    if (!res.ok) setMessage(res.message);
+    setLoginBusy(true);
+    try {
+      const res = await useAuthStore.getState().signIn(email, password);
+      if (!res.ok) setMessage(res.message);
+    } finally {
+      setLoginBusy(false);
+    }
   };
 
   const guest = async () => {
+    if (loginBusy || guestBusy) return;
     const answer = await confirm({
       title: t('auth.guestConfirmTitle'),
       message: t(
@@ -46,10 +52,13 @@ export default function LoginScreen() {
     });
     if (answer !== 'confirm') return;
     setMessage(null);
-    setBusy(true);
-    const res = await useAuthStore.getState().continueAsGuest();
-    setBusy(false);
-    if (!res.ok) setMessage(res.message);
+    setGuestBusy(true);
+    try {
+      const res = await useAuthStore.getState().continueAsGuest();
+      if (!res.ok) setMessage(res.message);
+    } finally {
+      setGuestBusy(false);
+    }
   };
 
   return (
@@ -85,8 +94,8 @@ export default function LoginScreen() {
       <Button
         label={t('auth.login')}
         onPress={submit}
-        loading={busy}
-        disabled={!isSupabaseConfigured}
+        loading={loginBusy}
+        disabled={!isSupabaseConfigured || guestBusy}
         fullWidth
       />
       <View style={styles.links}>
@@ -94,7 +103,7 @@ export default function LoginScreen() {
           label={t('auth.signup')}
           variant="ghost"
           onPress={() => router.push('/signup')}
-          disabled={!isSupabaseConfigured}
+          disabled={!isSupabaseConfigured || loginBusy || guestBusy}
         />
       </View>
       <View style={styles.divider}>
@@ -109,7 +118,8 @@ export default function LoginScreen() {
         variant="secondary"
         icon="person"
         onPress={guest}
-        loading={busy}
+        loading={guestBusy}
+        disabled={loginBusy}
         fullWidth
       />
     </AuthLayout>

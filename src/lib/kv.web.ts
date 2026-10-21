@@ -11,7 +11,7 @@ export const kv = {
     try {
       window.localStorage.setItem(key, value);
     } catch {
-      /* 容量超過などは無視 */
+      /* 通常設定の保存失敗は既存どおり無視する。重要な記録には setRequired を使う。 */
     }
   },
   remove: async (key: string): Promise<void> => {
@@ -20,5 +20,12 @@ export const kv = {
     } catch {
       /* noop */
     }
+  },
+  getRequired: async (key: string): Promise<string | null> => window.localStorage.getItem(key),
+  setRequired: async (key: string, value: string): Promise<void> => {
+    window.localStorage.setItem(key, value);
+  },
+  removeRequired: async (key: string): Promise<void> => {
+    window.localStorage.removeItem(key);
   },
 };

@@ -20,6 +20,7 @@ import { useDataStore } from '@/store/dataStore';
 import { useUiStore } from '@/store/uiStore';
 import { FONT, SPACING, useTheme, ICON_SIZE, ICON_BUTTON_BOX, LAYER, OPACITY } from '@/theme';
 import { ProjectDialog } from '../board/NameDialogs';
+import { ProjectSelectionEmptyState } from './ProjectSelectionEmptyState';
 import { AppText } from '../ui/AppText';
 import { DropdownMenu, type MenuItem } from '../ui/DropdownMenu';
 import { useFeedback } from '../ui/FeedbackProvider';
@@ -118,6 +119,7 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
   }, []);
 
   const list = useMemo(() => visibleProjects(projects), [projects]);
+  const showMobileHomeEmptyState = mode !== 'expanded' && pathname === '/home' && list.length === 0;
   const favorites = list.filter((p) => p.isFavorite);
   const normals = list.filter((p) => !p.isFavorite);
   const archived = useMemo(() => archivedProjects(projects), [projects]);
@@ -423,8 +425,9 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
         keyboardShouldPersistTaps="handled"
         persistentScrollbar
       >
-        <View style={styles.listContent}>
-          {list.length === 0 ? (
+        <View style={[styles.listContent, showMobileHomeEmptyState && styles.emptyHomeListContent]}>
+          {showMobileHomeEmptyState ? <ProjectSelectionEmptyState /> : null}
+          {list.length === 0 && !showMobileHomeEmptyState ? (
             <AppText muted style={styles.hint}>
               {t('menu.noProjects')}
             </AppText>
@@ -445,23 +448,25 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
           ) : null}
           {normals.map(row)}
 
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {
-              useUiStore.getState().requestNewProject();
-            }}
-            style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
-              styles.itemMain,
-              {
-                backgroundColor: pressed || (hovered && canHover) ? colors.hover : 'transparent',
-              },
-            ]}
-          >
-            <Icon name="add" size={ICON_SIZE.xl} color={colors.textMuted} />
-            <AppText muted numberOfLines={UI_METRICS.text.singleLineMax} style={styles.flex}>
-              {t('menu.newProject')}
-            </AppText>
-          </Pressable>
+          {!showMobileHomeEmptyState ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                useUiStore.getState().requestNewProject();
+              }}
+              style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
+                styles.itemMain,
+                {
+                  backgroundColor: pressed || (hovered && canHover) ? colors.hover : 'transparent',
+                },
+              ]}
+            >
+              <Icon name="add" size={ICON_SIZE.xl} color={colors.textMuted} />
+              <AppText muted numberOfLines={UI_METRICS.text.singleLineMax} style={styles.flex}>
+                {t('menu.newProject')}
+              </AppText>
+            </Pressable>
+          ) : null}
 
           {archived.length > 0 ? (
             <>
@@ -478,7 +483,10 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
                   />
                 </View>
                 <AppText variant="caption" muted>
-                  {t('menu.archivedProjectsCount', { count: archived.length })}
+                  {t('menu.archivedProjects')}
+                </AppText>
+                <AppText variant="caption" muted>
+                  {`( ${archived.length} )`}
                 </AppText>
               </Pressable>
               {showArchived ? archived.map(row) : null}
@@ -499,7 +507,10 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
                   />
                 </View>
                 <AppText variant="caption" muted>
-                  {t('menu.trashProjectsCount', { count: trashedProjects.length })}
+                  {t('menu.trashProjects')}
+                </AppText>
+                <AppText variant="caption" muted>
+                  {`( ${trashedProjects.length} )`}
                 </AppText>
               </Pressable>
               {showTrash ? trashedProjects.map(trashedProjectRow) : null}
@@ -642,6 +653,7 @@ const styles = StyleSheet.create({
     gap: SPACING.xs,
   },
   listContent: { paddingBottom: SPACING.xs },
+  emptyHomeListContent: { flex: 1 },
   sectionTitle: { paddingHorizontal: SPACING.lg, paddingVertical: SPACING.xs },
   hint: { padding: SPACING.lg },
   item: {

@@ -32,7 +32,7 @@ const emptyQueue = (): PendingRemoteDeletes => ({
 });
 
 async function readQueue(ownerId: string): Promise<PendingRemoteDeletes> {
-  const raw = await kv.get(keyForOwner(ownerId));
+  const raw = await kv.getRequired(keyForOwner(ownerId));
   if (!raw) return emptyQueue();
 
   const parsed = JSON.parse(raw) as Partial<PendingRemoteDeletes>;
@@ -60,7 +60,7 @@ async function readQueue(ownerId: string): Promise<PendingRemoteDeletes> {
 }
 
 async function writeQueue(ownerId: string, queue: PendingRemoteDeletes): Promise<void> {
-  await kv.set(keyForOwner(ownerId), JSON.stringify(queue));
+  await kv.setRequired(keyForOwner(ownerId), JSON.stringify(queue));
 }
 
 /** 手動／オフ中の完全削除を端末ストレージに記録する。ここではネットワーク通信しない。 */

@@ -9,15 +9,26 @@ import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { t } from '@/i18n';
 import { SPACING } from '@/theme';
 import { useDataStore } from '@/store/dataStore';
+import { useSettingsStore } from '@/store/settingsStore';
 import { BOARD, UI_METRICS } from '@/config/layout';
 import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
+import { useProjectNavigation } from '@/hooks/useProjectNavigation';
+import { visibleProjects } from '@/domain/selectors';
 
 /** 設定のトップ: プロフィール編集 / システム設定 / ショートカット / アプリについて / ライセンス。 */
 export default function SettingsIndex() {
   const scrollRef = useWebWheelScroll({ touchAction: 'pan-x pan-y' });
   const router = useRouter();
-  const { confirm } = useFeedback();
+  const { confirm, alert } = useFeedback();
   const identity = useAuthStore((s) => s.identity);
+  const projects = useDataStore((s) => s.projects);
+  const lastProjectId = useSettingsStore((s) => s.settings.lastProjectId);
+  const navigateToProject = useProjectNavigation();
+  const returnToLastProject = () => {
+    const target = visibleProjects(projects).find((project) => project.id === lastProjectId);
+    if (target) navigateToProject(target.id);
+    else router.replace('/home');
+  };
   const isGuest = identity?.mode === 'guest';
   const logout = async () => {
     if (!identity || isGuest) return;
@@ -30,7 +41,10 @@ export default function SettingsIndex() {
       confirmLabel: t('settings.logoutNow'),
       destructive: true,
     });
-    if (result === 'confirm') await useAuthStore.getState().signOut();
+    if (result === 'confirm') {
+      const exitResult = await useAuthStore.getState().signOut();
+      if (!exitResult.ok) alert(t('common.error'), exitResult.message);
+    }
   };
   const leaveGuest = async () => {
     if (!identity || !isGuest) return;
@@ -40,15 +54,15 @@ export default function SettingsIndex() {
       confirmLabel: t('settings.guestLeaveConfirm'),
       destructive: true,
     });
-    if (result === 'confirm') await useAuthStore.getState().leaveGuest();
+    if (result === 'confirm') {
+      const exitResult = await useAuthStore.getState().leaveGuest();
+      if (!exitResult.ok) alert(t('common.error'), exitResult.message);
+    }
   };
 
   return (
     <View style={styles.fill}>
-      <ScreenHeader
-        title={t('settings.title')}
-        onBack={() => (router.canGoBack() ? router.back() : router.replace('/'))}
-      />
+      <ScreenHeader title={t('settings.title')} onBack={returnToLastProject} />
       <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.content}>
         <View style={styles.inner}>
           <Section>
