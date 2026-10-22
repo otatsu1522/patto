@@ -160,24 +160,25 @@ export function TaskDialog({
     onClose();
   };
 
-  const submit = () => {
+  const submit = useCallback(() => {
     setSubmitted(true);
+    const dueValue = parseDue(due);
     if (
       firstError(
         validateTitle(title, LIMITS.taskTitleMax),
         validateMaxLength(description, LIMITS.taskDescriptionMax),
       ) ||
-      parsedDue === 'invalid'
+      dueValue === 'invalid'
     )
       return;
     onSubmit({
       title: title.trim(),
       description,
       color,
-      dueAt: parsedDue ? parsedDue.dueAt : null,
+      dueAt: dueValue ? dueValue.dueAt : null,
       columnId,
     });
-  };
+  }, [title, description, due, color, columnId, onSubmit]);
 
   // 通常のショートカット処理はダイアログ中は停止するため、タスクダイアログ内の操作をここで処理する。
   // Ctrl+Enter は入力中でも確定できる。T/W/D は入力欄からフォーカスを外した後に使う。

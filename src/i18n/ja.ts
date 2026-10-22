@@ -513,6 +513,9 @@ export const ja = {
   'settings.shortcutsEscape': 'キャンセル',
   'settings.shortcutsEscapeHint':
     '入力欄にフォーカスがある場合、最初の Esc でフォーカスを外し、もう一度押すと閉じる操作を行います。未保存の変更がある場合は確認が表示されます。Esc の割り当ては変更できません。',
+  'settings.shortcutsEnter': 'タイトル入力欄の確定',
+  'settings.shortcutsEnterHint':
+    'タイトル入力欄で Enter を押すと、タスクの作成・編集を確定します。この動作はショートカットの割り当てでは変更できません。',
   'about.version': 'バージョン',
   'about.mitLicense': 'MIT License',
   'about.website': 'アプリのWeb版',
@@ -690,6 +693,7 @@ export const ja = {
   'settings.exportConfirm': 'エクスポート',
   'shortcut.emptySlot': 'キーを追加',
   'shortcut.keyEscape': 'Esc',
+  'shortcut.keyEnter': 'Enter',
   'shortcut.comboJoiner': ' + ',
   'shortcut.comboPlus': '+',
   'shortcut.infoTitle': 'キーボードショートカットの設定',

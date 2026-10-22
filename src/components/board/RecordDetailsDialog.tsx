@@ -113,13 +113,12 @@ export function RecordDetailsDialog({
           run: () => onToggleFavorite(record),
         },
         {
-          id: 'focusTaskDue',
-          keys: bindings.focusTaskDue,
-          // 詳細から D を押すと編集ダイアログを開き、期限欄へ直接フォーカスする。
+          id: 'changeDueDate',
+          keys: bindings.changeDueDate,
+          // 期限アイコンと同じ動作で、詳細ダイアログの上にカレンダーを表示する。
           run: () => {
             Keyboard.dismiss();
-            setCalendarVisible(false);
-            onEdit(record, 'due');
+            setCalendarVisible(true);
           },
         },
       ];

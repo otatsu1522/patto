@@ -21,7 +21,7 @@ Android・iOS・Web を1つのコードで動かします。
 
 ### Scoop によるインストール（Windows）
 
-Scoop が未導入の場合は、[Scoop の公式サイト](https://scoop.sh/) の手順でインストールしてください。
+Scoop が未導入の場合は [Scoop の公式サイト](https://scoop.sh/) の手順でインストールしてください。
 
 Node.js と pnpm は、次のコマンドで指定バージョンをインストールします。
 
@@ -33,7 +33,7 @@ scoop install pnpm@12.4.1
 
 ### Homebrew によるインストール（macOS）
 
-Homebrew が未導入の場合は、[Homebrew の公式サイト](https://brew.sh/ja/) の手順でインストールしてください。
+Homebrew が未導入の場合は [Homebrew の公式サイト](https://brew.sh/ja/) の手順でインストールしてください。
 
 Node.js はバージョン管理ツール `fnm` を使用して指定バージョンをインストールします。
 
@@ -265,4 +265,4 @@ patto/
 
 ## 10. ライセンス
 
-**MIT LICENSE** ([LICENSE](LICENSE) を参照してください。)
+**MIT LICENSE** ( [LICENSE](LICENSE) を参照してください。)

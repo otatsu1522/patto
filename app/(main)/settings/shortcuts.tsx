@@ -304,6 +304,41 @@ export default function ShortcutSettings() {
               </View>
             </View>
             {separator}
+            <View style={styles.row}>
+              <View style={styles.labelBlock}>
+                <AppText style={styles.label}>{t('settings.shortcutsEnter')}</AppText>
+                <AppText variant="caption" muted>
+                  {t('settings.shortcutsEnterHint')}
+                </AppText>
+              </View>
+              <View
+                pointerEvents="none"
+                style={[
+                  styles.keyField,
+                  styles.fixedKeyField,
+                  {
+                    borderColor: controlLineColor,
+                    backgroundColor: colors.bg,
+                    borderWidth: controlLineWidth,
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.combo,
+                    styles.fixedCombo,
+                    { borderColor: controlLineColor, borderWidth: controlLineWidth },
+                  ]}
+                >
+                  <View style={styles.keyCap}>
+                    <AppText variant="caption" bold>
+                      {t('shortcut.keyEnter')}
+                    </AppText>
+                  </View>
+                </View>
+              </View>
+            </View>
+            {separator}
             {SHORTCUT_SETTINGS_ACTIONS.map((a, i) => (
               <View key={a.id}>
                 {i > 0 ? separator : null}
