@@ -115,6 +115,7 @@ export const ja = {
     '「{board}」のカンバン数が上限の{max}個を超えています（{count}個）。ファイル全体を取り込んでいません。',
   'operation.duplicateFailed': '複製できませんでした。もう一度お試しください。',
   'operation.saveFailed': '変更を保存できませんでした。もう一度お試しください。',
+  'operation.openLinkFailed': 'リンクを開けませんでした。URLを確認して、もう一度お試しください。',
 
   // サイドバー・検索
   'menu.projects': '',
@@ -135,6 +136,8 @@ export const ja = {
   'menu.clearTrashedProjectsMessage':
     'ごみ箱のプロジェクト {count} 件と、その配下のカンバン・タスクを完全に削除します。自動モードではサーバー上のデータも削除します。手動／オフでは通信せず端末から削除し、サーバーへの削除は次回同期時に反映します。元に戻せません。',
   'menu.clearTrashedProjectsDone': 'ごみ箱のプロジェクト {count} 件を完全に削除しました。',
+  'menu.clearTrashedProjectsConflict':
+    '別の端末で復元されたプロジェクトが {count} 件あり、完全削除対象から除外しました。復元状態を優先します。',
   'menu.clearTrashedProjectsPending':
     '端末からごみ箱のプロジェクト {count} 件を削除しました。サーバー側の完全削除は次回同期時に反映します。',
   'menu.noProjects': 'プロジェクトがありません。',
@@ -206,6 +209,8 @@ export const ja = {
     '端末から削除しました。サーバー側の完全削除は次回同期時に反映します。',
   'project.permanentDeleteFailed':
     'プロジェクトを完全に削除できませんでした。もう一度お試しください。',
+  'project.permanentDeleteConflict':
+    '別の端末で復元されていたため、完全削除は行われませんでした。復元状態を優先します。',
   'project.empty': 'プロジェクトを選んでください',
   'project.emptyHint':
     'メニューから既存のプロジェクトを開くか、下のボタンから新しいプロジェクトを作成できます。',
@@ -486,6 +491,8 @@ export const ja = {
   'settings.archiveClearAll': 'アーカイブのクリア',
   'settings.trashClearAllMessage':
     'ごみ箱内の {count} 件のデータを完全に削除します。自動モードではサーバー上のデータも削除します。手動／オフでは通信せず端末から削除し、サーバーへの削除は次に同期が実行されたときに反映します。元に戻せません。',
+  'settings.clearTrashConflict':
+    '別の端末で復元されたプロジェクトが {count} 件あり、完全削除対象から除外しました。復元状態を優先します。',
   'settings.archiveClearAllMessage':
     'アーカイブ内のタスク {count} 件をごみ箱へ移動します。必要に応じて、ごみ箱から元に戻せます。',
   'settings.clearPermanently': '完全に削除',
@@ -499,11 +506,13 @@ export const ja = {
   'settings.shortcutsPressShort': '入力待ち',
   'settings.shortcutsRemove': 'キーを削除',
   'settings.shortcutsConflict': '「{key}」は「{action}」で使われています。',
-  'settings.shortcutsFixed': 'Esc は常に「キャンセル」に使われます。',
+  'settings.shortcutsFixed':
+    '入力欄にフォーカスがある場合、最初の Esc でフォーカスを外し、もう一度押すと閉じる操作を行います。未保存の変更がある場合は確認が表示されます。',
   'settings.shortcutsGuide':
     'Ctrl・Shift・Alt・Meta は、ショートカット内で別々のキーとして表示されます。',
   'settings.shortcutsEscape': 'キャンセル',
-  'settings.shortcutsEscapeHint': 'Esc は常にキャンセルに使われ、変更できません。',
+  'settings.shortcutsEscapeHint':
+    '入力欄にフォーカスがある場合、最初の Esc でフォーカスを外し、もう一度押すと閉じる操作を行います。未保存の変更がある場合は確認が表示されます。Esc の割り当ては変更できません。',
   'about.version': 'バージョン',
   'about.mitLicense': 'MIT License',
   'about.website': 'アプリのWeb版',
@@ -529,6 +538,10 @@ export const ja = {
   'shortcut.grab': '選択中のタスク／カンバンをつかむ / 置く',
   'shortcut.grabColumn': '現在のカンバンをつかむ',
   'shortcut.edit': '選択中のタスクを編集',
+  'shortcut.submitTask': 'タスクの作成・編集を確定',
+  'shortcut.focusTaskTitle': 'タスクの作成・編集でタイトルへフォーカス',
+  'shortcut.focusTaskDescription': 'タスクの作成・編集で説明へフォーカス',
+  'shortcut.focusTaskDue': 'タスクの作成・編集で期限へフォーカス',
   'shortcut.delete': '選択中のタスクを削除',
   'shortcut.newTask': '新しいタスクの作成',
   'shortcut.newColumn': '新しいカンバンの作成',
@@ -537,6 +550,7 @@ export const ja = {
   'shortcut.archiveDone': 'DONEモードのタスクを全てアーカイブ',
   'shortcut.changeDueDate': '選択中のタスクの期限を変更',
   'shortcut.duplicate': '選択中のタスクを複製',
+  'shortcut.taskDetails': '選択中のタスクの詳細を開く',
   'shortcut.moveColumnLeft': '選択中のタスクまたはカンバンを左へ移動',
   'shortcut.moveColumnRight': '選択中のタスクまたはカンバンを右へ移動',
   'shortcut.nextProject': 'プロジェクトの選択を次へ移動',
@@ -679,21 +693,22 @@ export const ja = {
   'shortcut.comboJoiner': ' + ',
   'shortcut.comboPlus': '+',
   'shortcut.infoTitle': 'キーボードショートカットの設定',
-  'shortcut.info1': 'Esc は常に「キャンセル」に使われ、変更できません。',
+  'shortcut.info1':
+    '入力欄にフォーカスがある場合、最初の Esc でフォーカスを外し、もう一度押すと閉じる操作を行います。未保存の変更がある場合は確認が表示されます。Esc の割り当ては変更できません。',
   'shortcut.info2':
     '各操作の欄に、割り当てられたショートカットがグループで表示されます。グループ内の四角は、同時に押すキーを表します。',
   'shortcut.info3': 'ショートカットのグループをクリックすると、その割り当てを削除できます。',
   'shortcut.info4':
     'ショートカットの入力欄をクリックしてキーを押すと追加できます。1つの操作に複数のショートカットを割り当てられます。',
   'shortcut.info5':
-    '別の操作で使われている組み合わせは追加できません。エラーの理由が該当行に表示されます。',
+    '同じ場面で有効な別の操作で使われている組み合わせは追加できません。エラーの理由が該当行に表示されます。',
   'shortcut.info6':
     '欄の外側にある「元に戻す」アイコンで、その操作だけ初期設定に戻せます。画面下のボタンでは全操作を戻せます。',
   'shortcut.info7': 'この設定画面を開いている間は、キーボードショートカットは動きません。',
   'shortcut.info8':
     'Ctrl・Shift・Alt・Meta は別々のキーとして表示されます。大文字の英字は Shift + 英字を表します。記号の入力キーはキーボード配列によって異なる場合があります。',
   'shortcut.info9':
-    'タスク単位の操作（つかむ・編集・削除・ピン・複製・期限変更・アーカイブ・コピー）は、j/k/h/l で選択中のタスクだけを対象にし、タスク未選択時は実行されません。Shift + G はカーソル位置に関係なく現在のカンバンをつかみ、h/l で左右に移動できます。g で置きます。「完了をすべてアーカイブ」は選択状態に関係なくDONEタスク全体を対象にします。D は期限の変更、Shift + D は複製です。',
+    'タスク単位の操作（つかむ・編集・削除・ピン・複製・期限変更・アーカイブ・コピー）は、j/k/h/l で選択中のタスクだけを対象にし、タスク未選択時は実行されません。Shift + G はカーソル位置に関係なく現在のカンバンをつかみ、h/l で左右に移動できます。g で置きます。「完了をすべてアーカイブ」は選択状態に関係なくDONEタスク全体を対象にします。D は通常画面では期限の変更、タスクの作成・編集ダイアログでは期限欄へのフォーカスに使います。通常画面の W は選択中タスクの詳細を開き、タスク作成・編集ダイアログ内の W は説明欄へのフォーカスに使います。タスクダイアログ内の T/W/D は入力欄のフォーカスを外してから使用します。複製は B です。',
   'shortcut.info10':
     'U は、操作結果のトーストに表示される「元に戻す」と同じ履歴を使います。対象は、タスクの作成・編集（所属カンバンの変更を含む）・移動・手動並べ替え・ピン留め・期限変更・複製・アーカイブ／DONEタスクの一括アーカイブ・削除（ごみ箱へ移動）、カンバンの追加・編集（名前・色・並び順モード・DONE設定）・移動／並べ替え・複製・削除、プロジェクトの追加・編集（名前・説明・色）・ピン留め・アーカイブ／解除・複製・削除（ごみ箱へ移動）です。トースト全体または該当する通知分類がOFFの場合、その操作はUndo履歴に追加されません。',
   'about.body1':

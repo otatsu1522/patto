@@ -494,12 +494,13 @@ export function AppShell({ children }: { children: ReactNode }) {
       setGlobalSearchOpen(true, projectId);
     },
     openSettings: () => router.navigate('/settings'),
-    nextProject: () => stepProject(1),
-    prevProject: () => stepProject(-1),
+    // 設定画面ではプロジェクトの切り替えショートカットを無効にする。
+    nextProject: pathname.startsWith('/settings') ? undefined : () => stepProject(1),
+    prevProject: pathname.startsWith('/settings') ? undefined : () => stepProject(-1),
     newProject: () => useUiStore.getState().requestNewProject(),
     toggleTheme: () => {
       const settings = useSettingsStore.getState();
-      settings.update((current) => ({
+      return settings.update((current) => ({
         themeMode: current.themeMode === 'dark' ? 'light' : 'dark',
       }));
     },

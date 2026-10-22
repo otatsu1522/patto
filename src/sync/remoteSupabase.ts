@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { TableName } from '@/domain/types';
 import { SYNC } from '@/config/limits';
-import type { RemoteApi, RemoteRow } from './types';
+import type { DeleteProjectsOwnedResult, RemoteApi, RemoteRow } from './types';
 
 const fail = (error: unknown): never => {
   throw error;
@@ -181,12 +181,30 @@ export function createSupabaseRemote(client: SupabaseClient): RemoteApi {
     },
 
     async deleteProjectsOwned(projectIds: string[], ownerId: string) {
-      if (projectIds.length === 0) return;
-      const { error } = await client.rpc('patto_delete_trashed_projects', {
+      if (projectIds.length === 0) return { deletedProjectIds: [], preservedProjectIds: [] };
+      const { data, error } = await client.rpc('patto_delete_trashed_projects', {
         p_owner_id: ownerId,
         p_project_ids: projectIds,
       });
       if (error) fail(error);
+      if (!data || typeof data !== 'object' || Array.isArray(data)) {
+        throw new Error('Invalid project-delete response');
+      }
+      const result = data as Record<string, unknown>;
+      const deletedProjectIds = result.deleted_project_ids;
+      const preservedProjectIds = result.preserved_project_ids;
+      if (
+        !Array.isArray(deletedProjectIds) ||
+        deletedProjectIds.some((id) => typeof id !== 'string') ||
+        !Array.isArray(preservedProjectIds) ||
+        preservedProjectIds.some((id) => typeof id !== 'string')
+      ) {
+        throw new Error('Invalid project-delete response');
+      }
+      return {
+        deletedProjectIds: deletedProjectIds as string[],
+        preservedProjectIds: preservedProjectIds as string[],
+      } satisfies DeleteProjectsOwnedResult;
     },
 
     async deleteAllOwnedData(ownerId: string) {

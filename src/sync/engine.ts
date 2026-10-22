@@ -6,6 +6,7 @@ import type { RemoteApi, SyncResult } from './types';
 import {
   flushPendingRemoteDeleteAllBeforePush,
   flushPendingRemoteDeletes,
+  pendingRemoteProjectDeleteIds,
   reconcilePreparedRemoteDeleteAll,
 } from './pendingDeletes';
 import { DAY_MS } from '@/lib/dates';
@@ -78,12 +79,22 @@ export async function runSync(
   // A confirmed reset clears old server data before Push. New records created afterward remain local
   // and are then uploaded; processing reset after Push would accidentally delete those new records.
   await flushPendingRemoteDeleteAllBeforePush(remote, opts.ownerId);
+  // プロジェクト削除の要求が保存済みなら、その配下の dirty 行を先にPushしない。
+  // アプリ中断中に別端末で復元されていた場合、古い削除状態で復元を上書きしないため。
+  const pendingProjectDeleteSet = new Set(await pendingRemoteProjectDeleteIds(opts.ownerId));
   const serverNow = await remote.serverTime();
   opts.onServerTime?.(serverNow);
 
   // ---- Push ----
   for (const table of TABLE_NAMES) {
-    const dirty = rowsOf(local.snapshot(), table).filter((r) => r.dirty);
+    const dirty = rowsOf(local.snapshot(), table).filter((record) => {
+      if (!record.dirty) return false;
+      const projectId =
+        table === 'projects'
+          ? record.id
+          : String((record as { projectId?: unknown }).projectId ?? '');
+      return !pendingProjectDeleteSet.has(projectId);
+    });
     if (dirty.length === 0) continue;
     // 同期開始時のレコードを保持し、送信中に更新された行を更新時刻だけで判定しない。
     const dirtySnapshotById = new Map(dirty.map((record) => [record.id, record]));
@@ -133,6 +144,8 @@ export async function runSync(
   // ローカル削除だけが未完了だった場合でも、古い dirty レコードを送った後で確実に削除する。
   // サーバー削除とローカル削除が両方成功した後にだけ、キューを確定して消す。
   const pendingDeletes = await flushPendingRemoteDeletes(remote, opts.ownerId, true);
+  // 別端末で復元済みだったプロジェクトは pendingDeletes.deletedProjectIds に含まれない。
+  // Pull は続けて行うため、復元後のサーバーレコードをローカルへ取り込める。
   const beforePendingPurge = local.snapshot();
   const removalsByTable: Record<TableName, Set<string>> = {
     projects: new Set<string>(),

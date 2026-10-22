@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Task } from '@/domain/types';
 import type { IconKey } from '@/config/icons';
 import { formatDue } from '@/domain/due';
@@ -11,8 +11,12 @@ import { CalendarDialog } from '../ui/CalendarDialog';
 import { Dialog } from '../ui/Dialog';
 import { Icon } from '../ui/Icon';
 import { SPACING, useTheme, ICON_SIZE } from '@/theme';
-import { Keyboard, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Keyboard, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import { isTouchWeb } from '@/lib/hover';
+import { keyToString, resolveBindings } from '@/shortcuts/actions';
+import { useSettingsStore } from '@/store/settingsStore';
+import { useUiStore } from '@/store/uiStore';
 
 interface Props {
   record: Task | null;
@@ -20,10 +24,10 @@ interface Props {
   onClose: () => void;
   onDismiss: () => void;
   dismissImmediately?: boolean;
-  onEdit: (task: Task) => void;
+  onEdit: (task: Task, focusField?: 'due') => void;
   onCopyTitle: () => void;
   onCopyDescription: () => void;
-  onToggleFavorite: (task: Task) => void;
+  onToggleFavorite: (task: Task) => void | Promise<unknown>;
   onSetDue: (task: Task, dueAt: number | null) => void;
   projectName?: string;
   columnName?: string;
@@ -46,6 +50,7 @@ export function RecordDetailsDialog({
 }: Props) {
   const { colors, taskColor, lineWidth, lineColor } = useTheme();
   const [calendarVisible, setCalendarVisible] = useState(false);
+  const shortcutInFlightRef = useRef<Set<string>>(new Set());
 
   /* eslint-disable react-hooks/set-state-in-effect -- 詳細ダイアログが閉じた場合、期限選択を次回表示へ持ち越さない */
   useEffect(() => {
@@ -53,14 +58,97 @@ export function RecordDetailsDialog({
   }, [visible]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const copyText = async (value: string, onCopied: () => void) => {
+  const copyText = useCallback(async (value: string, onCopied: () => void) => {
     try {
       await Clipboard.setStringAsync(value);
       onCopied();
     } catch {
       // クリップボードを利用できない環境でも詳細表示を維持する。
     }
-  };
+  }, []);
+
+  // 詳細ダイアログの表示中は、ボード側で停止しているショートカットの一部を
+  // 詳細ダイアログ自身が処理する。編集中ダイアログが重なった場合は dialogCount で除外する。
+  useEffect(() => {
+    if (!visible || !record || Platform.OS !== 'web' || isTouchWeb) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.isComposing || event.keyCode === 229) return;
+      const settings = useSettingsStore.getState().settings;
+      if (!settings.shortcutsEnabled) return;
+      const uiState = useUiStore.getState();
+      if (uiState.dialogCount !== 1 || uiState.dropdownMenuOpen || uiState.shortcutsSuspended)
+        return;
+
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.tagName?.toLowerCase() === 'input' ||
+        target?.tagName?.toLowerCase() === 'textarea' ||
+        target?.tagName?.toLowerCase() === 'select' ||
+        target?.isContentEditable
+      )
+        return;
+
+      const bindings = resolveBindings(settings.shortcutOverrides);
+      const key = keyToString(event);
+      const actions: {
+        id: string;
+        keys: string[];
+        run: () => void | Promise<unknown>;
+      }[] = [
+        { id: 'edit', keys: bindings.edit, run: () => onEdit(record) },
+        {
+          id: 'copyTitle',
+          keys: bindings.copyTitle,
+          run: () => copyText(record.title, onCopyTitle),
+        },
+        {
+          id: 'copyDescription',
+          keys: bindings.copyDescription,
+          run: () => copyText(record.description, onCopyDescription),
+        },
+        {
+          id: 'toggleFavorite',
+          keys: bindings.toggleFavorite,
+          run: () => onToggleFavorite(record),
+        },
+        {
+          id: 'focusTaskDue',
+          keys: bindings.focusTaskDue,
+          // 詳細から D を押すと編集ダイアログを開き、期限欄へ直接フォーカスする。
+          run: () => {
+            Keyboard.dismiss();
+            setCalendarVisible(false);
+            onEdit(record, 'due');
+          },
+        },
+      ];
+      const action = actions.find((candidate) => candidate.keys.includes(key));
+      if (!action) return;
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const inFlight = shortcutInFlightRef.current;
+      if (inFlight.has(action.id)) return;
+      inFlight.add(action.id);
+      try {
+        const result = action.run();
+        if (result && typeof (result as PromiseLike<unknown>).then === 'function') {
+          void Promise.resolve(result).then(
+            () => inFlight.delete(action.id),
+            () => inFlight.delete(action.id),
+          );
+        } else {
+          requestAnimationFrame(() => inFlight.delete(action.id));
+        }
+      } catch {
+        inFlight.delete(action.id);
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => document.removeEventListener('keydown', onKeyDown, true);
+  }, [visible, record, onEdit, onCopyTitle, onCopyDescription, onToggleFavorite, copyText]);
 
   const renderDescription = (value: string) => {
     const parts: { text: string; url?: string }[] = [];

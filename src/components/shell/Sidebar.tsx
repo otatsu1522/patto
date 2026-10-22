@@ -216,6 +216,12 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
         return;
       }
       if (result.count === 0) return;
+      if (result.preservedProjectCount) {
+        // 別端末で復元済みのプロジェクトはサーバー側で保護されるため、最新状態を再取得する。
+        await syncManually();
+        toast(t('project.permanentDeleteConflict'), undefined, { category: 'system' });
+        return;
+      }
       if (result.remotePending) {
         toast(t('project.permanentDeletePending'), undefined, { category: 'system' });
         return;
@@ -281,6 +287,15 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
       }
       if (result.count === 0) {
         toast(t('board.clearNothing'), undefined, { category: 'system' });
+        return;
+      }
+      if (result.preservedProjectCount) {
+        await syncManually();
+        toast(
+          t('menu.clearTrashedProjectsConflict', { count: result.preservedProjectCount }),
+          undefined,
+          { category: 'system' },
+        );
         return;
       }
       setShowTrash(false);

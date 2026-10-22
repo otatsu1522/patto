@@ -32,7 +32,14 @@ export const previewClear = (kind: ClearKind, projectId?: string): number =>
   countTargets(purgeTargets(useDataStore.getState().snapshot(), kind, projectId));
 
 export type ClearResult =
-  | { ok: true; count: number; projectCount?: number; remotePending?: boolean }
+  | {
+      ok: true;
+      count: number;
+      projectCount?: number;
+      remotePending?: boolean;
+      /** 別端末で復元済みだったため、サーバー側で削除を保護したプロジェクト数。 */
+      preservedProjectCount?: number;
+    }
   | { ok: false; message: string };
 
 const accountWorkUnavailable = (): ClearResult => ({
@@ -239,13 +246,18 @@ export async function clearBucket(
       // 手動／オフでは要求を保持して次の同期で処理する。自動モードはローカル削除後に
       // RPC／ID削除を実行し、完了した要求だけをキューから除く。
       let remotePending = remoteAccount && !syncs;
+      let preservedProjectIds: string[] = [];
       if (remoteAccount && syncs && client) {
         try {
           const session = await getFreshSession(client, identity.userId);
           if (!session?.access_token) throw new Error('Supabase session is unavailable');
           const remote = createSupabaseRemote(createSyncSupabaseClient(session.access_token));
           if (cascadeProjectIds.length > 0) {
-            await remote.deleteProjectsOwned(cascadeProjectIds, identity.userId);
+            const projectDelete = await remote.deleteProjectsOwned(
+              cascadeProjectIds,
+              identity.userId,
+            );
+            preservedProjectIds = projectDelete.preservedProjectIds;
           }
           for (const [table, ids] of [
             ['tasks', standaloneTargets.tasks],
@@ -268,6 +280,9 @@ export async function clearBucket(
         count,
         ...(projectIds !== undefined ? { projectCount: targets.projects.length } : {}),
         ...(remotePending ? { remotePending: true } : {}),
+        ...(preservedProjectIds.length > 0
+          ? { preservedProjectCount: preservedProjectIds.length }
+          : {}),
       };
     } finally {
       releaseSyncMutation();

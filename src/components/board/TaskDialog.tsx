@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Keyboard, Pressable, StyleSheet, View, type TextInput } from 'react-native';
+import { Keyboard, Platform, Pressable, StyleSheet, View, type TextInput } from 'react-native';
 import { LIMITS } from '@/config/limits';
 import { BOARD, UI_METRICS } from '@/config/layout';
 import { formatDueInput, formatDueTyping, normalizeDueInput, parseDue } from '@/domain/due';
@@ -18,7 +18,10 @@ import { DiscardChangesOverlay } from '../ui/DiscardChangesOverlay';
 import { Icon } from '../ui/Icon';
 import { IconButton } from '../ui/IconButton';
 import { TextField } from '../ui/TextField';
-import { canHover } from '@/lib/hover';
+import { canHover, isTouchWeb } from '@/lib/hover';
+import { useSettingsStore } from '@/store/settingsStore';
+import { useUiStore } from '@/store/uiStore';
+import { keyToString, resolveBindings } from '@/shortcuts/actions';
 
 export interface TaskFormValues {
   title: string;
@@ -32,6 +35,8 @@ interface Props {
   visible: boolean;
   /** null のときは新規作成 */
   task: Task | null;
+  /** 編集ダイアログを期限欄へ直接開く場合に指定する。 */
+  initialFocus?: 'title' | 'description' | 'due';
   /** プロジェクト内のカンバン（場所の選択肢） */
   columns: { id: string; title: string }[];
   /** 新規作成時の初期のカンバン */
@@ -48,7 +53,15 @@ const dueText = (task: Task | null): string =>
  * 新規作成では「タスク名」と「色」を先に表示し、既存タスクの編集では「オプション」を開いた状態にする。
  * 複製・アーカイブ・削除・ピン留めは、タスクをタップしたときのメニューから行う。
  */
-export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, onSubmit }: Props) {
+export function TaskDialog({
+  visible,
+  task,
+  initialFocus,
+  columns,
+  defaultColumnId,
+  onClose,
+  onSubmit,
+}: Props) {
   const { colors, controlLineWidth, controlLineColor, lineWidth, lineColor } = useTheme();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -61,9 +74,32 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
   const [discardPrompt, setDiscardPrompt] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const titleInputRef = useRef<TextInput>(null);
+  const descriptionInputRef = useRef<TextInput>(null);
+  const dueInputRef = useRef<TextInput>(null);
+  const pendingFieldFocusRef = useRef<'description' | 'due' | null>(null);
   const focusTitleInput = useCallback(() => {
     titleInputRef.current?.focus();
   }, []);
+  const focusTaskField = useCallback(
+    (field: 'title' | 'description' | 'due') => {
+      if (field === 'title') {
+        titleInputRef.current?.focus();
+        return;
+      }
+      if (!options) {
+        // 新規作成時はオプション欄が閉じているため、開いてから入力欄へ移動する。
+        pendingFieldFocusRef.current = field;
+        setOptions(true);
+        return;
+      }
+      (field === 'description' ? descriptionInputRef : dueInputRef).current?.focus();
+    },
+    [options],
+  );
+  const focusInitialField = useCallback(() => {
+    if (initialFocus) focusTaskField(initialFocus);
+    else focusTitleInput();
+  }, [focusTaskField, focusTitleInput, initialFocus]);
 
   // 閉じるアニメーション中に表示が切り替わらないよう、開いている間のタスクを覚えておく
   const [lastTask, setLastTask] = useState<Task | null>(task);
@@ -85,9 +121,20 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
     setSelectOpen(false);
     setSubmitted(false);
     setDiscardPrompt(false);
+    pendingFieldFocusRef.current = null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, task?.id]);
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  useEffect(() => {
+    if (!visible || !options || pendingFieldFocusRef.current === null) return;
+    const field = pendingFieldFocusRef.current;
+    pendingFieldFocusRef.current = null;
+    const frame = requestAnimationFrame(() => {
+      (field === 'description' ? descriptionInputRef : dueInputRef).current?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [visible, options, task?.id]);
 
   const titleError = submitted ? validateTitle(title, LIMITS.taskTitleMax) : null;
   const descError = submitted ? validateMaxLength(description, LIMITS.taskDescriptionMax) : null;
@@ -132,6 +179,67 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
     });
   };
 
+  // 通常のショートカット処理はダイアログ中は停止するため、タスクダイアログ内の操作をここで処理する。
+  // Ctrl+Enter は入力中でも確定できる。T/W/D は入力欄からフォーカスを外した後に使う。
+  useEffect(() => {
+    if (!visible || Platform.OS !== 'web' || isTouchWeb) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.isComposing || event.keyCode === 229 || event.repeat) return;
+
+      const { settings } = useSettingsStore.getState();
+      if (!settings.shortcutsEnabled) return;
+      const bindings = resolveBindings(settings.shortcutOverrides);
+      const key = keyToString(event);
+      const submitRequested = bindings.submitTask.includes(key);
+      const focusAction = (
+        ['focusTaskTitle', 'focusTaskDescription', 'focusTaskDue'] as const
+      ).find((id) => bindings[id].includes(key));
+      if (!submitRequested && !focusAction) return;
+
+      const uiState = useUiStore.getState();
+      // タスク詳細から編集ダイアログを重ねている場合は dialogCount が 2 になる。
+      // 最前面がタスクダイアログである限り、Ctrl+Enter と T/W/D を有効にする。
+      if (
+        uiState.dialogCount < 1 ||
+        uiState.dialogCount > 2 ||
+        uiState.dropdownMenuOpen ||
+        uiState.shortcutsSuspended ||
+        calendar ||
+        selectOpen ||
+        discardPrompt
+      )
+        return;
+
+      if (submitRequested) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        submit();
+        return;
+      }
+
+      // テキスト入力中は t/w/d を文字として入力できるようにする。
+      // Esc でいったんフォーカスを外してから単キー操作を使う。
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.tagName?.toLowerCase() === 'input' ||
+        target?.tagName?.toLowerCase() === 'textarea' ||
+        target?.tagName?.toLowerCase() === 'select' ||
+        target?.isContentEditable
+      )
+        return;
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (focusAction === 'focusTaskTitle') focusTaskField('title');
+      else if (focusAction === 'focusTaskDescription') focusTaskField('description');
+      else focusTaskField('due');
+    };
+
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => document.removeEventListener('keydown', onKeyDown, true);
+  }, [visible, calendar, selectOpen, discardPrompt, submit, focusTaskField]);
+
   const currentColumn = columns.find((c) => c.id === columnId);
 
   return (
@@ -140,7 +248,7 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
         visible={visible}
         title={shownTask ? t('task.edit') : t('task.create')}
         onClose={requestClose}
-        onShow={focusTitleInput}
+        onShow={focusInitialField}
         preserveKeyboardLayout={calendar}
         overlay={
           <DiscardChangesOverlay
@@ -188,6 +296,7 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
               value={description}
               onChangeText={setDescription}
               error={descError}
+              ref={descriptionInputRef}
               key={`${visible ? 'open' : 'closed'}-${shownTask?.id ?? 'new'}-description`}
               lines={UI_METRICS.textField.descriptionLines}
               autoGrow
@@ -198,6 +307,7 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
                 <TextField
                   label={t('task.due')}
                   value={due}
+                  ref={dueInputRef}
                   onChangeText={(v) => setDue(formatDueTyping(v))}
                   onBlur={() => setDue((v) => normalizeDueInput(v))}
                   onClear={() => setDue('')}

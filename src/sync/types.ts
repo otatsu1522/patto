@@ -2,6 +2,13 @@ import type { TableName } from '@/domain/types';
 
 export type RemoteRow = Record<string, unknown>;
 
+export interface DeleteProjectsOwnedResult {
+  /** サーバー上で削除された、または既に存在しなかったプロジェクトID。 */
+  deletedProjectIds: string[];
+  /** 別端末で復元済みのため、クリア対象から保護されたプロジェクトID。 */
+  preservedProjectIds: string[];
+}
+
 /** サーバーとのやり取りの抽象。Supabase 実装は remoteSupabase.ts。テストではモックに差し替える。 */
 export interface RemoteApi {
   /** サーバー時刻（epoch ms） */
@@ -30,7 +37,7 @@ export interface RemoteApi {
   /** 所有者IDを指定し、そのユーザーのテーブル内データを削除する（初期化の保留要求）。 */
   deleteAllOwned(table: TableName, ownerId: string): Promise<void>;
   /** ごみ箱にあるプロジェクト本体と配下レコードを、1トランザクションで削除する。 */
-  deleteProjectsOwned(projectIds: string[], ownerId: string): Promise<void>;
+  deleteProjectsOwned(projectIds: string[], ownerId: string): Promise<DeleteProjectsOwnedResult>;
   /** 所有者の全テーブルを単一サーバートランザクションで削除する。 */
   deleteAllOwnedData(ownerId: string): Promise<void>;
   /** deleted_at が cutoff より古いごみ箱データを所有者の全行から削除する。 */

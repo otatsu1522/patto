@@ -126,6 +126,13 @@ export default function SystemSettings() {
     if (r !== 'confirm') return;
     const res = await clearBucket(kind);
     if (res.ok) {
+      if (res.preservedProjectCount) {
+        await syncManually();
+        toast(t('settings.clearTrashConflict', { count: res.preservedProjectCount }), undefined, {
+          category: 'system',
+        });
+        return;
+      }
       if (res.remotePending) {
         alert(t('common.error'), t('settings.remoteDeletePending'));
       } else {

@@ -32,6 +32,8 @@ export interface FlushedDeleteResult {
   deleteAllLocal: boolean;
   /** 完了したプロジェクト単位削除。子レコードもローカルから除去する。 */
   deletedProjectIds: string[];
+  /** 別端末で復元済みのため、削除を取り消してサーバーから再取得するプロジェクトID。 */
+  preservedProjectIds: string[];
   /** 完了した単独レコード削除。 */
   deletedIds: Partial<Record<TableName, string[]>>;
   /** テーブル全件削除の保留要求。 */
@@ -128,6 +130,12 @@ async function readQueue(ownerId: string): Promise<PendingRemoteDeletes> {
     expiredTrashBefore,
     tables,
   };
+}
+
+/** プロジェクト単位削除が保留中のID。これらの dirty 行を先にPushしないために使う。 */
+export async function pendingRemoteProjectDeleteIds(ownerId: string): Promise<string[]> {
+  const queue = await readQueue(ownerId);
+  return queue.deleteAllPreparing || queue.deleteAllData ? [] : [...queue.projectIds];
 }
 
 async function writeQueue(ownerId: string, queue: PendingRemoteDeletes): Promise<void> {
@@ -325,6 +333,7 @@ export async function flushPendingRemoteDeletes(
   const result: FlushedDeleteResult = {
     deleteAllLocal: false,
     deletedProjectIds: [],
+    preservedProjectIds: [],
     deletedIds: {},
     clearLocalTables: [],
     expiredTrashBefore: {},
@@ -347,9 +356,12 @@ export async function flushPendingRemoteDeletes(
   }
 
   if (queue.projectIds.length > 0) {
-    // 1つのRPCで親と子を原子的に削除するため、プロジェクトIDは分割せず渡す。
-    await remote.deleteProjectsOwned(queue.projectIds, ownerId);
-    result.deletedProjectIds = [...queue.projectIds];
+    // 1つのRPCで親と子を原子的に削除する。別端末で復元済みのプロジェクトは
+    // 削除しない結果として受け取り、Pullでサーバーの状態をローカルへ戻す。
+    const deleted = await remote.deleteProjectsOwned(queue.projectIds, ownerId);
+    result.deletedProjectIds = deleted.deletedProjectIds;
+    result.preservedProjectIds = deleted.preservedProjectIds;
+    // 削除または復元保護の結果が確定したので、同じ要求を再送しない。
     remaining.projectIds = [];
     changed = true;
   }

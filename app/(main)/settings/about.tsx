@@ -16,11 +16,20 @@ import {
 import { BOARD, UI_METRICS } from '@/config/layout';
 import { t, type StringKey } from '@/i18n';
 import { RADIUS, SPACING, useTheme } from '@/theme';
+import { useFeedback } from '@/components/ui/FeedbackProvider';
 
 export default function AboutScreen() {
   const scrollRef = useWebWheelScroll({ touchAction: 'pan-x pan-y' });
   const router = useRouter();
+  const { alert } = useFeedback();
   const { colors, lineWidth, lineColor } = useTheme();
+  const openExternalLink = async (url: string) => {
+    try {
+      await Linking.openURL(url);
+    } catch {
+      alert(t('common.error'), t('operation.openLinkFailed'));
+    }
+  };
   const links = [
     { label: t('about.terms'), url: APP_LINKS.terms },
     { label: t('about.privacy'), url: APP_LINKS.privacy },
@@ -59,13 +68,13 @@ export default function AboutScreen() {
                 key={tech.name}
                 label={tech.name}
                 description={t(tech.descriptionKey as StringKey)}
-                onPress={() => void Linking.openURL(tech.url)}
+                onPress={() => void openExternalLink(tech.url)}
               />
             ))}
             <LinkRow
               label={APP_NAME}
               description={APP_WEB_URL}
-              onPress={() => void Linking.openURL(APP_WEB_URL)}
+              onPress={() => void openExternalLink(APP_WEB_URL)}
             />
             <LinkRow
               label={t('about.mitLicense')}
@@ -73,7 +82,7 @@ export default function AboutScreen() {
               onPress={() => router.navigate('/settings/license')}
             />
             {links.map((l) => (
-              <LinkRow key={l.label} label={l.label} onPress={() => void Linking.openURL(l.url)} />
+              <LinkRow key={l.label} label={l.label} onPress={() => void openExternalLink(l.url)} />
             ))}
           </Section>
         </View>

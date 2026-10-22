@@ -4,6 +4,15 @@ import { t, type StringKey } from '@/i18n';
  * ショートカットで実行できる操作の一覧と既定のキー。
  * 単キーと修飾キーの組み合わせに対応し、利用者は設定画面から変更できる。
  */
+type ShortcutScope = 'global' | 'taskDialog';
+type ShortcutActionDefinition = {
+  id: string;
+  labelKey: StringKey;
+  keys: readonly string[];
+  /** ダイアログ内だけで有効な操作。グローバル操作とはキー重複を許可する。 */
+  scope?: ShortcutScope;
+};
+
 export const SHORTCUT_ACTIONS = [
   { id: 'cursorLeft', labelKey: 'shortcut.cursorLeft', keys: ['h'] },
   { id: 'cursorDown', labelKey: 'shortcut.cursorDown', keys: ['j'] },
@@ -13,11 +22,36 @@ export const SHORTCUT_ACTIONS = [
   { id: 'copyDescription', labelKey: 'shortcut.copyDescription', keys: ['shift+c'] },
   { id: 'grab', labelKey: 'shortcut.grab', keys: ['g'] },
   { id: 'grabColumn', labelKey: 'shortcut.grabColumn', keys: ['G'] },
-  { id: 'edit', labelKey: 'shortcut.edit', keys: ['e', 'Enter'] },
+  { id: 'edit', labelKey: 'shortcut.edit', keys: ['e'] },
+  {
+    id: 'focusTaskTitle',
+    labelKey: 'shortcut.focusTaskTitle',
+    keys: ['t'],
+    scope: 'taskDialog',
+  },
+  {
+    id: 'focusTaskDescription',
+    labelKey: 'shortcut.focusTaskDescription',
+    keys: ['w'],
+    scope: 'taskDialog',
+  },
+  {
+    id: 'focusTaskDue',
+    labelKey: 'shortcut.focusTaskDue',
+    keys: ['d'],
+    scope: 'taskDialog',
+  },
+  {
+    id: 'submitTask',
+    labelKey: 'shortcut.submitTask',
+    keys: ['ctrl+Enter'],
+    scope: 'taskDialog',
+  },
   { id: 'delete', labelKey: 'shortcut.delete', keys: ['x'] },
   { id: 'toggleFavorite', labelKey: 'shortcut.toggleFavorite', keys: ['p'] },
   { id: 'changeDueDate', labelKey: 'shortcut.changeDueDate', keys: ['d'] },
   { id: 'duplicate', labelKey: 'shortcut.duplicate', keys: ['b'] },
+  { id: 'taskDetails', labelKey: 'shortcut.taskDetails', keys: ['w'] },
   { id: 'archiveTask', labelKey: 'shortcut.archiveTask', keys: ['a'] },
   { id: 'archiveDone', labelKey: 'shortcut.archiveDone', keys: ['A'] },
   { id: 'newTask', labelKey: 'shortcut.newTask', keys: ['n'] },
@@ -34,7 +68,7 @@ export const SHORTCUT_ACTIONS = [
   { id: 'undo', labelKey: 'shortcut.undo', keys: ['z'] },
   { id: 'toggleTheme', labelKey: 'shortcut.toggleTheme', keys: ['t'] },
   { id: 'showHelp', labelKey: 'shortcut.showHelp', keys: ['?'] },
-] as const satisfies readonly { id: string; labelKey: StringKey; keys: readonly string[] }[];
+] as const satisfies readonly ShortcutActionDefinition[];
 
 export type ActionId = (typeof SHORTCUT_ACTIONS)[number]['id'];
 export type Bindings = Record<ActionId, string[]>;
@@ -56,12 +90,12 @@ const SETTINGS_PRIORITY_IDS = [
   'moveColumnRight',
 ] as const;
 
-const COPY_ACTION_IDS = ['copyTitle', 'copyDescription'] as const;
+const POST_DUPLICATE_ACTION_IDS = ['taskDetails', 'copyTitle', 'copyDescription'] as const;
 // 一覧の末尾は「検索 → 設定を開く → ショートカット一覧」にする。
 const SETTINGS_END_IDS = ['search', 'openSettings', 'showHelp'] as const;
 const SETTINGS_PRIORITY_SET: ReadonlySet<string> = new Set([
   ...SETTINGS_PRIORITY_IDS,
-  ...COPY_ACTION_IDS,
+  ...POST_DUPLICATE_ACTION_IDS,
   ...SETTINGS_END_IDS,
 ]);
 const SHORTCUT_ACTION_BY_ID = new Map<string, (typeof SHORTCUT_ACTIONS)[number]>(
@@ -73,13 +107,13 @@ const priorityActions = SETTINGS_PRIORITY_IDS.flatMap((id) => {
   return action ? [action] : [];
 });
 const remainingActions = SHORTCUT_ACTIONS.filter((action) => !SETTINGS_PRIORITY_SET.has(action.id));
-const copyActions = COPY_ACTION_IDS.flatMap((id) => {
+const postDuplicateActions = POST_DUPLICATE_ACTION_IDS.flatMap((id) => {
   const action = SHORTCUT_ACTION_BY_ID.get(id);
   return action ? [action] : [];
 });
 const duplicateIndex = remainingActions.findIndex((action) => action.id === 'duplicate');
 if (duplicateIndex >= 0) {
-  remainingActions.splice(duplicateIndex + 1, 0, ...copyActions);
+  remainingActions.splice(duplicateIndex + 1, 0, ...postDuplicateActions);
 }
 const endingActions = SETTINGS_END_IDS.flatMap((id) => {
   const action = SHORTCUT_ACTION_BY_ID.get(id);
@@ -156,14 +190,22 @@ export const isModifierOnly = (key: string): boolean =>
 /** キー → アクションの逆引き表 */
 export function buildKeyMap(bindings: Bindings): Map<string, ActionId> {
   const map = new Map<string, ActionId>();
-  for (const a of SHORTCUT_ACTIONS) for (const k of bindings[a.id]) map.set(k, a.id);
+  for (const a of SHORTCUT_ACTIONS) {
+    // ダイアログ専用キーは TaskDialog が入力欄のフォーカス状態を見て処理する。
+    if (('scope' in a ? a.scope : undefined) === 'taskDialog') continue;
+    for (const k of bindings[a.id]) map.set(k, a.id);
+  }
   return map;
 }
 
-/** key が別のアクションで使われていればそのIDを返す（自分自身は除く） */
+/** key が同じスコープの別アクションで使われていればそのIDを返す（自分自身は除く）。 */
 export function findConflict(bindings: Bindings, actionId: ActionId, key: string): ActionId | null {
+  const target = SHORTCUT_ACTIONS.find((action) => action.id === actionId);
+  if (!target) return null;
+  const targetScope = ('scope' in target ? target.scope : undefined) ?? 'global';
   for (const a of SHORTCUT_ACTIONS) {
-    if (a.id !== actionId && bindings[a.id].includes(key)) return a.id;
+    const scope = ('scope' in a ? a.scope : undefined) ?? 'global';
+    if (a.id !== actionId && scope === targetScope && bindings[a.id].includes(key)) return a.id;
   }
   return null;
 }

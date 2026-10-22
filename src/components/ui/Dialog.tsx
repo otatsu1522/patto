@@ -25,6 +25,10 @@ import { isTouchWeb } from '@/lib/hover';
 import { AuthInputFocusProvider, useInputFocusScroller } from '../auth/AuthInputFocusContext';
 import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
 
+// ESC は最前面のダイアログだけが処理する。ネストしたダイアログで親まで閉じないようにする。
+let dialogEscapeSequence = 0;
+const activeDialogEscapeStack: number[] = [];
+
 interface Props {
   visible: boolean;
   title: ReactNode;
@@ -87,6 +91,8 @@ export function Dialog({
   // フォーカス状態とキーボードが実際に表示された状態を分離する。
   // KeyboardAvoidingView の behavior は表示中ずっと固定し、フォーカス時の後追いレイアウト変更を防ぐ。
   const dialogInputFocusedRef = useRef(false);
+  const focusedDialogInputRef = useRef<TextInput | null>(null);
+  const dialogEscapeTokenRef = useRef<number | null>(null);
   // onShow から入力欄へ自動フォーカスする間、native の Keyboard イベントが
   // TextInput の onFocus より先に届いても、キーボード表示状態を取りこぼさない。
   const dialogInputFocusRequestedRef = useRef(false);
@@ -135,28 +141,74 @@ export function Dialog({
     (input?: TextInput | null) => {
       if (input === null || input === undefined) {
         dialogInputFocusedRef.current = false;
+        focusedDialogInputRef.current = null;
         dialogInputFocusRequestedRef.current = false;
-      } else if (Platform.OS === 'web') {
-        // TextField はフォーカス時だけでなく、内容サイズ変化時にもこの通知を送る。
-        // DOM 上の activeElement と照合し、サイズ変更をフォーカス開始と誤認しない。
-        const node =
-          typeof HTMLElement !== 'undefined' && input instanceof HTMLElement
-            ? input
-            : (input as unknown as { getNativeRef?: () => unknown }).getNativeRef?.();
-        dialogInputFocusedRef.current =
-          typeof document !== 'undefined' &&
-          typeof HTMLElement !== 'undefined' &&
-          node instanceof HTMLElement &&
-          document.activeElement === node;
       } else {
-        // ネイティブでも内容サイズ変更通知を受けるため、実際の入力フォーカスを確認する。
-        dialogInputFocusedRef.current = input.isFocused();
-        if (dialogInputFocusedRef.current) dialogInputFocusRequestedRef.current = false;
+        let isFocused = false;
+        if (Platform.OS === 'web') {
+          // TextField はフォーカス時だけでなく、内容サイズ変化時にもこの通知を送る。
+          // DOM 上の activeElement と照合し、サイズ変更をフォーカス開始と誤認しない。
+          const node =
+            typeof HTMLElement !== 'undefined' && input instanceof HTMLElement
+              ? input
+              : (input as unknown as { getNativeRef?: () => unknown }).getNativeRef?.();
+          isFocused =
+            typeof document !== 'undefined' &&
+            typeof HTMLElement !== 'undefined' &&
+            node instanceof HTMLElement &&
+            document.activeElement === node;
+        } else {
+          // ネイティブでも内容サイズ変更通知を受けるため、実際の入力フォーカスを確認する。
+          isFocused = input.isFocused();
+        }
+
+        if (isFocused) {
+          dialogInputFocusedRef.current = true;
+          focusedDialogInputRef.current = input;
+          dialogInputFocusRequestedRef.current = false;
+        } else if (focusedDialogInputRef.current === input) {
+          // フォーカス中の入力欄自身から非フォーカス通知を受けた場合だけ解除する。
+          // 別の入力欄のサイズ変更通知で、現在のフォーカス状態を消さない。
+          dialogInputFocusedRef.current = false;
+          focusedDialogInputRef.current = null;
+        }
       }
       revealFocusedInput(input);
     },
     [revealFocusedInput],
   );
+
+  const handleRequestClose = useCallback(() => {
+    if (!dismissible) return;
+    const token = dialogEscapeTokenRef.current;
+    if (token !== null && activeDialogEscapeStack[activeDialogEscapeStack.length - 1] !== token) {
+      return;
+    }
+
+    // 入力中の最初の ESC は入力欄からフォーカスを外すだけにし、ダイアログを閉じない。
+    if (dialogInputFocusedRef.current || dialogInputFocusRequestedRef.current) {
+      const focusedInput = focusedDialogInputRef.current;
+      if (focusedInput) {
+        focusedInput.blur();
+      } else if (
+        Platform.OS === 'web' &&
+        typeof document !== 'undefined' &&
+        typeof HTMLElement !== 'undefined' &&
+        document.activeElement instanceof HTMLElement &&
+        document.activeElement.matches('input, textarea, select, [contenteditable="true"]')
+      ) {
+        document.activeElement.blur();
+      } else {
+        Keyboard.dismiss();
+      }
+      dialogInputFocusedRef.current = false;
+      focusedDialogInputRef.current = null;
+      dialogInputFocusRequestedRef.current = false;
+      return;
+    }
+
+    onClose();
+  }, [dismissible, onClose]);
   // Modalを閉じてから再表示するまでの間に残ったキーボード状態は、同じ描画に使わない。
   // レイアウトeffectより前のレンダーでも、開閉直後は中央配置の状態として扱う。
   const keyboardStateMatchesVisibility = keyboardState.visibleFor === visible;
@@ -189,6 +241,7 @@ export function Dialog({
   // layout effect で描画前に戻し、最初のフレームだけ位置が変わるちらつきを避ける。
   useLayoutEffect(() => {
     dialogInputFocusedRef.current = false;
+    focusedDialogInputRef.current = null;
     dialogInputFocusRequestedRef.current = false;
     nativeKeyboardSessionRef.current = false;
     webKeyboardSessionRef.current = false;
@@ -424,7 +477,15 @@ export function Dialog({
   useLayoutEffect(() => {
     if (!visible) return;
     push();
-    return pop;
+    const token = ++dialogEscapeSequence;
+    dialogEscapeTokenRef.current = token;
+    activeDialogEscapeStack.push(token);
+    return () => {
+      const index = activeDialogEscapeStack.lastIndexOf(token);
+      if (index >= 0) activeDialogEscapeStack.splice(index, 1);
+      if (dialogEscapeTokenRef.current === token) dialogEscapeTokenRef.current = null;
+      pop();
+    };
   }, [visible, push, pop]);
 
   const compact = mode === 'compact';
@@ -434,7 +495,7 @@ export function Dialog({
       visible={visible}
       transparent
       animationType="none"
-      onRequestClose={dismissible ? onClose : () => {}}
+      onRequestClose={handleRequestClose}
       onShow={handleShow}
       onDismiss={finishDismiss}
       statusBarTranslucent

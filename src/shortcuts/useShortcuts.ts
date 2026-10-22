@@ -11,7 +11,7 @@ import {
   type ActionId,
 } from './actions';
 
-export type ShortcutHandlers = Partial<Record<ActionId, () => void>>;
+export type ShortcutHandlers = Partial<Record<ActionId, () => void | Promise<unknown>>>;
 
 const isTypingTarget = (el: EventTarget | null): boolean => {
   const node = el as HTMLElement | null;
@@ -29,6 +29,7 @@ const isTypingTarget = (el: EventTarget | null): boolean => {
 export function useShortcuts(handlers: ShortcutHandlers, active = true): void {
   const ref = useRef(handlers);
   const activeRef = useRef(active);
+  const inFlightActionsRef = useRef<Set<ActionId>>(new Set());
   // eslint-disable-next-line react-hooks/refs -- 常に最新のハンドラーを呼ぶための定番の書き方（読むのはキー入力時だけ）
   ref.current = handlers;
   // eslint-disable-next-line react-hooks/refs -- 画面切替コミット直後、listener cleanup 前の入力も抑止する。
@@ -51,9 +52,27 @@ export function useShortcuts(handlers: ShortcutHandlers, active = true): void {
       const map = buildKeyMap(resolveBindings(settings.shortcutOverrides));
       const action = map.get(keyToString(e));
       const fn = action ? ref.current[action] : undefined;
-      if (fn) {
-        e.preventDefault();
-        fn();
+      if (!action || !fn) return;
+
+      e.preventDefault();
+      const inFlight = inFlightActionsRef.current;
+      // キーリピートは許可するが、同じ操作の非同期処理中に届いた入力は無視する。
+      if (inFlight.has(action)) return;
+
+      inFlight.add(action);
+      try {
+        const result = fn();
+        if (result && typeof (result as PromiseLike<unknown>).then === 'function') {
+          void Promise.resolve(result).then(
+            () => inFlight.delete(action),
+            () => inFlight.delete(action),
+          );
+        } else {
+          inFlight.delete(action);
+        }
+      } catch (error) {
+        inFlight.delete(action);
+        throw error;
       }
     };
     document.addEventListener('keydown', onKeyDown);

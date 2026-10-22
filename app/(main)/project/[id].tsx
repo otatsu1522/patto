@@ -40,7 +40,9 @@ import { useUiStore } from '@/store/uiStore';
 import { SHADOW, SPACING, useTheme } from '@/theme';
 
 type TaskDialogState =
-  { mode: 'create'; columnId: string } | { mode: 'edit'; taskId: string } | null;
+  | { mode: 'create'; columnId: string }
+  | { mode: 'edit'; taskId: string; focusField?: 'due' }
+  | null;
 type TaskEditablePatch = Partial<
   Pick<
     Task,
@@ -145,9 +147,10 @@ export default function ProjectScreen() {
 
   // Keyboard/drag callbacks intentionally fire without awaiting from React Native event handlers.
   // Route every asynchronous mutation through one rejection handler so database errors are visible.
-  const runBoardAction = (operation: () => Promise<unknown>) => {
-    void Promise.resolve()
+  const runBoardAction = (operation: () => Promise<unknown>): Promise<void> => {
+    return Promise.resolve()
       .then(operation)
+      .then(() => undefined)
       .catch((error: unknown) => {
         alert(
           t('common.error'),
@@ -490,7 +493,7 @@ export default function ProjectScreen() {
       },
       delete: () => {
         const task = cursorTask();
-        if (task) runBoardAction(() => actions.deleteTask(task));
+        if (task) return runBoardAction(() => actions.deleteTask(task));
       },
       newTask: () => openCreateTask(),
       newColumn: () => setColumnDialog({ column: null }),
@@ -498,7 +501,7 @@ export default function ProjectScreen() {
         const task = cursorTask();
         if (task) {
           const isFavorite = !task.isFavorite;
-          runBoardAction(() =>
+          return runBoardAction(() =>
             updateTaskWithUndo(
               task.id,
               { isFavorite },
@@ -513,12 +516,19 @@ export default function ProjectScreen() {
       },
       archiveTask: () => {
         const task = cursorTask();
-        if (task) runBoardAction(() => actions.archiveTask(task));
+        if (task) return runBoardAction(() => actions.archiveTask(task));
       },
       archiveDone: () => runBoardAction(() => actions.archiveDone()),
       duplicate: () => {
         const task = cursorTask();
         if (task) void duplicateTaskById(task.id);
+      },
+      taskDetails: () => {
+        const task = cursorTask();
+        if (task) {
+          setTaskDetails(task);
+          setTaskDetailsVisible(true);
+        }
       },
       moveColumnLeft: () => moveSelectionBy(-1),
       moveColumnRight: () => moveSelectionBy(1),
@@ -986,11 +996,13 @@ export default function ProjectScreen() {
         onCopyDescription={() => showClipboardToast('task.copyDescription')}
         onToggleFavorite={(task) => {
           const isFavorite = !task.isFavorite;
-          void updateTaskWithUndo(
+          return updateTaskWithUndo(
             task.id,
             { isFavorite },
             t(isFavorite ? 'toast.pinned' : 'toast.unpinned'),
-          ).catch(() => alert(t('common.error'), t('operation.saveFailed')));
+          ).catch(() => {
+            alert(t('common.error'), t('operation.saveFailed'));
+          });
         }}
         onSetDue={(task, dueAt) => {
           void updateTaskWithUndo(
@@ -999,9 +1011,9 @@ export default function ProjectScreen() {
             t('toast.taskDueUpdated'),
           ).catch(() => alert(t('common.error'), t('operation.saveFailed')));
         }}
-        onEdit={(task) => {
+        onEdit={(task, focusField) => {
           // 詳細を背面に残し、編集ダイアログを重ねて表示する。
-          setTaskDialog({ mode: 'edit', taskId: task.id });
+          setTaskDialog({ mode: 'edit', taskId: task.id, ...(focusField ? { focusField } : {}) });
         }}
         projectName={project.title}
         columnName={
@@ -1028,6 +1040,7 @@ export default function ProjectScreen() {
       <TaskDialog
         visible={projectActive && taskDialog !== null}
         task={editingTask}
+        initialFocus={taskDialog?.mode === 'edit' ? taskDialog.focusField : undefined}
         columns={cols.map((c) => ({ id: c.id, title: c.title }))}
         defaultColumnId={taskDialog?.mode === 'create' ? taskDialog.columnId : (cols[0]?.id ?? '')}
         onClose={() => setTaskDialog(null)}
