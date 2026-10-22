@@ -388,13 +388,32 @@ export default function ProjectScreen() {
       const firstColumnIndex = counts.findIndex((count) => count > 0);
       if (firstColumnIndex >= 0) {
         setCursor({ columnIndex: firstColumnIndex, taskIndex: 0, grabbed: false });
+      } else if (cols.length > 0) {
+        // タスクがないボードでも、カンバン見出しを選択して操作できる。
+        setCursor({ columnIndex: 0, taskIndex: -1, grabbed: false });
       }
       return;
     }
     const c = current();
-    if (!c.grabbed) return update((x) => moveCursor(x, dir, counts));
     const col = cols[c.columnIndex];
     if (!col) return;
+
+    // カンバン見出しを選択しているときは、h/l で見出し間を移動する。
+    // g でつかんでいる間は、h/l でカンバン自体を移動する。
+    if (c.taskIndex < 0) {
+      if (c.grabbed) {
+        if (dir !== 'left' && dir !== 'right') return;
+        const nextIndex = c.columnIndex + (dir === 'left' ? -1 : 1);
+        if (nextIndex < 0 || nextIndex >= cols.length) return;
+        await moveColumnWithUndo(col.id, nextIndex);
+        update((x) => ({ ...x, columnIndex: nextIndex, taskIndex: -1, grabbed: true }));
+        return;
+      }
+      update((x) => moveCursor(x, dir, counts));
+      return;
+    }
+
+    if (!c.grabbed) return update((x) => moveCursor(x, dir, counts));
     const horizontal = dir === 'left' || dir === 'right';
     const step = dir === 'left' || dir === 'up' ? -1 : 1;
     const task = cursorTask();
@@ -407,7 +426,7 @@ export default function ProjectScreen() {
       }
     } else if (col.sortMode === 'manual') {
       await reorderTaskWithUndo(task.id, c.taskIndex + step);
-      update((x) => ({ ...x, taskIndex: x.taskIndex + step }));
+      update((x) => ({ ...x, taskIndex: c.taskIndex + step }));
     }
   };
 
@@ -420,14 +439,27 @@ export default function ProjectScreen() {
     setTaskDialog({ mode: 'create', columnId: target.id });
   };
 
-  function moveColumnBy(step: -1 | 1) {
+  function moveSelectionBy(step: -1 | 1) {
     if (!cursor) return;
     const c = current();
     const col = cols[c.columnIndex];
     if (!col || cols.length <= 1) return;
+
+    if (c.taskIndex >= 0) {
+      const task = cursorTask();
+      if (!task) return;
+      // Shift+H/L は g でつかまずに、選択中のタスクを隣のカンバンへ直接移動する。
+      // 端では反対側へ循環し、移動後も同じタスクを選択状態に保つ。
+      follow.current = task.id;
+      update((x) => ({ ...x, grabbed: false }));
+      runBoardAction(() => (step < 0 ? actions.retreat(task) : actions.advance(task)));
+      return;
+    }
+
+    // タスクではなくカンバン見出しを選択している場合は、カンバン自体を並べ替える。
     const nextIndex = (c.columnIndex + step + cols.length) % cols.length;
     runBoardAction(() => moveColumnWithUndo(col.id, nextIndex));
-    update((x) => ({ ...x, columnIndex: nextIndex }));
+    update((x) => ({ ...x, columnIndex: nextIndex, grabbed: false }));
   }
 
   useShortcuts(
@@ -438,22 +470,19 @@ export default function ProjectScreen() {
       cursorDown: () => runBoardAction(() => navigate('down')),
       copyTitle: () => void copySelectedTaskField('title'),
       copyDescription: () => void copySelectedTaskField('description'),
-      advanceTask: () => {
-        const task = cursorTask();
-        if (task && cols.length > 1) {
-          follow.current = task.id;
-          runBoardAction(() => actions.advance(task));
-        }
-      },
-      retreatTask: () => {
-        const task = cursorTask();
-        if (task && cols.length > 1) {
-          follow.current = task.id;
-          runBoardAction(() => actions.retreat(task));
-        }
-      },
       grab: () => {
-        if (cursorTask()) update((c) => ({ ...c, grabbed: !c.grabbed }));
+        const selected = current();
+        // taskIndex=-1 はカンバン見出しの選択状態。タスクが空でも g でつかめる。
+        if (cols[selected.columnIndex] && (selected.taskIndex < 0 || cursorTask())) {
+          update((c) => ({ ...c, grabbed: !c.grabbed }));
+        }
+      },
+      grabColumn: () => {
+        const selected = current();
+        // タスク選択中でも、現在位置のカンバン見出しへ切り替えてつかめる。
+        if (cols[selected.columnIndex]) {
+          update((c) => ({ ...c, taskIndex: -1, grabbed: true }));
+        }
       },
       edit: () => {
         const task = cursorTask();
@@ -491,8 +520,8 @@ export default function ProjectScreen() {
         const task = cursorTask();
         if (task) void duplicateTaskById(task.id);
       },
-      moveColumnLeft: () => moveColumnBy(-1),
-      moveColumnRight: () => moveColumnBy(1),
+      moveColumnLeft: () => moveSelectionBy(-1),
+      moveColumnRight: () => moveSelectionBy(1),
     },
     isFocused && projectActive,
   );
@@ -874,7 +903,7 @@ export default function ProjectScreen() {
           columns={projectActive ? cols : []}
           showEmptyState={projectActive}
           tasksOf={(columnId) => tasksByColumn.get(columnId) ?? []}
-          cursor={projectActive && counts.some((count) => count > 0) && cursor ? current() : null}
+          cursor={projectActive && cursor ? current() : null}
           compactCards={density === 'compact'}
           detailedCards={density === 'detailed'}
           showTaskDescription={showTaskDescription}

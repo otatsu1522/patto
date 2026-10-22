@@ -423,7 +423,7 @@ const styles = StyleSheet.create({
     left: 0,
     borderTopWidth: BORDER_WIDTH_EMPHASIS,
     borderRightWidth: BORDER_WIDTH_EMPHASIS,
-    borderBottomWidth: 0,
+    borderBottomWidth: BORDER_WIDTH_EMPHASIS,
     borderLeftWidth: BORDER_WIDTH_EMPHASIS,
   },
   headerUnderline: {
