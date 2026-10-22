@@ -19,7 +19,8 @@ export type ClearKind = 'trash' | 'archive';
 export const previewClear = (kind: ClearKind, projectId?: string): number =>
   countTargets(purgeTargets(useDataStore.getState().snapshot(), kind, projectId));
 
-export type ClearResult = { ok: true; count: number } | { ok: false; message: string };
+export type ClearResult =
+  { ok: true; count: number; projectCount?: number } | { ok: false; message: string };
 
 const accountWorkUnavailable = (): ClearResult => ({
   ok: false,
@@ -35,6 +36,7 @@ export async function clearBucket(
   kind: ClearKind,
   projectId?: string,
   includeProject = false,
+  projectIds?: string[],
 ): Promise<ClearResult> {
   const identity = useAuthStore.getState().identity;
   if (!identity) return accountWorkUnavailable();
@@ -48,8 +50,27 @@ export async function clearBucket(
     }
 
     const targetsForCurrentScope = (snapshot: ReturnType<typeof initialStore.snapshot>) => {
+      // サイドバーからは、ごみ箱にあるプロジェクトと、その配下の全レコードだけを対象にする。
+      // 表示時点から復元されたプロジェクトや、別プロジェクトのごみ箱項目は削除しない。
+      if (kind === 'trash' && projectIds !== undefined) {
+        const wanted = new Set(projectIds);
+        const projects = snapshot.projects.filter(
+          (item) => wanted.has(item.id) && item.deletedAt !== null,
+        );
+        const selectedProjectIds = new Set(projects.map((item) => item.id));
+        return {
+          projects: projects.map((item) => item.id),
+          columns: snapshot.columns
+            .filter((item) => selectedProjectIds.has(item.projectId))
+            .map((item) => item.id),
+          tasks: snapshot.tasks
+            .filter((item) => selectedProjectIds.has(item.projectId))
+            .map((item) => item.id),
+        };
+      }
+
       const targets = purgeTargets(snapshot, kind, projectId);
-      // サイドバーの「ごみ箱のプロジェクト」から完全削除するときだけ、
+      // サイドバーの「ごみ箱のプロジェクト」から単独で完全削除するときだけ、
       // プロジェクト本体も子のカンバン・タスクと同時に物理削除する。
       // 通常のプロジェクト内ごみ箱クリアでは、従来どおりプロジェクト本体を対象にしない。
       if (kind === 'trash' && includeProject && projectId) {
@@ -149,13 +170,24 @@ export async function clearBucket(
         }
       }
       await currentStore.purgeLocal(targets);
-      return { ok: true, count };
+      // count は削除した全レコード数を保ち、サイドバーではプロジェクト数を別途返す。
+      return {
+        ok: true,
+        count,
+        ...(projectIds !== undefined ? { projectCount: targets.projects.length } : {}),
+      };
     } finally {
       releaseSyncMutation();
     }
   } finally {
     releaseWork();
   }
+}
+
+/** サイドバーのごみ箱にある複数のプロジェクトと配下のレコードを完全削除する。 */
+export async function clearTrashedProjects(projectIds: string[]): Promise<ClearResult> {
+  if (projectIds.length === 0) return { ok: true, count: 0 };
+  return clearBucket('trash', undefined, false, projectIds);
 }
 
 /** ゲスト／同期オフ時: 保持日数を過ぎたごみ箱の中身を端末から自動削除する。 */
@@ -257,7 +289,8 @@ export async function resetAllData(): Promise<ClearResult> {
 
       try {
         await currentStore.purgeLocal(ids);
-        useSettingsStore.getState().reset({ preserveSyncMode: true });
+        const settingsReset = await useSettingsStore.getState().reset({ preserveSyncMode: true });
+        if (!settingsReset) return { ok: false, message: t('settings.resetAllFailed') };
         useSyncStore
           .getState()
           .set({ status: 'idle', activeSource: null, lastSyncedAt: null, error: null });

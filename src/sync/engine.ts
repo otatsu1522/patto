@@ -38,6 +38,22 @@ const chunk = <T>(list: T[], size: number): T[][] => {
 
 const cursorKey = (table: TableName) => `cursor:${table}`;
 
+/** 同期開始時のローカルレコードと、完了時点のレコードが同一か確認する。 */
+function sameRecordSnapshot(a: AnyRecord, b: AnyRecord): boolean {
+  const left = a as unknown as Record<string, unknown>;
+  const right = b as unknown as Record<string, unknown>;
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  return (
+    leftKeys.length === rightKeys.length &&
+    leftKeys.every(
+      (key) =>
+        Object.prototype.hasOwnProperty.call(right, key) &&
+        JSON.stringify(left[key]) === JSON.stringify(right[key]),
+    )
+  );
+}
+
 /**
  * 同期の本体: Push（未送信を送る）→ Pull（新しい変更を受け取る）→ 後片付け。
  * 競合は項目単位の最終更新優先でマージする（domain/merge.ts）。
@@ -60,6 +76,8 @@ export async function runSync(
   for (const table of TABLE_NAMES) {
     const dirty = rowsOf(local.snapshot(), table).filter((r) => r.dirty);
     if (dirty.length === 0) continue;
+    // 同期開始時のレコードを保持し、送信中に更新された行を更新時刻だけで判定しない。
+    const dirtySnapshotById = new Map(dirty.map((record) => [record.id, record]));
     const toPush: AnyRecord[] = [];
     const toStore: AnyRecord[] = [];
     for (const part of chunk(dirty, SYNC.dirtyBatchSize)) {
@@ -90,11 +108,14 @@ export async function runSync(
       // 全バッチの送信が成功してからローカル状態を更新する。失敗時は dirty のまま再試行できる。
     }
     result.pushed += toPush.length;
-    // 送信中にさらに編集された行は dirty を維持する
+    // 同期開始後に編集された行は未同期のまま残す。同じミリ秒内の更新でも
+    // updatedAt が一致することがあるため、時刻だけで clean にしてはいけない。
+    // すでにローカルから消えた行も、送信結果で再作成しない。
     const current = new Map(rowsOf(local.snapshot(), table).map((r) => [r.id, r]));
-    const settled = toStore.filter((r) => {
-      const now = current.get(r.id);
-      return !now || now.updatedAt <= r.updatedAt || !now.dirty;
+    const settled = toStore.filter((record) => {
+      const now = current.get(record.id);
+      const original = dirtySnapshotById.get(record.id);
+      return !!now && !!original && sameRecordSnapshot(now, original);
     });
     await local.apply({ [table]: settled }, []);
   }

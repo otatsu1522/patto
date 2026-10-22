@@ -47,7 +47,9 @@ export default function AboutScreen() {
             </View>
             <View style={styles.body}>
               {(['about.body1', 'about.body2', 'about.body3'] as const).map((key) => (
-                <AppText key={key}>{t(key)}</AppText>
+                <AppText key={key} muted>
+                  {t(key)}
+                </AppText>
               ))}
             </View>
           </View>

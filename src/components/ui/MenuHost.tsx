@@ -18,6 +18,8 @@ import { Icon } from './Icon';
 import { canHover } from '@/lib/hover';
 import { DIAGNOSTIC_MESSAGES } from '@/config/diagnostics';
 import { useUiStore } from '@/store/uiStore';
+import { UserActionError } from '@/domain/operationError';
+import { useFeedback } from './FeedbackProvider';
 
 interface Rect {
   x: number;
@@ -48,6 +50,7 @@ const MENU_SEPARATOR_INSET = SPACING.sm;
  */
 export function MenuProvider({ children }: { children: ReactNode }) {
   const { colors, lineWidth, lineColor } = useTheme();
+  const { alert } = useFeedback();
   const win = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [menu, setMenu] = useState<{ anchor: Rect; items: MenuItem[] } | null>(null);
@@ -58,6 +61,19 @@ export function MenuProvider({ children }: { children: ReactNode }) {
     setExpandedItemIndex(null);
     useUiStore.getState().setDropdownMenuOpen(false);
   }, []);
+  const runMenuAction = useCallback(
+    async (action: () => void | Promise<void>) => {
+      try {
+        await action();
+      } catch (error) {
+        alert(
+          t('common.error'),
+          error instanceof UserActionError ? error.message : t('operation.saveFailed'),
+        );
+      }
+    },
+    [alert],
+  );
   const show = useCallback((anchor: Rect, items: MenuItem[]) => {
     setExpandedItemIndex(null);
     useUiStore.getState().setDropdownMenuOpen(true);
@@ -91,13 +107,13 @@ export function MenuProvider({ children }: { children: ReactNode }) {
           key: `menu-${index}`,
           isExpanded: expanded,
           isAccordionChild: false,
-          onPress: () => {
+          onPress: async () => {
             if (item.accordionItems) {
               setExpandedItemIndex((current) => (current === index ? null : index));
               return;
             }
             hide();
-            void item.onPress();
+            await runMenuAction(() => item.onPress());
           },
         },
       ];
@@ -113,7 +129,7 @@ export function MenuProvider({ children }: { children: ReactNode }) {
             separatorAfter: !!item.separator && childIndex === item.accordionItems!.length - 1,
             onPress: async () => {
               try {
-                await child.onPress();
+                await runMenuAction(() => child.onPress());
               } finally {
                 // 並び替えは選択後もメニューを開いたままにし、最新の選択・方向を表示する。
                 const refreshedItems = item.refreshMenuItems?.();
@@ -127,7 +143,7 @@ export function MenuProvider({ children }: { children: ReactNode }) {
       }
       return rows;
     });
-  }, [menu, expandedItemIndex, hide]);
+  }, [menu, expandedItemIndex, hide, runMenuAction]);
 
   let menuLayout: {
     left: number;

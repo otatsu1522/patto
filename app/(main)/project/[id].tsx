@@ -76,7 +76,7 @@ export default function ProjectScreen() {
   const pendingTaskDetail = useUiStore((s) => s.pendingTaskDetail);
 
   const project = projects.find((p) => p.id === id);
-  const projectActive = project ? isActive(project) : false;
+  const projectActive = project ? isActive(project) && project.archivedAt === null : false;
   const cols = useMemo(() => (id ? columnsOf(columns, id) : []), [columns, id]);
   // 通常のボード再計算では、ローカルに残っているアーカイブ／ごみ箱のタスクを先に除外する。
   const visibleTasks = useMemo(
@@ -208,9 +208,9 @@ export default function ProjectScreen() {
   };
 
   useEffect(() => {
-    if (project && isActive(project) && id)
-      useSettingsStore.getState().update({ lastProjectId: id });
-  }, [project, id]);
+    // 最後に開いたプロジェクトには、通常画面で利用可能なプロジェクトだけを記録する。
+    if (projectActive && id) void useSettingsStore.getState().update({ lastProjectId: id });
+  }, [projectActive, id]);
 
   // プロジェクトが切り替わったら、操作中の状態（カーソル・ダイアログ）をリセットする
   /* eslint-disable react-hooks/set-state-in-effect -- 画面（BoardView）を作り直さずに中身だけ入れ替えるため、状態は手で戻す */
@@ -488,7 +488,11 @@ export default function ProjectScreen() {
   }, isFocused && projectActive);
 
   if (!ready) return null;
-  if (!project) return <Redirect href="/home" />;
+  if (!project) return <Redirect href={{ pathname: '/home', params: { selection: 'empty' } }} />;
+  // アーカイブ済みプロジェクトは通常画面として開かない。ホームの選択画面へ戻す。
+  if (project.deletedAt === null && project.archivedAt !== null) {
+    return <Redirect href={{ pathname: '/home', params: { selection: 'empty' } }} />;
+  }
   // ---- メニュー ----
   const boardMenu: MenuItem[] = [
     {
@@ -506,14 +510,14 @@ export default function ProjectScreen() {
       label: t('board.archiveDone'),
       icon: 'archive',
       separator: true,
-      onPress: () => void actions.archiveDone(),
+      onPress: () => actions.archiveDone(),
     },
     { label: t('board.openArchive'), icon: 'eye', onPress: () => openArchiveDialog('archive') },
     {
       label: t('board.clearArchive'),
       icon: 'delete',
       destructive: true,
-      onPress: () => void actions.clear('archive'),
+      onPress: () => actions.clear('archive'),
     },
     {
       label: t('board.openTrash'),
@@ -525,7 +529,7 @@ export default function ProjectScreen() {
       label: t('board.clearTrash'),
       icon: 'deleteForever',
       destructive: true,
-      onPress: () => void actions.clear('trash'),
+      onPress: () => actions.clear('trash'),
     },
   ];
 
@@ -548,19 +552,17 @@ export default function ProjectScreen() {
     const currentSort = sortBaseMode(column.sortMode);
     const currentSortLabel =
       currentSort === 'manual' ? t('column.sort.manual') : sortLabel(currentSort);
-    const currentDirectionIcon =
-      currentSort === 'manual'
-        ? undefined
-        : sortDirection(column.sortMode) === 'asc'
-          ? ('sortAsc' as const)
-          : ('sortDesc' as const);
+    const directionLabel =
+      sortDirection(column.sortMode) === 'asc'
+        ? t('column.sort.ascending')
+        : t('column.sort.descending');
+    const currentDirectionLabel = currentSort === 'manual' ? '' : ` (${directionLabel})`;
 
     return [
       { label: t('column.rename'), icon: 'edit', onPress: () => setColumnDialog({ column }) },
       {
-        label: `${t('column.sortMode')}: ${currentSortLabel}`,
+        label: `${t('column.sortMode')}：${currentSortLabel}${currentDirectionLabel}`,
         icon: 'sort',
-        inlineIcon: currentDirectionIcon,
         accordionItems: sortMenuModes.map((m) => {
           const selected = currentSort === m;
           const direction = selected ? sortDirection(column.sortMode) : sortDirection(m);
@@ -593,33 +595,31 @@ export default function ProjectScreen() {
         icon: 'left',
         disabled: cols.length <= 1,
         separator: true,
-        onPress: () =>
-          void moveColumnWithUndo(column.id, index === 0 ? cols.length - 1 : index - 1),
+        onPress: () => moveColumnWithUndo(column.id, index === 0 ? cols.length - 1 : index - 1),
       },
       {
         label: index === cols.length - 1 ? t('column.moveToFirst') : t('column.moveRight'),
         icon: 'right',
         disabled: cols.length <= 1,
-        onPress: () =>
-          void moveColumnWithUndo(column.id, index === cols.length - 1 ? 0 : index + 1),
+        onPress: () => moveColumnWithUndo(column.id, index === cols.length - 1 ? 0 : index + 1),
       },
       {
         label: column.isDoneColumn ? t('column.unsetDone') : t('column.setDone'),
         icon: column.isDoneColumn ? 'doneModeOutline' : 'doneMode',
         separator: true,
-        onPress: () => void updateColumnWithUndo(column.id, { isDoneColumn: !column.isDoneColumn }),
+        onPress: () => updateColumnWithUndo(column.id, { isDoneColumn: !column.isDoneColumn }),
       },
       {
         label: t('common.duplicate'),
         icon: 'copy',
-        onPress: () => void duplicateColumnById(column.id),
+        onPress: () => duplicateColumnById(column.id),
       },
       {
         label: t('common.delete'),
         icon: 'trash',
         destructive: true,
         separator: true,
-        onPress: () => void actions.deleteColumn(column),
+        onPress: () => actions.deleteColumn(column),
       },
     ];
   };
@@ -661,9 +661,9 @@ export default function ProjectScreen() {
       {
         label: task.isFavorite ? t('common.unfavorite') : t('common.favorite'),
         icon: task.isFavorite ? 'unpin' : 'pin',
-        onPress: () => {
+        onPress: async () => {
           const isFavorite = !task.isFavorite;
-          void updateTaskWithUndo(
+          await updateTaskWithUndo(
             task.id,
             { isFavorite },
             t(isFavorite ? 'toast.pinned' : 'toast.unpinned'),
@@ -677,9 +677,9 @@ export default function ProjectScreen() {
               icon: 'up' as MenuItem['icon'],
               separator: true,
               disabled: !canMoveTaskUp,
-              onPress: () => {
+              onPress: async () => {
                 if (canMoveTaskUp && taskIndex >= 0) {
-                  void reorderTaskWithUndo(task.id, taskIndex - 1);
+                  await reorderTaskWithUndo(task.id, taskIndex - 1);
                 }
               },
             },
@@ -687,9 +687,9 @@ export default function ProjectScreen() {
               label: t('task.moveDownInColumn'),
               icon: 'down' as MenuItem['icon'],
               disabled: !canMoveTaskDown,
-              onPress: () => {
+              onPress: async () => {
                 if (canMoveTaskDown && taskIndex >= 0) {
-                  void reorderTaskWithUndo(task.id, taskIndex + 1);
+                  await reorderTaskWithUndo(task.id, taskIndex + 1);
                 }
               },
             },
@@ -704,8 +704,8 @@ export default function ProjectScreen() {
         icon: 'left',
         separator: true,
         disabled: !leftColumn || columnCount < 2,
-        onPress: () => {
-          if (leftColumn) void actions.moveTask(task, leftColumn);
+        onPress: async () => {
+          if (leftColumn) await actions.moveTask(task, leftColumn);
         },
       },
       {
@@ -716,27 +716,33 @@ export default function ProjectScreen() {
           : t('task.moveRight'),
         icon: 'right',
         disabled: !rightColumn || columnCount < 2,
-        onPress: () => {
-          if (rightColumn) void actions.moveTask(task, rightColumn);
+        onPress: async () => {
+          if (rightColumn) await actions.moveTask(task, rightColumn);
         },
       },
       {
         label: t('common.duplicate'),
         icon: 'copy',
         separator: true,
-        onPress: () => void duplicateTaskById(task.id),
+        onPress: async () => {
+          await duplicateTaskById(task.id);
+        },
       },
       {
         label: t('common.archive'),
         icon: 'archive',
-        onPress: () => void actions.archiveTask(task),
+        onPress: async () => {
+          await actions.archiveTask(task);
+        },
       },
       {
         label: t('common.delete'),
         icon: 'trash',
         destructive: true,
         separator: true,
-        onPress: () => void actions.deleteTask(task),
+        onPress: async () => {
+          await actions.deleteTask(task);
+        },
       },
     ];
   };
@@ -749,7 +755,6 @@ export default function ProjectScreen() {
 
   const submitTask = async (v: TaskFormValues) => {
     const dialog = taskDialog;
-    setTaskDialog(null);
     if (!dialog) return;
     const fields = {
       title: v.title,
@@ -758,60 +763,69 @@ export default function ProjectScreen() {
       dueAt: v.dueAt,
       dueHasTime: false,
     };
-    if (dialog.mode === 'edit') {
-      const state = useDataStore.getState();
-      const before = state.tasks.find((item) => item.id === dialog.taskId);
-      const target = cols.find((column) => column.id === v.columnId);
-      if (!before) return;
-      const moved = !!target && before.columnId !== target.id;
-      await state.updateTask(dialog.taskId, fields);
-      if (moved && target) await useDataStore.getState().moveTask(before.id, target.id);
-      const previousFields: TaskEditablePatch = {
-        title: before.title,
-        description: before.description,
-        color: before.color,
-        dueAt: before.dueAt,
-        dueHasTime: before.dueHasTime,
-        sortKey: before.sortKey,
-        completedAt: before.completedAt,
-      };
-      showUndoToast(
-        toast,
-        t('toast.taskUpdated'),
-        async () => {
-          const current = useDataStore.getState().tasks.find((item) => item.id === before.id);
-          if (!current) return;
-          if (current.columnId !== before.columnId) {
-            await useDataStore.getState().moveTask(before.id, before.columnId);
-          }
-          await useDataStore.getState().updateTask(before.id, previousFields);
-          setTaskDetails((currentTask) =>
-            currentTask?.id === before.id
-              ? { ...currentTask, ...previousFields, columnId: before.columnId }
-              : currentTask,
-          );
-        },
-        moved ? 'movement' : 'editing',
-      );
-    } else {
-      const targetColumn =
-        cols.find((column) => column.id === v.columnId && column.projectId === project.id) ??
-        cols.find((column) => column.projectId === project.id);
-      if (!targetColumn) {
-        toast(t('column.emptyHint'), undefined, { category: 'system' });
-        return;
-      }
-      const created = await useDataStore
-        .getState()
-        .createTask({ projectId: project.id, columnId: targetColumn.id, ...fields });
-      if (created) {
+    try {
+      if (dialog.mode === 'edit') {
+        const state = useDataStore.getState();
+        const before = state.tasks.find((item) => item.id === dialog.taskId);
+        const target = cols.find((column) => column.id === v.columnId);
+        if (!before) {
+          setTaskDialog(null);
+          return;
+        }
+        const moved = !!target && before.columnId !== target.id;
+        await state.updateTask(dialog.taskId, fields);
+        if (moved && target) await useDataStore.getState().moveTask(before.id, target.id);
+        const previousFields: TaskEditablePatch = {
+          title: before.title,
+          description: before.description,
+          color: before.color,
+          dueAt: before.dueAt,
+          dueHasTime: before.dueHasTime,
+          sortKey: before.sortKey,
+          completedAt: before.completedAt,
+        };
         showUndoToast(
           toast,
-          t('toast.taskCreated'),
-          () => useDataStore.getState().deleteTask(created.id),
-          'editing',
+          t('toast.taskUpdated'),
+          async () => {
+            const current = useDataStore.getState().tasks.find((item) => item.id === before.id);
+            if (!current) return;
+            if (current.columnId !== before.columnId) {
+              await useDataStore.getState().moveTask(before.id, before.columnId);
+            }
+            await useDataStore.getState().updateTask(before.id, previousFields);
+            setTaskDetails((currentTask) =>
+              currentTask?.id === before.id
+                ? { ...currentTask, ...previousFields, columnId: before.columnId }
+                : currentTask,
+            );
+          },
+          moved ? 'movement' : 'editing',
         );
+      } else {
+        const targetColumn =
+          cols.find((column) => column.id === v.columnId && column.projectId === project.id) ??
+          cols.find((column) => column.projectId === project.id);
+        if (!targetColumn) {
+          toast(t('column.emptyHint'), undefined, { category: 'system' });
+          setTaskDialog(null);
+          return;
+        }
+        const created = await useDataStore
+          .getState()
+          .createTask({ projectId: project.id, columnId: targetColumn.id, ...fields });
+        if (created) {
+          showUndoToast(
+            toast,
+            t('toast.taskCreated'),
+            () => useDataStore.getState().deleteTask(created.id),
+            'editing',
+          );
+        }
       }
+      setTaskDialog(null);
+    } catch {
+      alert(t('common.error'), t('operation.saveFailed'));
     }
   };
 
@@ -829,6 +843,10 @@ export default function ProjectScreen() {
     ) : (
       <BoardHeader menuOnly />
     );
+
+  if (ready && !projectActive) {
+    return <Redirect href={{ pathname: '/home', params: { selection: 'empty' } }} />;
+  }
 
   return (
     <View style={styles.fill}>
@@ -882,25 +900,32 @@ export default function ProjectScreen() {
         onClose={() => setColumnDialog(null)}
         onSubmit={async (v) => {
           const target = columnDialog?.column;
-          setColumnDialog(null);
-          if (target) {
-            const before = useDataStore
-              .getState()
-              .columns.find((column) => column.id === target.id);
-            if (!before) return;
-            await updateColumnWithUndo(target.id, v);
-          } else {
-            const created = await useDataStore
-              .getState()
-              .createColumn({ projectId: project.id, ...v });
-            if (created) {
-              showUndoToast(
-                toast,
-                t('toast.columnCreated'),
-                () => useDataStore.getState().deleteColumn(created.id),
-                'editing',
-              );
+          try {
+            if (target) {
+              const before = useDataStore
+                .getState()
+                .columns.find((column) => column.id === target.id);
+              if (!before) {
+                setColumnDialog(null);
+                return;
+              }
+              await updateColumnWithUndo(target.id, v);
+            } else {
+              const created = await useDataStore
+                .getState()
+                .createColumn({ projectId: project.id, ...v });
+              if (created) {
+                showUndoToast(
+                  toast,
+                  t('toast.columnCreated'),
+                  () => useDataStore.getState().deleteColumn(created.id),
+                  'editing',
+                );
+              }
             }
+            setColumnDialog(null);
+          } catch {
+            alert(t('common.error'), t('operation.saveFailed'));
           }
         }}
       />
@@ -919,10 +944,14 @@ export default function ProjectScreen() {
             task.id,
             { isFavorite },
             t(isFavorite ? 'toast.pinned' : 'toast.unpinned'),
-          );
+          ).catch(() => alert(t('common.error'), t('operation.saveFailed')));
         }}
         onSetDue={(task, dueAt) => {
-          void updateTaskWithUndo(task.id, { dueAt, dueHasTime: false }, t('toast.taskDueUpdated'));
+          void updateTaskWithUndo(
+            task.id,
+            { dueAt, dueHasTime: false },
+            t('toast.taskDueUpdated'),
+          ).catch(() => alert(t('common.error'), t('operation.saveFailed')));
         }}
         onEdit={(task) => {
           // 詳細を背面に残し、編集ダイアログを重ねて表示する。
@@ -945,7 +974,7 @@ export default function ProjectScreen() {
               dueDialogTaskId,
               { dueAt, dueHasTime: false },
               t('toast.taskDueUpdated'),
-            );
+            ).catch(() => alert(t('common.error'), t('operation.saveFailed')));
           }
           setDueDialogTaskId(null);
         }}
@@ -969,7 +998,11 @@ export default function ProjectScreen() {
           if (!kind) return;
           // 一覧の Modal が閉じてから確認 Modal を開き、二つの native Modal の
           // 表示・終了アニメーションが同時に走らないようにする。
-          pendingArchiveClearRef.current = () => void actions.clear(kind);
+          pendingArchiveClearRef.current = () => {
+            void actions
+              .clear(kind)
+              .catch(() => alert(t('common.error'), t('operation.saveFailed')));
+          };
           setArchiveKind(null);
         }}
         onDismiss={() => {

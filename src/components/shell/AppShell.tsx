@@ -58,7 +58,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const navigateToProject = useProjectNavigation();
-  const { toast } = useFeedback();
+  const { toast, alert } = useFeedback();
   const syncManually = useManualSync();
   const pathname = usePathname();
   const collapsed = useUiStore((s) => s.sidebarCollapsed);
@@ -480,7 +480,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     const lastProjectId = useSettingsStore.getState().settings.lastProjectId;
     const target = list.find((project) => project.id === lastProjectId);
     if (target) navigateToProject(target.id);
-    else router.replace('/home');
+    else router.replace({ pathname: '/home', params: { selection: 'empty' } });
   }, [navigateToProject, router]);
 
   useShortcuts({
@@ -498,12 +498,16 @@ export function AppShell({ children }: { children: ReactNode }) {
     prevProject: () => stepProject(-1),
     newProject: () => useUiStore.getState().requestNewProject(),
     toggleTheme: () => {
-      const s = useSettingsStore.getState();
-      s.update({ themeMode: s.settings.themeMode === 'dark' ? 'light' : 'dark' });
+      const settings = useSettingsStore.getState();
+      settings.update((current) => ({
+        themeMode: current.themeMode === 'dark' ? 'light' : 'dark',
+      }));
     },
     showHelp: () => useUiStore.getState().setHelpOpen(true),
     sync: () => void syncManually(),
-    undo: () => void popUndo(),
+    undo: () => {
+      void popUndo().catch(() => alert(t('common.error'), t('operation.saveFailed')));
+    },
   });
 
   useEffect(() => {
@@ -683,15 +687,19 @@ export function AppShell({ children }: { children: ReactNode }) {
         project={null}
         onClose={() => setNewProjectOpen(false)}
         onSubmit={async (v) => {
-          setNewProjectOpen(false);
-          const created = await useDataStore.getState().createProject(v);
-          showUndoToast(
-            toast,
-            t('toast.projectCreated'),
-            () => useDataStore.getState().deleteProject(created.id),
-            'editing',
-          );
-          navigateToProject(created.id, { keepMenuOpen: true });
+          try {
+            const created = await useDataStore.getState().createProject(v);
+            setNewProjectOpen(false);
+            showUndoToast(
+              toast,
+              t('toast.projectCreated'),
+              () => useDataStore.getState().deleteProject(created.id),
+              'editing',
+            );
+            navigateToProject(created.id, { keepMenuOpen: true });
+          } catch {
+            alert(t('common.error'), t('operation.saveFailed'));
+          }
         }}
       />
     </View>

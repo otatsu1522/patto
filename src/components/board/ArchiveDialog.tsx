@@ -77,6 +77,15 @@ export function ArchiveDialog({
           }))
         : [];
 
+  const restoreOne = async (row: Row) => {
+    setRestoreError(null);
+    try {
+      await row.restore();
+    } catch {
+      setRestoreError(t('board.restoreFailed'));
+    }
+  };
+
   const restoreAll = async () => {
     if (restoringAll) return;
     setRestoringAll(true);
@@ -167,7 +176,7 @@ export function ArchiveDialog({
               icon="restore"
               label={t('common.restore')}
               disabled={restoringAll || refreshing}
-              onPress={r.restore}
+              onPress={() => void restoreOne(r)}
             />
           </View>
         ))

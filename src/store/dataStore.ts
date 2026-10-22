@@ -273,6 +273,8 @@ interface DataState extends Snapshot {
     patch: Partial<Pick<Project, 'title' | 'description' | 'color' | 'isFavorite' | 'archivedAt'>>,
   ) => Promise<void>;
   setProjectArchived: (id: string, archived: boolean) => Promise<void>;
+  /** アーカイブ済みプロジェクトと配下の有効なカンバン／タスクを一括でごみ箱へ移動する。 */
+  moveArchivedProjectsToTrash: (ids: string[]) => Promise<number>;
   deleteProject: (id: string) => Promise<void>;
   duplicateProject: (id: string) => Promise<Project | null>;
   moveProject: (id: string, toIndex: number) => Promise<void>;
@@ -329,31 +331,53 @@ interface DataState extends Snapshot {
 }
 
 export const useDataStore = create<DataState>((set, get) => {
-  /** 変更をメモリに反映し、対象DBへ保存して、必要な場合だけ変更通知を出す。 */
+  // DB永続化からZustand反映までを一続きに直列化し、並行更新の反映順がDBと逆転しないようにする。
+  let dataMutationQueue: Promise<unknown> = Promise.resolve();
+  const enqueueDataMutation = <T>(operation: () => Promise<T>): Promise<T> => {
+    const result = dataMutationQueue.then(operation, operation);
+    dataMutationQueue = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  };
+
+  /** 関連テーブルをDBへ原子的に保存してからメモリへ反映し、必要な場合だけ変更通知を出す。 */
   async function commit(changes: Changes, notify = true, target?: SyncDbTarget): Promise<void> {
+    const initialState = get();
     const targetDb = target?.db ?? getDb();
+    const expectedOwnerId = target?.ownerId ?? initialState.ownerId;
+    const expectedScope = target?.scope ?? initialState.scope;
     const isTargetCurrent = () =>
-      !target ||
-      (db === target.db &&
-        get().ready &&
-        get().ownerId === target.ownerId &&
-        get().scope === target.scope);
-    if (isTargetCurrent()) {
-      set((s) => {
-        if (target && (s.ownerId !== target.ownerId || s.scope !== target.scope || !s.ready)) {
-          return s;
+      db === targetDb &&
+      get().ready &&
+      get().ownerId === expectedOwnerId &&
+      get().scope === expectedScope;
+
+    await enqueueDataMutation(async () => {
+      // プロジェクトと配下のカンバン／タスクなどを、全テーブル成功後にだけ画面へ反映する。
+      await targetDb.applyChanges(changes);
+      if (isTargetCurrent()) {
+        set((s) => {
+          if (s.ownerId !== expectedOwnerId || s.scope !== expectedScope || !s.ready) return s;
+          return {
+            projects: upsertById(s.projects, changes.projects),
+            columns: upsertById(s.columns, changes.columns),
+            tasks: upsertById(s.tasks, changes.tasks),
+          };
+        });
+      }
+      if (notify && isTargetCurrent()) {
+        // 永続化済みの変更を、監視側の例外によって失敗扱いにしない。
+        for (const listener of changeListeners) {
+          try {
+            listener();
+          } catch {
+            // Listener failures must not make a successfully committed mutation look unsaved.
+          }
         }
-        return {
-          projects: upsertById(s.projects, changes.projects),
-          columns: upsertById(s.columns, changes.columns),
-          tasks: upsertById(s.tasks, changes.tasks),
-        };
-      });
-    }
-    await targetDb.upsert('projects', changes.projects ?? []);
-    await targetDb.upsert('kanban_columns', changes.columns ?? []);
-    await targetDb.upsert('tasks', changes.tasks ?? []);
-    if (notify && isTargetCurrent()) changeListeners.forEach((fn) => fn());
+      }
+    });
   }
 
   const now = () => nowMs();
@@ -662,44 +686,68 @@ export const useDataStore = create<DataState>((set, get) => {
     },
 
     async reload() {
-      const snap = await getDb().loadAll();
-      set({ ...snap });
+      const targetDb = getDb();
+      const initialState = get();
+      await enqueueDataMutation(async () => {
+        const snap = await targetDb.loadAll();
+        if (
+          db === targetDb &&
+          get().ready &&
+          get().ownerId === initialState.ownerId &&
+          get().scope === initialState.scope
+        ) {
+          set({ ...snap });
+        }
+      });
     },
 
     snapshot: () => ({ projects: get().projects, columns: get().columns, tasks: get().tasks }),
 
     async applyRemote(changes, removed = []) {
       const d = getDb();
-      for (const r of removed) await d.remove(r.table, r.ids);
-      set((s) => {
-        const drop = (table: TableName) =>
-          new Set(removed.filter((r) => r.table === table).flatMap((r) => r.ids));
-        const dp = drop('projects');
-        const dc = drop('kanban_columns');
-        const dt = drop('tasks');
-        return {
-          projects: upsertById(
-            s.projects.filter((x) => !dp.has(x.id)),
-            changes.projects,
-          ),
-          columns: upsertById(
-            s.columns.filter((x) => !dc.has(x.id)),
-            changes.columns,
-          ),
-          tasks: upsertById(
-            s.tasks.filter((x) => !dt.has(x.id)),
-            changes.tasks,
-          ),
-        };
+      const initialState = get();
+      const expectedOwnerId = initialState.ownerId;
+      const expectedScope = initialState.scope;
+      const isTargetCurrent = () =>
+        db === d &&
+        get().ready &&
+        get().ownerId === expectedOwnerId &&
+        get().scope === expectedScope;
+
+      await enqueueDataMutation(async () => {
+        await d.applyChanges(changes, removed);
+        if (isTargetCurrent()) {
+          set((s) => {
+            if (s.ownerId !== expectedOwnerId || s.scope !== expectedScope || !s.ready) return s;
+            const drop = (table: TableName) =>
+              new Set(removed.filter((r) => r.table === table).flatMap((r) => r.ids));
+            const dp = drop('projects');
+            const dc = drop('kanban_columns');
+            const dt = drop('tasks');
+            return {
+              projects: upsertById(
+                s.projects.filter((x) => !dp.has(x.id)),
+                changes.projects,
+              ),
+              columns: upsertById(
+                s.columns.filter((x) => !dc.has(x.id)),
+                changes.columns,
+              ),
+              tasks: upsertById(
+                s.tasks.filter((x) => !dt.has(x.id)),
+                changes.tasks,
+              ),
+            };
+          });
+        }
       });
-      await d.upsert('projects', changes.projects ?? []);
-      await d.upsert('kanban_columns', changes.columns ?? []);
-      await d.upsert('tasks', changes.tasks ?? []);
       // 別端末から取得した TUTORIAL にも未設定色を適用する。更新行は次の同期で送信する。
-      try {
-        await migrateTutorialTasks(true);
-      } catch {
-        // 色補完に失敗しても同期自体は成功扱いとし、次回の起動／同期で再試行する。
+      if (isTargetCurrent()) {
+        try {
+          await migrateTutorialTasks(true);
+        } catch {
+          // 色補完に失敗しても同期データの適用は完了済み。次回の起動／同期で再試行する。
+        }
       }
     },
 
@@ -710,37 +758,41 @@ export const useDataStore = create<DataState>((set, get) => {
         get().ready &&
         get().ownerId === target.ownerId &&
         get().scope === target.scope;
-      for (const r of removed) await targetDb.remove(r.table, r.ids);
-      if (isTargetCurrent()) {
-        set((s) => {
-          if (s.ownerId !== target.ownerId || s.scope !== target.scope || !s.ready) return s;
-          const drop = (table: TableName) =>
-            new Set(removed.filter((r) => r.table === table).flatMap((r) => r.ids));
-          const dp = drop('projects');
-          const dc = drop('kanban_columns');
-          const dt = drop('tasks');
-          return {
-            projects: upsertById(
-              s.projects.filter((x) => !dp.has(x.id)),
-              changes.projects as Project[] | undefined,
-            ),
-            columns: upsertById(
-              s.columns.filter((x) => !dc.has(x.id)),
-              changes.kanban_columns as KanbanColumn[] | undefined,
-            ),
-            tasks: upsertById(
-              s.tasks.filter((x) => !dt.has(x.id)),
-              changes.tasks as Task[] | undefined,
-            ),
-          };
-        });
-      }
-      await targetDb.upsert('projects', (changes.projects as Project[] | undefined) ?? []);
-      await targetDb.upsert(
-        'kanban_columns',
-        (changes.kanban_columns as KanbanColumn[] | undefined) ?? [],
-      );
-      await targetDb.upsert('tasks', (changes.tasks as Task[] | undefined) ?? []);
+
+      await enqueueDataMutation(async () => {
+        await targetDb.applyChanges(
+          {
+            projects: changes.projects,
+            columns: changes.kanban_columns,
+            tasks: changes.tasks,
+          },
+          removed,
+        );
+        if (isTargetCurrent()) {
+          set((s) => {
+            if (s.ownerId !== target.ownerId || s.scope !== target.scope || !s.ready) return s;
+            const drop = (table: TableName) =>
+              new Set(removed.filter((r) => r.table === table).flatMap((r) => r.ids));
+            const dp = drop('projects');
+            const dc = drop('kanban_columns');
+            const dt = drop('tasks');
+            return {
+              projects: upsertById(
+                s.projects.filter((x) => !dp.has(x.id)),
+                changes.projects as Project[] | undefined,
+              ),
+              columns: upsertById(
+                s.columns.filter((x) => !dc.has(x.id)),
+                changes.kanban_columns as KanbanColumn[] | undefined,
+              ),
+              tasks: upsertById(
+                s.tasks.filter((x) => !dt.has(x.id)),
+                changes.tasks as Task[] | undefined,
+              ),
+            };
+          });
+        }
+      });
       // 同期対象が引き続き表示中の場合だけ、既存のサンプルデータ補完を実行する。
       // target を渡しているため、処理中にアカウントが切り替わっても書き込み先は変わらない。
       if (isTargetCurrent()) {
@@ -771,6 +823,31 @@ export const useDataStore = create<DataState>((set, get) => {
       const p = project(id);
       if (!p) return;
       await commit({ projects: [patchRecord(p, { archivedAt: archived ? now() : null }, now())] });
+    },
+
+    async moveArchivedProjectsToTrash(ids) {
+      if (ids.length === 0) return 0;
+      const wanted = new Set(ids);
+      const state = get();
+      const archived = state.projects.filter(
+        (item) => wanted.has(item.id) && isActive(item) && item.archivedAt !== null,
+      );
+      if (archived.length === 0) return 0;
+
+      const projectIds = new Set(archived.map((item) => item.id));
+      const ts = now();
+      const columns = state.columns.filter(
+        (item) => projectIds.has(item.projectId) && isActive(item),
+      );
+      const tasks = state.tasks.filter((item) => projectIds.has(item.projectId) && isActive(item));
+      // プロジェクトと子レコードを同じコミットで削除状態にする。
+      // archivedAt は保持するため、プロジェクトを復元した場合はアーカイブ一覧へ戻る。
+      await commit({
+        projects: archived.map((item) => patchRecord(item, { deletedAt: ts }, ts)),
+        columns: columns.map((item) => patchRecord(item, { deletedAt: ts }, ts)),
+        tasks: tasks.map((item) => patchRecord(item, { deletedAt: ts }, ts)),
+      });
+      return archived.length;
     },
 
     async deleteProject(id) {

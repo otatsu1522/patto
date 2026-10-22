@@ -27,7 +27,7 @@ export default function SettingsIndex() {
   const returnToLastProject = () => {
     const target = visibleProjects(projects).find((project) => project.id === lastProjectId);
     if (target) navigateToProject(target.id);
-    else router.replace('/home');
+    else router.replace({ pathname: '/home', params: { selection: 'empty' } });
   };
   const isGuest = identity?.mode === 'guest';
   const logout = async () => {

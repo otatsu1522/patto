@@ -8,7 +8,10 @@ import { BOARD, GESTURE, UI_METRICS } from '@/config/layout';
 import { archivedProjects, visibleProjects } from '@/domain/selectors';
 import type { Project } from '@/domain/types';
 import { UserActionError } from '@/domain/operationError';
-import { clearBucket } from '@/features/maintenance';
+import {
+  clearBucket,
+  clearTrashedProjects as permanentlyClearTrashedProjects,
+} from '@/features/maintenance';
 import { showUndoToast } from '@/features/undo';
 import { useManualSync } from '@/hooks/useManualSync';
 import { useProjectNavigation } from '@/hooks/useProjectNavigation';
@@ -20,7 +23,6 @@ import { useDataStore } from '@/store/dataStore';
 import { useUiStore } from '@/store/uiStore';
 import { FONT, SPACING, useTheme, ICON_SIZE, ICON_BUTTON_BOX, LAYER, OPACITY } from '@/theme';
 import { ProjectDialog } from '../board/NameDialogs';
-import { ProjectSelectionEmptyState } from './ProjectSelectionEmptyState';
 import { AppText } from '../ui/AppText';
 import { DropdownMenu, type MenuItem } from '../ui/DropdownMenu';
 import { useFeedback } from '../ui/FeedbackProvider';
@@ -119,7 +121,6 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
   }, []);
 
   const list = useMemo(() => visibleProjects(projects), [projects]);
-  const showMobileHomeEmptyState = mode !== 'expanded' && pathname === '/home' && list.length === 0;
   const favorites = list.filter((p) => p.isFavorite);
   const normals = list.filter((p) => !p.isFavorite);
   const archived = useMemo(() => archivedProjects(projects), [projects]);
@@ -175,15 +176,19 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
       destructive: true,
     });
     if (r !== 'confirm') return;
-    await store.deleteProject(p.id);
-    showUndoToast(
-      toast,
-      t('board.undoDeleted'),
-      () => useDataStore.getState().restoreItem('project', p.id),
-      'editing',
-    );
-    // 選択中のプロジェクトを削除してもルートを変えない。BoardViewを維持し、
-    // メニューは開いたまま、右側の内容だけを空にする。
+    try {
+      await store.deleteProject(p.id);
+      showUndoToast(
+        toast,
+        t('board.undoDeleted'),
+        () => useDataStore.getState().restoreItem('project', p.id),
+        'editing',
+      );
+      // 選択中のプロジェクトを削除してもルートを変えない。BoardViewを維持し、
+      // メニューは開いたまま、右側の内容だけを空にする。
+    } catch {
+      alert(t('common.error'), t('operation.saveFailed'));
+    }
   };
 
   const restoreTrashedProject = async (p: Project) => {
@@ -217,9 +222,78 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
     }
   };
 
+  const clearArchivedProjects = async () => {
+    const ids = useDataStore
+      .getState()
+      .projects.filter((project) => project.deletedAt === null && project.archivedAt !== null)
+      .map((project) => project.id);
+    if (ids.length === 0) {
+      toast(t('board.clearNothing'), undefined, { category: 'system' });
+      return;
+    }
+    const answer = await confirm({
+      title: t('board.clearArchive'),
+      message: t('menu.clearArchivedProjectsMessage', { count: ids.length }),
+      confirmLabel: t('board.moveArchiveToTrash'),
+      destructive: true,
+    });
+    if (answer !== 'confirm') return;
+
+    try {
+      const count = await useDataStore.getState().moveArchivedProjectsToTrash(ids);
+      if (count === 0) {
+        toast(t('board.clearNothing'), undefined, { category: 'system' });
+        return;
+      }
+      setShowArchived(false);
+      toast(t('menu.clearArchivedProjectsDone', { count }), undefined, { category: 'system' });
+    } catch {
+      alert(t('common.error'), t('operation.saveFailed'));
+    }
+  };
+
+  const clearTrashedProjects = async () => {
+    const ids = useDataStore
+      .getState()
+      .projects.filter((project) => project.deletedAt !== null)
+      .map((project) => project.id);
+    if (ids.length === 0) {
+      toast(t('board.clearNothing'), undefined, { category: 'system' });
+      return;
+    }
+    const answer = await confirm({
+      title: t('board.clearTrash'),
+      message: t('menu.clearTrashedProjectsMessage', { count: ids.length }),
+      confirmLabel: t('settings.clearPermanently'),
+      destructive: true,
+    });
+    if (answer !== 'confirm') return;
+
+    try {
+      const result = await permanentlyClearTrashedProjects(ids);
+      if (!result.ok) {
+        alert(t('common.error'), result.message);
+        return;
+      }
+      if (result.count === 0) {
+        toast(t('board.clearNothing'), undefined, { category: 'system' });
+        return;
+      }
+      setShowTrash(false);
+      toast(
+        t('menu.clearTrashedProjectsDone', { count: result.projectCount ?? result.count }),
+        undefined,
+        { category: 'system' },
+      );
+    } catch {
+      alert(t('common.error'), t('project.permanentDeleteFailed'));
+    }
+  };
+
   const row = (p: Project) => {
     // 選択中の行は、ホバー（薄いグレー）と区別できるよう文字色と背景を反転する
-    const selected = currentId === p.id;
+    const isArchived = p.archivedAt !== null;
+    const selected = !isArchived && currentId === p.id;
     const fg = selected ? colors.onPrimary : colors.text;
     const archiveMenuItem: MenuItem = {
       label: p.archivedAt ? t('project.unarchiveAction') : t('project.archiveAction'),
@@ -228,13 +302,20 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
         const previousArchivedAt = p.archivedAt;
         const archived = previousArchivedAt === null;
         void (async () => {
-          await useDataStore.getState().setProjectArchived(p.id, archived);
-          showUndoToast(
-            toast,
-            t(archived ? 'toast.projectArchived' : 'toast.projectUnarchived'),
-            () => useDataStore.getState().updateProject(p.id, { archivedAt: previousArchivedAt }),
-            'editing',
-          );
+          try {
+            await useDataStore.getState().setProjectArchived(p.id, archived);
+            if (archived && currentId === p.id) {
+              router.replace({ pathname: '/home', params: { selection: 'empty' } });
+            }
+            showUndoToast(
+              toast,
+              t(archived ? 'toast.projectArchived' : 'toast.projectUnarchived'),
+              () => useDataStore.getState().updateProject(p.id, { archivedAt: previousArchivedAt }),
+              'editing',
+            );
+          } catch {
+            alert(t('common.error'), t('operation.saveFailed'));
+          }
         })();
       },
     };
@@ -255,13 +336,17 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
             onPress: () => {
               const isFavorite = !p.isFavorite;
               void (async () => {
-                await useDataStore.getState().updateProject(p.id, { isFavorite });
-                showUndoToast(
-                  toast,
-                  t(isFavorite ? 'toast.pinned' : 'toast.unpinned'),
-                  () => useDataStore.getState().updateProject(p.id, { isFavorite: p.isFavorite }),
-                  'editing',
-                );
+                try {
+                  await useDataStore.getState().updateProject(p.id, { isFavorite });
+                  showUndoToast(
+                    toast,
+                    t(isFavorite ? 'toast.pinned' : 'toast.unpinned'),
+                    () => useDataStore.getState().updateProject(p.id, { isFavorite: p.isFavorite }),
+                    'editing',
+                  );
+                } catch {
+                  alert(t('common.error'), t('operation.saveFailed'));
+                }
               })();
             },
           },
@@ -279,7 +364,14 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
         key={p.id}
         style={[styles.item, { backgroundColor: selected ? colors.primary : 'transparent' }]}
       >
-        <Pressable accessibilityRole="button" onPress={() => open(p.id)} style={styles.itemMain}>
+        <Pressable
+          accessibilityRole="button"
+          disabled={isArchived}
+          onPress={() => {
+            if (!isArchived) open(p.id);
+          }}
+          style={styles.itemMain}
+        >
           <View
             style={[
               styles.dot,
@@ -425,9 +517,8 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
         keyboardShouldPersistTaps="handled"
         persistentScrollbar
       >
-        <View style={[styles.listContent, showMobileHomeEmptyState && styles.emptyHomeListContent]}>
-          {showMobileHomeEmptyState ? <ProjectSelectionEmptyState /> : null}
-          {list.length === 0 && !showMobileHomeEmptyState ? (
+        <View style={styles.listContent}>
+          {list.length === 0 ? (
             <AppText muted style={styles.hint}>
               {t('menu.noProjects')}
             </AppText>
@@ -448,25 +539,23 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
           ) : null}
           {normals.map(row)}
 
-          {!showMobileHomeEmptyState ? (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                useUiStore.getState().requestNewProject();
-              }}
-              style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
-                styles.itemMain,
-                {
-                  backgroundColor: pressed || (hovered && canHover) ? colors.hover : 'transparent',
-                },
-              ]}
-            >
-              <Icon name="add" size={ICON_SIZE.xl} color={colors.textMuted} />
-              <AppText muted numberOfLines={UI_METRICS.text.singleLineMax} style={styles.flex}>
-                {t('menu.newProject')}
-              </AppText>
-            </Pressable>
-          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              useUiStore.getState().requestNewProject();
+            }}
+            style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
+              styles.itemMain,
+              {
+                backgroundColor: pressed || (hovered && canHover) ? colors.hover : 'transparent',
+              },
+            ]}
+          >
+            <Icon name="add" size={ICON_SIZE.xl} color={colors.textMuted} />
+            <AppText muted numberOfLines={UI_METRICS.text.singleLineMax} style={styles.flex}>
+              {t('menu.newProject')}
+            </AppText>
+          </Pressable>
 
           {archived.length > 0 ? (
             <>
@@ -482,14 +571,43 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
                     color={colors.textMuted}
                   />
                 </View>
-                <AppText variant="caption" muted>
-                  {t('menu.archivedProjects')}
-                </AppText>
-                <AppText variant="caption" muted>
-                  {`( ${archived.length} )`}
-                </AppText>
+                <View style={styles.archiveToggleText}>
+                  <AppText
+                    variant="caption"
+                    muted
+                    numberOfLines={1}
+                    style={styles.archiveToggleTitle}
+                  >
+                    {t('menu.archivedProjects')}
+                  </AppText>
+                  <AppText variant="caption" muted style={styles.archiveToggleCount}>
+                    {` ( ${archived.length} )`}
+                  </AppText>
+                </View>
               </Pressable>
-              {showArchived ? archived.map(row) : null}
+              {showArchived ? (
+                <>
+                  {archived.map(row)}
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => void clearArchivedProjects()}
+                    style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
+                      styles.archiveToggle,
+                      {
+                        backgroundColor:
+                          pressed || (hovered && canHover) ? colors.hover : 'transparent',
+                      },
+                    ]}
+                  >
+                    <View style={styles.archiveToggleIconSlot}>
+                      <Icon name="delete" size={ICON_SIZE.sm} color={colors.textMuted} />
+                    </View>
+                    <AppText variant="caption" muted style={styles.archiveToggleTitle}>
+                      {t('board.clearArchive')}
+                    </AppText>
+                  </Pressable>
+                </>
+              ) : null}
             </>
           ) : null}
           {trashedProjects.length > 0 ? (
@@ -506,14 +624,43 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
                     color={colors.textMuted}
                   />
                 </View>
-                <AppText variant="caption" muted>
-                  {t('menu.trashProjects')}
-                </AppText>
-                <AppText variant="caption" muted>
-                  {`( ${trashedProjects.length} )`}
-                </AppText>
+                <View style={styles.archiveToggleText}>
+                  <AppText
+                    variant="caption"
+                    muted
+                    numberOfLines={1}
+                    style={styles.archiveToggleTitle}
+                  >
+                    {t('menu.trashProjects')}
+                  </AppText>
+                  <AppText variant="caption" muted style={styles.archiveToggleCount}>
+                    {` ( ${trashedProjects.length} )`}
+                  </AppText>
+                </View>
               </Pressable>
-              {showTrash ? trashedProjects.map(trashedProjectRow) : null}
+              {showTrash ? (
+                <>
+                  {trashedProjects.map(trashedProjectRow)}
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => void clearTrashedProjects()}
+                    style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
+                      styles.archiveToggle,
+                      {
+                        backgroundColor:
+                          pressed || (hovered && canHover) ? colors.hover : 'transparent',
+                      },
+                    ]}
+                  >
+                    <View style={styles.archiveToggleIconSlot}>
+                      <Icon name="deleteForever" size={ICON_SIZE.sm} color={colors.textMuted} />
+                    </View>
+                    <AppText variant="caption" muted style={styles.archiveToggleTitle}>
+                      {t('board.clearTrash')}
+                    </AppText>
+                  </Pressable>
+                </>
+              ) : null}
             </>
           ) : null}
         </View>
@@ -562,7 +709,7 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
           accessibilityRole="button"
           accessibilityLabel={
             sync.enabled
-              ? `${t('sync.now')} (${sync.label}${sync.pendingLabel ? ` (${sync.pendingLabel})` : ''})`
+              ? `${t('sync.now')}: ${sync.label}${sync.pendingLabel ? ` ${sync.pendingLabel}` : ''}`
               : sync.label
           }
           disabled={!sync.enabled}
@@ -581,7 +728,7 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
             </AppText>
             {sync.pendingLabel ? (
               <AppText muted numberOfLines={1} style={styles.syncPendingLabel}>
-                ({sync.pendingLabel})
+                {sync.pendingLabel}
               </AppText>
             ) : null}
           </View>
@@ -594,9 +741,10 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
         onClose={() => setEditing(null)}
         onSubmit={async (v) => {
           const target = editing;
-          setEditing(null);
-          if (target) {
+          if (!target) return;
+          try {
             await useDataStore.getState().updateProject(target.id, v);
+            setEditing(null);
             showUndoToast(
               toast,
               t('toast.projectUpdated'),
@@ -608,6 +756,8 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
                 }),
               'editing',
             );
+          } catch {
+            alert(t('common.error'), t('operation.saveFailed'));
           }
         }}
       />
@@ -653,7 +803,6 @@ const styles = StyleSheet.create({
     gap: SPACING.xs,
   },
   listContent: { paddingBottom: SPACING.xs },
-  emptyHomeListContent: { flex: 1 },
   sectionTitle: { paddingHorizontal: SPACING.lg, paddingVertical: SPACING.xs },
   hint: { padding: SPACING.lg },
   item: {
@@ -690,6 +839,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
   },
+  archiveToggleText: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 0,
+  },
+  archiveToggleTitle: { flexShrink: 1 },
+  archiveToggleCount: { flexShrink: 0 },
   archiveToggleIconSlot: {
     width: ICON_SIZE.xl,
     alignItems: 'center',
@@ -700,10 +858,11 @@ const styles = StyleSheet.create({
     minWidth: 0,
     flexDirection: 'row',
     alignItems: 'baseline',
-    gap: SPACING.xs,
+    gap: 0,
   },
   syncPrimaryLabel: { flexShrink: 1, minWidth: 0 },
-  syncPendingLabel: { flexShrink: 0 },
+  // 表示上の半角スペース1つ分の間隔を、文字色を分けたまま確保する。
+  syncPendingLabel: { flexShrink: 0, marginLeft: SPACING.xs },
   footerRow: {
     flexDirection: 'row',
     alignItems: 'center',

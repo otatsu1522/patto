@@ -48,12 +48,11 @@ export default function SystemSettings() {
   const settings = useSettingsStore((s) => s.settings);
   const update = useSettingsStore((s) => s.update);
   const setToastCategory = (category: ToastCategory, enabled: boolean) => {
-    const current = useSettingsStore.getState().settings.toastCategories;
-    update({
+    update((current) => ({
       toastCategories: enabled
-        ? [...new Set([...current, category])]
-        : current.filter((item) => item !== category),
-    });
+        ? [...new Set([...current.toastCategories, category])]
+        : current.toastCategories.filter((item) => item !== category),
+    }));
   };
   const identity = useAuthStore((s) => s.identity);
   const lastSyncedAt = useSyncStore((s) => s.lastSyncedAt);
@@ -89,8 +88,12 @@ export default function SystemSettings() {
     const ids = [...visibleProjects(s.projects), ...archivedProjects(s.projects)].map((p) => p.id);
     if (ids.length === 0)
       return toast(t('settings.exportEmpty'), undefined, { category: 'system' });
-    await exportProjects(ids);
-    toast(t('settings.exportDone'), undefined, { category: 'system' });
+    try {
+      await exportProjects(ids);
+      toast(t('settings.exportDone'), undefined, { category: 'system' });
+    } catch {
+      alert(t('common.error'), t('settings.exportFailed'));
+    }
   };
 
   const doImport = async () => {

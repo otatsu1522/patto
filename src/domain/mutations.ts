@@ -22,10 +22,15 @@ export function patchRecord<T extends BaseRecord>(
     }
   }
   if (Object.keys(changes).length === 0) return rec;
+  // 同じミリ秒内の連続編集でも更新世代が逆転・同値にならないようにする。
+  // 同期中に同じ項目が変更された場合、送信済みの旧値より後の更新としてマージできる。
+  const lastRevision = Math.max(rec.updatedAt, ...Object.values(rec.fieldUpdatedAt));
+  const revisionTime = Math.max(now, lastRevision + 1);
+  for (const key of Object.keys(stamps)) stamps[key] = revisionTime;
   return {
     ...rec,
     ...changes,
-    updatedAt: now,
+    updatedAt: revisionTime,
     fieldUpdatedAt: { ...rec.fieldUpdatedAt, ...stamps },
     dirty: true,
   } as T;

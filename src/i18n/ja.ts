@@ -114,6 +114,7 @@ export const ja = {
   'operation.importColumnLimit':
     '「{board}」のカンバン数が上限の{max}個を超えています（{count}個）。ファイル全体を取り込んでいません。',
   'operation.duplicateFailed': '複製できませんでした。もう一度お試しください。',
+  'operation.saveFailed': '変更を保存できませんでした。もう一度お試しください。',
 
   // サイドバー・検索
   'menu.projects': '',
@@ -125,8 +126,15 @@ export const ja = {
   'menu.searchEmpty': '一致するタスクはありません',
   'menu.archivedProjects': 'アーカイブ済みのプロジェクト',
   'menu.trashProjects': 'ごみ箱のプロジェクト',
-  'menu.archivedProjectsCount': 'アーカイブ済みのプロジェクト ({count})',
-  'menu.trashProjectsCount': 'ごみ箱のプロジェクト ({count})',
+  'menu.archivedProjectsCount': 'アーカイブ済みのプロジェクト ( {count} )',
+  'menu.trashProjectsCount': 'ごみ箱のプロジェクト ( {count} )',
+  'menu.clearArchivedProjectsMessage':
+    'アーカイブ済みのプロジェクト {count} 件と、その配下のカンバン・タスクをごみ箱へ移動します。ごみ箱から元に戻せます。',
+  'menu.clearArchivedProjectsDone':
+    'アーカイブ済みのプロジェクト {count} 件をごみ箱へ移動しました。',
+  'menu.clearTrashedProjectsMessage':
+    'ごみ箱のプロジェクト {count} 件と、その配下のカンバン・タスクを完全に削除します。自動モードではサーバー上のデータも削除します。手動／オフでは通信せず端末から削除し、サーバーへの削除は次回同期時に反映します。元に戻せません。',
+  'menu.clearTrashedProjectsDone': 'ごみ箱のプロジェクト {count} 件を完全に削除しました。',
   'menu.noProjects': 'プロジェクトがありません。',
   'menu.guestBadge': 'ゲスト',
   'menu.open': 'メニューを開く',
@@ -167,7 +175,8 @@ export const ja = {
   'sync.synced': '同期済み',
   'sync.syncedAt': '同期 {time}',
   'sync.syncing': '同期中',
-  'sync.pending': '未送信 {count} 件',
+  'sync.pending': '未送信 {count}',
+  'sync.pendingParenthetical': '(未送信 {count} )',
   'sync.offline': 'オフライン',
   'sync.offlineMessage': 'インターネット接続を確認し、接続後にもう一度同期してください。',
   'sync.error': '同期に失敗しました',
@@ -256,7 +265,7 @@ export const ja = {
   'task.dueHint': 'YYYY-MM-DD',
   'task.dueInvalid': '日付の形式が正しくありません（例: YYYY-MM-DD）',
   'task.favorite': 'ピン留め',
-  'task.favoritePinned': 'ピン留め済み',
+  'task.favoritePinned': 'ピン留めされている',
   'task.favoriteNotPinned': 'ピン留めされていない',
   'task.createdAt': '作成日',
   'task.completedAt': '完了日',
@@ -292,6 +301,7 @@ export const ja = {
     'サーバーのアーカイブ／ごみ箱を取得できませんでした。端末内の内容を表示しています。',
   'board.restoreAllFailed':
     'すべてを元に戻せませんでした。残っている項目を確認して再試行してください。',
+  'board.restoreFailed': '元に戻せませんでした。もう一度お試しください。',
   'board.openTrash': 'ごみ箱を見る',
   'board.clearTrash': 'ごみ箱のクリア',
   'board.clearArchiveMessage':
@@ -325,6 +335,10 @@ export const ja = {
   'board.reorderHint': 'カンバンの並び替え中',
 
   // 設定
+  'settings.storageReadFailed':
+    '設定を読み込めませんでした。端末のストレージ設定を確認してください。',
+  'settings.storageWriteFailed':
+    '設定を保存できませんでした。端末のストレージ設定を確認して、もう一度お試しください。',
   'settings.title': '設定',
   'settings.profile': 'アカウント',
   'settings.system': 'システム設定',
@@ -446,6 +460,7 @@ export const ja = {
   'settings.export': 'エクスポート',
   'settings.exportAll': 'すべてのプロジェクト',
   'settings.exportDone': 'エクスポートしました。',
+  'settings.exportFailed': 'エクスポートに失敗しました。',
   'settings.exportEmpty': 'エクスポートするプロジェクトがありません。',
   'settings.import': 'インポート',
   'settings.importDone': '{count} 件のプロジェクトを取り込みました。',
@@ -633,18 +648,18 @@ export const ja = {
     '操作結果を画面の下に短く表示します。OFFにするとトーストは表示されません。ONの場合は、下から表示したい通知の種類を選べます。',
   'settings.toast': 'トーストを表示する',
   'settings.clipboardToast': 'コピー完了時のトースト',
-  'settings.clipboardToastHint': '含まれる通知：\n・タイトルのコピー\n・説明のコピー',
+  'settings.clipboardToastHint': '・タイトルのコピー\n・説明のコピー',
   'settings.toastCategoriesHint':
     '表示したい通知の分類を選択してください。各分類に含まれる通知を下に列挙しています。',
-  'settings.toastCategory.movement': '移動系',
+  'settings.toastCategory.movement': '移動系（元に戻す付き）',
   'settings.toastCategory.movementHint':
-    '含まれる通知：\n・タスクを別のカンバンへ移動（元に戻す付き）\n・同じカンバン内でのタスクの並べ替え（元に戻す付き）\n・カンバンの並べ替え（元に戻す付き）\n・タスク編集で所属カンバンを変更（元に戻す付き）',
-  'settings.toastCategory.editing': '編集系',
+    '・タスクを別のカンバンへ移動\n・同じカンバン内でのタスクの並べ替え\n・カンバンの並べ替え\n・タスク編集で所属カンバンを変更',
+  'settings.toastCategory.editing': '編集系（元に戻す付き）',
   'settings.toastCategory.editingHint':
-    '含まれる通知：\n・タスクの作成／更新（元に戻す付き）\n・期限の設定／変更／クリア（元に戻す付き）\n・カンバンの追加／更新／表示モード変更（元に戻す付き）\n・プロジェクトの追加／更新／アーカイブ（元に戻す付き）\n・タスク／カンバン／プロジェクトの複製（元に戻す付き）\n・ピン留め／解除（元に戻す付き）\n・タスク／カンバン／プロジェクトの削除（元に戻す付き）\n・タスクのアーカイブ／DONEタスクの一括アーカイブ（元に戻す付き）',
+    '・タスクの作成／更新\n・期限の設定／変更／クリア\n・カンバンの追加／更新／表示モード変更\n・プロジェクトの追加／更新／アーカイブ\n・タスク／カンバン／プロジェクトの複製\n・ピン留め／解除\n・タスク／カンバン／プロジェクトの削除\n・タスクのアーカイブ／DONEタスクの一括アーカイブ',
   'settings.toastCategory.system': 'システム系',
   'settings.toastCategory.systemHint':
-    '含まれる通知：\n・インポート／エクスポート（対象がない場合を含む）\n・アーカイブ／ごみ箱のクリア（対象がない場合を含む）\n・データ初期化／アカウント削除完了\n・戻る操作を2回行うとアプリを終了する案内\n・アーカイブするタスクがない場合の案内\n・カンバンがなく追加方法を案内する通知',
+    '・インポート／エクスポート\n・アーカイブ／ごみ箱のクリア\n・データ初期化／アカウント削除完了\n・戻る操作を2回行うとアプリを終了する案内\n・アーカイブするタスクがない場合の案内\n・カンバンがなく追加方法を案内する通知',
   'settings.dataHint':
     'Trello形式のファイルで、ほかのアプリとデータをやり取りします。アプリを移行するときに使います。エクスポートはすべてのプロジェクトを書き出し、インポートはファイルのプロジェクトを追加します（いまのデータは消えません）。',
   'settings.exportConfirmTitle': 'エクスポートしますか？',
@@ -673,11 +688,11 @@ export const ja = {
   'shortcut.info10':
     'U は、操作結果のトーストに表示される「元に戻す」と同じ履歴を使います。対象は、タスクの作成・編集（所属カンバンの変更を含む）・移動・手動並べ替え・ピン留め・期限変更・複製・アーカイブ／DONEタスクの一括アーカイブ・削除（ごみ箱へ移動）、カンバンの追加・編集（名前・色・並び順モード・DONE設定）・移動／並べ替え・複製・削除、プロジェクトの追加・編集（名前・説明・色）・ピン留め・アーカイブ／解除・複製・削除（ごみ箱へ移動）です。トースト全体または該当する通知分類がOFFの場合、その操作はUndo履歴に追加されません。',
   'about.body1':
-    'Patto は、プロジェクトとカンバンでタスクを整理するアプリです。カードを動かすだけで、作業の進み具合と次にやることをひと目で把握できます。',
+    'Pattoは、カンバン形式のタスク管理アプリです。プロジェクトごとにボードを分け、タスクの進み具合や次に取り組む作業をひと目で把握できます。',
   'about.body2':
-    'データは端末に保存されるため、オフラインでも使えます。ゲストで始め、同じデータのままアカウントへ移行できます。同期は手動・自動から選べます。',
+    '期限・色・ピン留め・検索などでタスクを整理できます。完了したタスクはアーカイブやごみ箱で管理でき、Trello形式のインポート・エクスポートにも対応しています。',
   'about.body3':
-    '期限・ピン留め・色・検索でタスクを整理。完了した作業はアーカイブやごみ箱で管理でき、Trello形式の入出力にも対応しています。',
+    'データは端末に保存されるため、オフラインでも利用できます。ゲストとして始め、同じデータのままアカウントへ移行でき、同期は手動・自動から選べます。',
   'about.tech': '利用サービス',
   'about.tech.expo': 'iOS・Android・Webアプリを開発する基盤です。',
   'about.tech.supabase': 'ログインとクラウドデータの保存・同期を担います。',

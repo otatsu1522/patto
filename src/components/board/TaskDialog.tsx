@@ -285,7 +285,7 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
                       {t('common.createdAt')}
                     </AppText>
                   </View>
-                  <AppText selectable style={styles.dateValue}>
+                  <AppText selectable muted style={styles.dateValue}>
                     {formatDateTime(shownTask.createdAt)}
                   </AppText>
                 </View>
@@ -296,7 +296,7 @@ export function TaskDialog({ visible, task, columns, defaultColumnId, onClose, o
                       {t('common.updatedAt')}
                     </AppText>
                   </View>
-                  <AppText selectable style={styles.dateValue}>
+                  <AppText selectable muted style={styles.dateValue}>
                     {formatDateTime(shownTask.updatedAt)}
                   </AppText>
                 </View>

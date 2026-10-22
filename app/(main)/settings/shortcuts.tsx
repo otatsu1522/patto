@@ -123,12 +123,12 @@ export default function ShortcutSettings() {
           text: t('settings.shortcutsConflict', { key: displayKey(key), action: t(label) }),
         });
       } else if (!bindings[capturing].includes(key)) {
-        update({
+        update((current) => ({
           shortcutOverrides: {
-            ...settings.shortcutOverrides,
-            [capturing]: [...bindings[capturing], key],
+            ...current.shortcutOverrides,
+            [capturing]: [...resolveBindings(current.shortcutOverrides)[capturing], key],
           },
-        });
+        }));
         setMessage(null);
       }
       setCapturing(null);
@@ -139,11 +139,15 @@ export default function ShortcutSettings() {
   }, [capturing]);
 
   const setKeys = (id: ActionId, keys: string[]) =>
-    update({ shortcutOverrides: { ...settings.shortcutOverrides, [id]: keys } });
+    update((current) => ({
+      shortcutOverrides: { ...current.shortcutOverrides, [id]: keys },
+    }));
   const reset = (id: ActionId) => {
-    const next = { ...settings.shortcutOverrides };
-    delete next[id];
-    update({ shortcutOverrides: next });
+    update((current) => {
+      const next = { ...current.shortcutOverrides };
+      delete next[id];
+      return { shortcutOverrides: next };
+    });
   };
   const startCapture = (id: ActionId) => {
     setMessage(null);

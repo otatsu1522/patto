@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 import { fromLocalRow, TABLE_DEFS, toLocalRow } from '@/domain/schema';
 import type { AnyRecord, Snapshot, TableName } from '@/domain/types';
 import { MIGRATIONS } from './migrations';
-import { dbNameFor, type LocalDb } from './types';
+import { dbNameFor, type LocalDb, type LocalDbChanges, type LocalDbRemoval } from './types';
 
 /** 端末内データベース（expo-sqlite）。Android / iOS / Web で同じ実装を使う。 */
 
@@ -98,6 +98,48 @@ export async function openLocalDb(scope: string): Promise<LocalDb> {
           columns: (columns ?? []).map((r) => fromLocalRow('kanban_columns', r)),
           tasks: (tasks ?? []).map((r) => fromLocalRow('tasks', r)),
         } as Snapshot;
+      }),
+
+    applyChanges: (changes: LocalDbChanges, removed: LocalDbRemoval[] = []) =>
+      serial(async () => {
+        const writes: { table: TableName; rows: AnyRecord[] }[] = [
+          { table: 'projects', rows: changes.projects ?? [] },
+          { table: 'kanban_columns', rows: changes.columns ?? [] },
+          { table: 'tasks', rows: changes.tasks ?? [] },
+        ];
+        if (
+          writes.every((write) => write.rows.length === 0) &&
+          removed.every((item) => item.ids.length === 0)
+        ) {
+          return;
+        }
+
+        // 親と子の更新、またはリモート削除と取得データの適用を一括確定する。
+        // 途中のテーブルで失敗した場合は SQLite がトランザクション全体をロールバックする。
+        await db.withTransactionAsync(async () => {
+          // 外部キー制約が有効なスキーマでも、子から親の順に削除する。
+          const deleteOrder: TableName[] = ['tasks', 'kanban_columns', 'projects'];
+          for (const table of deleteOrder) {
+            for (const item of removed) {
+              if (item.table !== table) continue;
+              for (const id of item.ids) {
+                await db.runAsync(`DELETE FROM ${item.table} WHERE id = ?`, [id]);
+              }
+            }
+          }
+          for (const { table, rows } of writes) {
+            if (rows.length === 0) continue;
+            const cols = [...TABLE_DEFS[table].map((c) => c.column), 'dirty'];
+            const sql = `INSERT OR REPLACE INTO ${table} (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`;
+            for (const rec of rows) {
+              const row = toLocalRow(table, rec);
+              await db.runAsync(
+                sql,
+                cols.map((c) => row[c] ?? null),
+              );
+            }
+          }
+        });
       }),
 
     upsert: (table: TableName, rows: AnyRecord[]) =>

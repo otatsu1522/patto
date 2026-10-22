@@ -39,7 +39,7 @@ interface Toast {
   /** 独立設定を持つトーストは、通知分類のON/OFFとは別に扱う。 */
   bypassCategoryFilter?: boolean;
   actionLabel?: string;
-  onAction?: () => void;
+  onAction?: () => void | Promise<void>;
 }
 
 interface Feedback {
@@ -49,7 +49,7 @@ interface Feedback {
   /** カテゴリはシステム設定のトースト表示対象でフィルターする。失敗は呼び出し元でダイアログ表示する。 */
   toast: (
     message: string,
-    action?: { label: string; onPress: () => void },
+    action?: { label: string; onPress: () => void | Promise<void> },
     options?: { category: ToastCategory; bypassCategoryFilter?: boolean },
   ) => void;
 }
@@ -80,6 +80,9 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   const resolver = useRef<((r: ConfirmResult) => void) | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
   const settings = useSettingsStore((s) => s.settings);
+  const storageErrorVersion = useSettingsStore((s) => s.storageErrorVersion);
+  const storageErrorKey = useSettingsStore((s) => s.storageErrorKey);
+  const handledStorageErrorVersion = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const confirm = useCallback((o: ConfirmOptions) => {
@@ -96,6 +99,18 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     setDialog({ title, message, confirmLabel: t('common.ok') });
   }, []);
 
+  // ストレージ保存エラーは画面固有のイベントハンドラーに依存せず、共通ダイアログで通知する。
+  // Effectの実行中にダイアログstateを同期更新しないよう、通知は次のタスクへ送る。
+  useEffect(() => {
+    if (storageErrorVersion <= handledStorageErrorVersion.current) return;
+    handledStorageErrorVersion.current = storageErrorVersion;
+    if (!storageErrorKey) return;
+    const notificationTimer = setTimeout(() => {
+      alert(t('common.error'), t(storageErrorKey));
+    }, 0);
+    return () => clearTimeout(notificationTimer);
+  }, [storageErrorVersion, storageErrorKey, alert]);
+
   const close = (r: ConfirmResult) => {
     setDialog(null);
     const resolve = resolver.current;
@@ -107,7 +122,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   const showToast = useCallback(
     (
       message: string,
-      action?: { label: string; onPress: () => void },
+      action?: { label: string; onPress: () => void | Promise<void> },
       options?: { category: ToastCategory; bypassCategoryFilter?: boolean },
     ) => {
       const settings = useSettingsStore.getState().settings;
@@ -173,8 +188,15 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
               <Pressable
                 accessibilityRole="button"
                 onPress={() => {
-                  toast.onAction?.();
+                  const action = toast.onAction;
                   setToast(null);
+                  void (async () => {
+                    try {
+                      await action?.();
+                    } catch {
+                      alert(t('common.error'), t('operation.saveFailed'));
+                    }
+                  })();
                 }}
               >
                 <AppText bold color={colors.inverseAccent}>

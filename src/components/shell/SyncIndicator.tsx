@@ -41,9 +41,8 @@ export function useSyncLabel(): {
   if (displayStatus === 'offline')
     return {
       icon: 'offline',
-      label: pending
-        ? `${t('sync.offline')} · ${t('sync.pending', { count: pending })}`
-        : t('sync.offline'),
+      label: pending ? `${t('sync.offline')} ·` : t('sync.offline'),
+      pendingLabel: pending > 0 ? t('sync.pendingParenthetical', { count: pending }) : undefined,
       color: normalColor,
       enabled: true,
     };
@@ -53,7 +52,7 @@ export function useSyncLabel(): {
   return {
     icon: pending > 0 || !last ? 'cloudUpload' : 'synced',
     label: last ? t('sync.syncedAt', { time: formatTime(last) }) : t('sync.never'),
-    pendingLabel: pending > 0 ? t('sync.pending', { count: pending }) : undefined,
+    pendingLabel: pending > 0 ? t('sync.pendingParenthetical', { count: pending }) : undefined,
     color: normalColor,
     enabled: true,
   };
@@ -67,7 +66,7 @@ export function SyncIndicator() {
     <IconButton
       icon={icon}
       label={
-        enabled ? `${t('sync.now')} (${label}${pendingLabel ? ` (${pendingLabel})` : ''})` : label
+        enabled ? `${t('sync.now')}: ${label}${pendingLabel ? ` ${pendingLabel}` : ''}` : label
       }
       color={color}
       size={ICON_SIZE.xl}
