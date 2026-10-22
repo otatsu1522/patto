@@ -72,9 +72,7 @@ const priorityActions = SETTINGS_PRIORITY_IDS.flatMap((id) => {
   const action = SHORTCUT_ACTION_BY_ID.get(id);
   return action ? [action] : [];
 });
-const remainingActions = SHORTCUT_ACTIONS.filter(
-  (action) => !SETTINGS_PRIORITY_SET.has(action.id),
-);
+const remainingActions = SHORTCUT_ACTIONS.filter((action) => !SETTINGS_PRIORITY_SET.has(action.id));
 const copyActions = COPY_ACTION_IDS.flatMap((id) => {
   const action = SHORTCUT_ACTION_BY_ID.get(id);
   return action ? [action] : [];
