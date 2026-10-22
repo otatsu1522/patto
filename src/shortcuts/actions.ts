@@ -39,34 +39,50 @@ export const SHORTCUT_ACTIONS = [
 export type ActionId = (typeof SHORTCUT_ACTIONS)[number]['id'];
 export type Bindings = Record<ActionId, string[]>;
 
-/** 設定画面専用の表示順。キー処理・競合判定に使う SHORTCUT_ACTIONS の順序は変えない。 */
-function reorderAtExistingPositions<T extends { readonly id: string }>(
-  actions: readonly T[],
-  orderedIds: readonly string[],
-): T[] {
-  const result = [...actions];
-  const indices = orderedIds.map((id) => result.findIndex((action) => action.id === id));
-  const orderedItems = orderedIds.map((id) => result.find((action) => action.id === id));
-  if (indices.some((index) => index < 0) || orderedItems.some((action) => action === undefined)) {
-    return result;
-  }
+/**
+ * 設定画面専用の表示順。
+ * キー処理・競合判定に使う SHORTCUT_ACTIONS の順序は変更しない。
+ */
+const SETTINGS_PRIORITY_IDS = [
+  'openSettings',
+  // 単キーの移動操作：j / k / h / l
+  'cursorDown',
+  'cursorUp',
+  'cursorLeft',
+  'cursorRight',
+  // Shift + 移動操作：j / k / h / l
+  'nextProject',
+  'prevProject',
+  'moveColumnLeft',
+  'moveColumnRight',
+] as const;
 
-  indices.sort((a, b) => a - b);
-  indices.forEach((position, index) => {
-    result[position] = orderedItems[index]!;
-  });
-  return result;
+const COPY_ACTION_IDS = ['copyTitle', 'copyDescription'] as const;
+const SETTINGS_PRIORITY_SET: ReadonlySet<string> = new Set([
+  ...SETTINGS_PRIORITY_IDS,
+  ...COPY_ACTION_IDS,
+]);
+const SHORTCUT_ACTION_BY_ID = new Map<string, (typeof SHORTCUT_ACTIONS)[number]>(
+  SHORTCUT_ACTIONS.map((action) => [action.id, action] as const),
+);
+
+const priorityActions = SETTINGS_PRIORITY_IDS.flatMap((id) => {
+  const action = SHORTCUT_ACTION_BY_ID.get(id);
+  return action ? [action] : [];
+});
+const remainingActions = SHORTCUT_ACTIONS.filter(
+  (action) => !SETTINGS_PRIORITY_SET.has(action.id),
+);
+const copyActions = COPY_ACTION_IDS.flatMap((id) => {
+  const action = SHORTCUT_ACTION_BY_ID.get(id);
+  return action ? [action] : [];
+});
+const duplicateIndex = remainingActions.findIndex((action) => action.id === 'duplicate');
+if (duplicateIndex >= 0) {
+  remainingActions.splice(duplicateIndex + 1, 0, ...copyActions);
 }
 
-export const SHORTCUT_SETTINGS_ACTIONS = reorderAtExistingPositions(
-  reorderAtExistingPositions(SHORTCUT_ACTIONS, [
-    'cursorRight',
-    'cursorLeft',
-    'cursorUp',
-    'cursorDown',
-  ]),
-  ['moveColumnRight', 'moveColumnLeft'],
-);
+export const SHORTCUT_SETTINGS_ACTIONS = [...priorityActions, ...remainingActions];
 
 export const defaultBindings = (): Bindings =>
   Object.fromEntries(
