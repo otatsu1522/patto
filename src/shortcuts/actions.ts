@@ -44,7 +44,6 @@ export type Bindings = Record<ActionId, string[]>;
  * キー処理・競合判定に使う SHORTCUT_ACTIONS の順序は変更しない。
  */
 const SETTINGS_PRIORITY_IDS = [
-  'openSettings',
   // 単キーの移動操作：j / k / h / l
   'cursorDown',
   'cursorUp',
@@ -58,9 +57,12 @@ const SETTINGS_PRIORITY_IDS = [
 ] as const;
 
 const COPY_ACTION_IDS = ['copyTitle', 'copyDescription'] as const;
+// 一覧の末尾は「検索 → 設定を開く → ショートカット一覧」にする。
+const SETTINGS_END_IDS = ['search', 'openSettings', 'showHelp'] as const;
 const SETTINGS_PRIORITY_SET: ReadonlySet<string> = new Set([
   ...SETTINGS_PRIORITY_IDS,
   ...COPY_ACTION_IDS,
+  ...SETTINGS_END_IDS,
 ]);
 const SHORTCUT_ACTION_BY_ID = new Map<string, (typeof SHORTCUT_ACTIONS)[number]>(
   SHORTCUT_ACTIONS.map((action) => [action.id, action] as const),
@@ -81,8 +83,16 @@ const duplicateIndex = remainingActions.findIndex((action) => action.id === 'dup
 if (duplicateIndex >= 0) {
   remainingActions.splice(duplicateIndex + 1, 0, ...copyActions);
 }
+const endingActions = SETTINGS_END_IDS.flatMap((id) => {
+  const action = SHORTCUT_ACTION_BY_ID.get(id);
+  return action ? [action] : [];
+});
 
-export const SHORTCUT_SETTINGS_ACTIONS = [...priorityActions, ...remainingActions];
+export const SHORTCUT_SETTINGS_ACTIONS = [
+  ...priorityActions,
+  ...remainingActions,
+  ...endingActions,
+];
 
 export const defaultBindings = (): Bindings =>
   Object.fromEntries(
