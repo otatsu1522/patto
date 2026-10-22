@@ -170,7 +170,8 @@ supabase/
 │   └── delete-account/
 │       └── index.ts
 └── migrations/
-    └── 20261012000000_init.sql
+    ├── 20261012000000_init.sql
+    └── 20261022000000_atomic_delete_operations.sql
 ```
 
 ### 3.1 Supabase CLI の準備
@@ -234,6 +235,8 @@ pnpm dlx supabase migration list
 ```
 
 ローカルとリモートのマイグレーション履歴が一致していればよい。
+
+追加マイグレーション `20261022000000_atomic_delete_operations.sql` は、プロジェクト配下のレコードを含むごみ箱の一括削除と、全データ初期化を単一のサーバートランザクションで実行する RPC を追加する。最新コードを使う場合は、このマイグレーションも必ず `pnpm dlx supabase db push` で適用する。未適用の場合、該当する削除要求はエラーになり、端末に保存されたキューから再試行される。
 
 ### 3.3 作られるテーブルと機能
 

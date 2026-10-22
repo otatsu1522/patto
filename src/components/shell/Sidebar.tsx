@@ -216,6 +216,10 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
         return;
       }
       if (result.count === 0) return;
+      if (result.remotePending) {
+        toast(t('project.permanentDeletePending'), undefined, { category: 'system' });
+        return;
+      }
       toast(t('project.permanentDeleteDone'), undefined, { category: 'system' });
     } catch {
       alert(t('common.error'), t('project.permanentDeleteFailed'));
@@ -280,6 +284,14 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
         return;
       }
       setShowTrash(false);
+      if (result.remotePending) {
+        toast(
+          t('menu.clearTrashedProjectsPending', { count: result.projectCount ?? result.count }),
+          undefined,
+          { category: 'system' },
+        );
+        return;
+      }
       toast(
         t('menu.clearTrashedProjectsDone', { count: result.projectCount ?? result.count }),
         undefined,
@@ -602,9 +614,16 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
                     <View style={styles.archiveToggleIconSlot}>
                       <Icon name="delete" size={ICON_SIZE.sm} color={colors.textMuted} />
                     </View>
-                    <AppText variant="caption" muted style={styles.archiveToggleTitle}>
-                      {t('board.clearArchive')}
-                    </AppText>
+                    <View style={styles.archiveToggleText}>
+                      <AppText
+                        variant="caption"
+                        muted
+                        numberOfLines={1}
+                        style={styles.archiveToggleTitle}
+                      >
+                        {t('board.clearArchive')}
+                      </AppText>
+                    </View>
                   </Pressable>
                 </>
               ) : null}
@@ -655,9 +674,16 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
                     <View style={styles.archiveToggleIconSlot}>
                       <Icon name="deleteForever" size={ICON_SIZE.sm} color={colors.textMuted} />
                     </View>
-                    <AppText variant="caption" muted style={styles.archiveToggleTitle}>
-                      {t('board.clearTrash')}
-                    </AppText>
+                    <View style={styles.archiveToggleText}>
+                      <AppText
+                        variant="caption"
+                        muted
+                        numberOfLines={1}
+                        style={styles.archiveToggleTitle}
+                      >
+                        {t('board.clearTrash')}
+                      </AppText>
+                    </View>
                   </Pressable>
                 </>
               ) : null}

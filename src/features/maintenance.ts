@@ -5,12 +5,24 @@ import { useAuthStore, type Identity } from '@/auth/authStore';
 import { countTargets, purgeTargets } from '@/domain/selectors';
 import { t } from '@/i18n';
 import { acquireSyncMutationLock, syncNow } from '@/sync/controller';
-import { queueRemoteDeleteAll, queueRemoteDeletes } from '@/sync/pendingDeletes';
+import {
+  cancelPreparedRemoteDeleteAll,
+  capturePendingRemoteDeletes,
+  commitRemoteDeleteAll,
+  flushPendingRemoteDeletes,
+  queueRemoteDeleteAll,
+  queueRemoteDeletes,
+  queueRemoteExpiredTrash,
+  queueRemoteProjectDeletes,
+  removeQueuedRemoteDeletes,
+  restorePendingRemoteDeletes,
+  removeQueuedRemoteProjectDeletes,
+} from '@/sync/pendingDeletes';
+import { createSupabaseRemote } from '@/sync/remoteSupabase';
 import { useDataStore } from '@/store/dataStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useSyncStore } from '@/sync/status';
 import type { TableName } from '@/domain/types';
-import { SYNC } from '@/config/limits';
 import { DAY_MS } from '@/lib/dates';
 import { nowMs } from '@/lib/clock';
 
@@ -20,7 +32,8 @@ export const previewClear = (kind: ClearKind, projectId?: string): number =>
   countTargets(purgeTargets(useDataStore.getState().snapshot(), kind, projectId));
 
 export type ClearResult =
-  { ok: true; count: number; projectCount?: number } | { ok: false; message: string };
+  | { ok: true; count: number; projectCount?: number; remotePending?: boolean }
+  | { ok: false; message: string };
 
 const accountWorkUnavailable = (): ClearResult => ({
   ok: false,
@@ -50,8 +63,8 @@ export async function clearBucket(
     }
 
     const targetsForCurrentScope = (snapshot: ReturnType<typeof initialStore.snapshot>) => {
-      // サイドバーからは、ごみ箱にあるプロジェクトと、その配下の全レコードだけを対象にする。
-      // 表示時点から復元されたプロジェクトや、別プロジェクトのごみ箱項目は削除しない。
+      // サイドバーからは、ごみ箱にあるプロジェクトと配下の全レコードだけを対象にする。
+      // 非表示の子レコードが端末に未取得でも、サーバー側はプロジェクト単位で削除する。
       if (kind === 'trash' && projectIds !== undefined) {
         const wanted = new Set(projectIds);
         const projects = snapshot.projects.filter(
@@ -69,16 +82,43 @@ export async function clearBucket(
         };
       }
 
-      const targets = purgeTargets(snapshot, kind, projectId);
-      // サイドバーの「ごみ箱のプロジェクト」から単独で完全削除するときだけ、
-      // プロジェクト本体も子のカンバン・タスクと同時に物理削除する。
-      // 通常のプロジェクト内ごみ箱クリアでは、従来どおりプロジェクト本体を対象にしない。
       if (kind === 'trash' && includeProject && projectId) {
         const project = snapshot.projects.find((item) => item.id === projectId);
         if (!project || project.deletedAt === null) {
           return { projects: [], columns: [], tasks: [] };
         }
-        targets.projects = [project.id];
+        return {
+          projects: [project.id],
+          // 個別の完全削除では deletedAt の状態によらず、配下のレコードを全て対象にする。
+          columns: snapshot.columns
+            .filter((item) => item.projectId === project.id)
+            .map((item) => item.id),
+          tasks: snapshot.tasks
+            .filter((item) => item.projectId === project.id)
+            .map((item) => item.id),
+        };
+      }
+
+      const targets = purgeTargets(snapshot, kind, projectId);
+      if (kind === 'trash' && projectId === undefined) {
+        // 設定画面のごみ箱クリアでも、削除済みプロジェクト配下の未削除レコードを漏らさない。
+        const trashedProjectIds = new Set(targets.projects);
+        targets.columns = [
+          ...new Set([
+            ...targets.columns,
+            ...snapshot.columns
+              .filter((item) => trashedProjectIds.has(item.projectId))
+              .map((item) => item.id),
+          ]),
+        ];
+        targets.tasks = [
+          ...new Set([
+            ...targets.tasks,
+            ...snapshot.tasks
+              .filter((item) => trashedProjectIds.has(item.projectId))
+              .map((item) => item.id),
+          ]),
+        ];
       }
       return targets;
     };
@@ -128,53 +168,106 @@ export async function clearBucket(
         return { ok: true, count: movedCount };
       }
 
-      if (syncs && client) {
-        const order: [TableName, string[]][] = [
-          ['tasks', targets.tasks],
-          ['kanban_columns', targets.columns],
-          ['projects', targets.projects],
-        ];
+      const cascadeProjectIds = kind === 'trash' ? targets.projects : [];
+      const cascadeProjectSet = new Set(cascadeProjectIds);
+      const snapshotBeforePurge = currentStore.snapshot();
+      const cascadedColumnIds = new Set(
+        snapshotBeforePurge.columns
+          .filter((item) => cascadeProjectSet.has(item.projectId))
+          .map((item) => item.id),
+      );
+      const cascadedTaskIds = new Set(
+        snapshotBeforePurge.tasks
+          .filter((item) => cascadeProjectSet.has(item.projectId))
+          .map((item) => item.id),
+      );
+      const standaloneTargets = {
+        projects: targets.projects.filter((id) => !cascadeProjectSet.has(id)),
+        columns: targets.columns.filter((id) => !cascadedColumnIds.has(id)),
+        tasks: targets.tasks.filter((id) => !cascadedTaskIds.has(id)),
+      };
+      const standaloneRemoteTargets: Partial<Record<TableName, string[]>> = {
+        projects: standaloneTargets.projects,
+        kanban_columns: standaloneTargets.columns,
+        tasks: standaloneTargets.tasks,
+      };
+
+      let previousDeleteQueue: Awaited<ReturnType<typeof capturePendingRemoteDeletes>> | null =
+        null;
+      if (remoteAccount) {
         try {
-          // 直前に認証ユーザーも照合し、共有セッションが別アカウントに変わっていたら削除しない。
-          const session = await getFreshSession(client, identity.userId);
-          if (!session?.access_token) {
-            return { ok: false, message: t('auth.sessionMismatch') };
+          // ローカル削除が失敗した場合に今回追加した要求だけを戻せるよう、既存キューを退避する。
+          previousDeleteQueue = await capturePendingRemoteDeletes(identity.userId);
+          if (cascadeProjectIds.length > 0) {
+            // サーバーにしかない子レコードも削除できるよう、プロジェクト単位の要求を永続化する。
+            await queueRemoteProjectDeletes(identity.userId, cascadeProjectIds);
           }
-          // リクエストごとに開始時点のトークンを固定し、後からセッションが切り替わっても
-          // 別アカウントの資格情報で削除しない。owner_id 条件も併用する。
-          const scopedClient = createSyncSupabaseClient(session.access_token);
-          for (const [table, ids] of order) {
-            for (let i = 0; i < ids.length; i += SYNC.maxIdsPerQuery) {
-              const { error } = await scopedClient
-                .from(table)
-                .delete()
-                .eq('owner_id', identity.userId)
-                .in('id', ids.slice(i, i + SYNC.maxIdsPerQuery));
-              if (error) throw error;
-            }
+          if (
+            standaloneTargets.projects.length > 0 ||
+            standaloneTargets.columns.length > 0 ||
+            standaloneTargets.tasks.length > 0
+          ) {
+            // 先に永続キューを確保し、ローカル削除が確定してからサーバー削除を実行する。
+            await queueRemoteDeletes(identity.userId, standaloneRemoteTargets);
           }
         } catch {
-          return { ok: false, message: t('board.clearNeedsSync') };
-        }
-      } else if (remoteAccount) {
-        // 手動／オフではネットワーク通信せず、削除要求を開始時のローカルDBへ永続化する。
-        // 次に同期ボタンが押されるか自動同期が許可されたとき、固定済みの所有者IDで削除する。
-        try {
-          await queueRemoteDeletes(identity.userId, {
-            projects: targets.projects,
-            kanban_columns: targets.columns,
-            tasks: targets.tasks,
-          });
-        } catch {
-          return { ok: false, message: t('board.clearLocalFailed') };
+          if (previousDeleteQueue) {
+            await restorePendingRemoteDeletes(identity.userId, previousDeleteQueue).catch(
+              () => undefined,
+            );
+          }
+          return {
+            ok: false,
+            message: t('board.clearLocalFailed'),
+          };
         }
       }
-      await currentStore.purgeLocal(targets);
+
+      // 永続キューを確保してからローカル削除を行う。DBトランザクションが失敗した場合は
+      // 今回の操作前のキューへ戻し、サーバーだけ削除される状態を避ける。
+      try {
+        await currentStore.purgeLocal(targets);
+      } catch (error) {
+        if (remoteAccount && previousDeleteQueue) {
+          await restorePendingRemoteDeletes(identity.userId, previousDeleteQueue).catch(
+            () => undefined,
+          );
+        }
+        throw error;
+      }
+
+      // 手動／オフでは要求を保持して次の同期で処理する。自動モードはローカル削除後に
+      // RPC／ID削除を実行し、完了した要求だけをキューから除く。
+      let remotePending = remoteAccount && !syncs;
+      if (remoteAccount && syncs && client) {
+        try {
+          const session = await getFreshSession(client, identity.userId);
+          if (!session?.access_token) throw new Error('Supabase session is unavailable');
+          const remote = createSupabaseRemote(createSyncSupabaseClient(session.access_token));
+          if (cascadeProjectIds.length > 0) {
+            await remote.deleteProjectsOwned(cascadeProjectIds, identity.userId);
+          }
+          for (const [table, ids] of [
+            ['tasks', standaloneTargets.tasks],
+            ['kanban_columns', standaloneTargets.columns],
+            ['projects', standaloneTargets.projects],
+          ] as [TableName, string[]][]) {
+            if (ids.length > 0) await remote.deleteByIds(table, ids);
+          }
+          await removeQueuedRemoteProjectDeletes(identity.userId, cascadeProjectIds);
+          await removeQueuedRemoteDeletes(identity.userId, standaloneRemoteTargets);
+          remotePending = false;
+        } catch {
+          remotePending = true;
+        }
+      }
+
       // count は削除した全レコード数を保ち、サイドバーではプロジェクト数を別途返す。
       return {
         ok: true,
         count,
         ...(projectIds !== undefined ? { projectCount: targets.projects.length } : {}),
+        ...(remotePending ? { remotePending: true } : {}),
       };
     } finally {
       releaseSyncMutation();
@@ -203,6 +296,13 @@ export async function autoPurgeLocal(retentionDays: number, now: number): Promis
       const store = useDataStore.getState();
       if (!store.ready || store.ownerId !== identity.userId) return;
       const limit = now - retentionDays * DAY_MS;
+      const remoteAccount = !identity.local && isSupabaseConfigured;
+      const syncMode = useSettingsStore.getState().settings.syncMode;
+      // 同期オフの保持期限削除は、サーバー上だけにある期限切れ行も対象にできるよう
+      // cutoff を先に永続化する。キュー保存失敗時はローカルも削除しない。
+      if (remoteAccount && syncMode === 'off') {
+        await queueRemoteExpiredTrash(identity.userId, limit);
+      }
       const snap = store.snapshot();
       const expired = (r: { deletedAt: number | null }) =>
         r.deletedAt !== null && r.deletedAt < limit;
@@ -245,36 +345,6 @@ export async function resetAllData(): Promise<ClearResult> {
 
       const remoteAccount = !identity.local && isSupabaseConfigured;
       const syncMode = useSettingsStore.getState().settings.syncMode;
-      if (remoteAccount && syncMode === 'auto') {
-        const client = getSupabase();
-        if (!client) return { ok: false, message: t('settings.resetAllFailed') };
-        try {
-          // 自動モードではサーバー操作を即時実行し、開始時の所有者とトークンを検証する。
-          const session = await getFreshSession(client, identity.userId);
-          if (!session?.access_token) {
-            return { ok: false, message: t('auth.sessionMismatch') };
-          }
-          const scopedClient = createSyncSupabaseClient(session.access_token);
-          // 親子の外部キーを設けていないため、子から順に削除する。
-          for (const table of ['tasks', 'kanban_columns', 'projects'] as const) {
-            const { error } = await scopedClient
-              .from(table)
-              .delete()
-              .eq('owner_id', identity.userId);
-            if (error) throw error;
-          }
-        } catch {
-          return { ok: false, message: t('settings.resetAllFailed') };
-        }
-      } else if (remoteAccount) {
-        // 手動／オフではネットワーク通信せず、全件削除要求をローカルDBへ保存する。
-        // 次回同期時にこの所有者のデータを子から順に削除する。
-        try {
-          await queueRemoteDeleteAll(identity.userId);
-        } catch {
-          return { ok: false, message: t('settings.resetAllFailed') };
-        }
-      }
 
       // アカウント作業リースと同期入口のロックにより、同じDBが安定している。
       const currentIdentity = useAuthStore.getState().identity;
@@ -287,14 +357,68 @@ export async function resetAllData(): Promise<ClearResult> {
         return { ok: false, message: t('settings.resetAllFailed') };
       }
 
+      // 先に準備状態を永続化するが、この段階では次回同期もサーバー削除を実行しない。
+      // ローカル削除成功後に ready 状態へ確定する。クラッシュ時は同期時にローカル状態から回復する。
+      if (remoteAccount) {
+        try {
+          await queueRemoteDeleteAll(identity.userId, {
+            projects: ids.projects,
+            kanban_columns: ids.columns,
+            tasks: ids.tasks,
+          });
+        } catch {
+          return { ok: false, message: t('settings.resetAllFailed') };
+        }
+      }
+
       try {
         await currentStore.purgeLocal(ids);
+      } catch {
+        if (remoteAccount) {
+          await cancelPreparedRemoteDeleteAll(identity.userId).catch(() => undefined);
+        }
+        return { ok: false, message: t('settings.resetAllFailed') };
+      }
+
+      let remotePending = remoteAccount;
+      let deleteAllReady = !remoteAccount;
+      if (remoteAccount) {
+        try {
+          await commitRemoteDeleteAll(identity.userId);
+          deleteAllReady = true;
+        } catch {
+          // 準備状態は残る。次回同期時にローカルが空であることを確認して確定し直す。
+          remotePending = true;
+        }
+      }
+
+      try {
         const settingsReset = await useSettingsStore.getState().reset({ preserveSyncMode: true });
         if (!settingsReset) return { ok: false, message: t('settings.resetAllFailed') };
         useSyncStore
           .getState()
           .set({ status: 'idle', activeSource: null, lastSyncedAt: null, error: null });
-        return { ok: true, count };
+
+        if (remoteAccount && syncMode === 'auto' && deleteAllReady) {
+          try {
+            const client = getSupabase();
+            if (!client) throw new Error('Supabase client is unavailable');
+            const session = await getFreshSession(client, identity.userId);
+            if (!session?.access_token) throw new Error('Supabase session is unavailable');
+            const pending = await flushPendingRemoteDeletes(
+              createSupabaseRemote(createSyncSupabaseClient(session.access_token)),
+              identity.userId,
+            );
+            // ローカルはすでに空なので、サーバー削除とキュー確定だけを行う。
+            await pending.complete();
+            remotePending = false;
+          } catch {
+            // 全件削除は端末側で完了済み。サーバー要求はキューに残し次の同期で再試行する。
+            remotePending = true;
+          }
+        }
+        // 手動／オフでは次に同期が許可されたときに、サーバー側の全件削除を行う。
+        return { ok: true, count, ...(remotePending ? { remotePending: true } : {}) };
       } catch {
         return { ok: false, message: t('settings.resetAllFailed') };
       }

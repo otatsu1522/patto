@@ -8,7 +8,7 @@ import { useAuthStore } from '@/auth/authStore';
 import { isSupabaseConfigured } from '@/config/env';
 import { UI_METRICS } from '@/config/layout';
 import { TIMING } from '@/config/timing';
-import { FeedbackProvider } from '@/components/ui/FeedbackProvider';
+import { FeedbackProvider, useFeedback } from '@/components/ui/FeedbackProvider';
 import { ScreenFrame } from '@/components/ui/ScreenFrame';
 import { SystemBars } from '@/components/ui/SystemBars';
 import { MenuProvider } from '@/components/ui/MenuHost';
@@ -59,6 +59,7 @@ if (shouldRetryIsolationRedirect()) {
 
 function Boot() {
   const { colors } = useTheme();
+  const { alert } = useFeedback();
   const loaded = useSettingsStore((s) => s.loaded);
   const status = useAuthStore((s) => s.status);
   const needsReauth = useAuthStore((s) => s.needsReauth);
@@ -221,8 +222,12 @@ function Boot() {
   // 同期がオフ・端末内のみのときの、ごみ箱の自動削除（同期ありのときは同期処理が行う）
   useEffect(() => {
     if (!ready || !autoDelete) return;
-    if (syncMode === 'off' || isLocal) void autoPurgeLocal(retention, nowMs());
-  }, [ready, autoDelete, retention, syncMode, isLocal]);
+    if (syncMode === 'off' || isLocal) {
+      void autoPurgeLocal(retention, nowMs()).catch(() => {
+        alert(t('common.error'), t('operation.saveFailed'));
+      });
+    }
+  }, [ready, autoDelete, retention, syncMode, isLocal, alert]);
 
   if (Platform.OS === 'web' && !isolated()) {
     return (

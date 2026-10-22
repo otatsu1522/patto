@@ -29,6 +29,12 @@ export interface RemoteApi {
   deleteByIds(table: TableName, ids: string[]): Promise<void>;
   /** 所有者IDを指定し、そのユーザーのテーブル内データを削除する（初期化の保留要求）。 */
   deleteAllOwned(table: TableName, ownerId: string): Promise<void>;
+  /** ごみ箱にあるプロジェクト本体と配下レコードを、1トランザクションで削除する。 */
+  deleteProjectsOwned(projectIds: string[], ownerId: string): Promise<void>;
+  /** 所有者の全テーブルを単一サーバートランザクションで削除する。 */
+  deleteAllOwnedData(ownerId: string): Promise<void>;
+  /** deleted_at が cutoff より古いごみ箱データを所有者の全行から削除する。 */
+  deleteExpiredTrash(table: TableName, ownerId: string, cutoff: number): Promise<void>;
   /** ローカルに残っている非表示レコードのIDだけ、サーバーにも存在するか確認する。 */
   fetchHiddenIds(table: TableName, ids: string[]): Promise<string[]>;
 }

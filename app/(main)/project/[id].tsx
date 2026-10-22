@@ -143,6 +143,19 @@ export default function ProjectScreen() {
       error instanceof UserActionError ? error.message : t('operation.duplicateFailed'),
     );
 
+  // Keyboard/drag callbacks intentionally fire without awaiting from React Native event handlers.
+  // Route every asynchronous mutation through one rejection handler so database errors are visible.
+  const runBoardAction = (operation: () => Promise<unknown>) => {
+    void Promise.resolve()
+      .then(operation)
+      .catch((error: unknown) => {
+        alert(
+          t('common.error'),
+          error instanceof UserActionError ? error.message : t('operation.saveFailed'),
+        );
+      });
+  };
+
   const duplicateTaskById = async (taskId: string) => {
     try {
       const copied = await useDataStore.getState().duplicateTask(taskId);
@@ -413,30 +426,30 @@ export default function ProjectScreen() {
     const col = cols[c.columnIndex];
     if (!col || cols.length <= 1) return;
     const nextIndex = (c.columnIndex + step + cols.length) % cols.length;
-    void moveColumnWithUndo(col.id, nextIndex);
+    runBoardAction(() => moveColumnWithUndo(col.id, nextIndex));
     update((x) => ({ ...x, columnIndex: nextIndex }));
   }
 
   useShortcuts(
     {
-      cursorLeft: () => void navigate('left'),
-      cursorRight: () => void navigate('right'),
-      cursorUp: () => void navigate('up'),
-      cursorDown: () => void navigate('down'),
+      cursorLeft: () => runBoardAction(() => navigate('left')),
+      cursorRight: () => runBoardAction(() => navigate('right')),
+      cursorUp: () => runBoardAction(() => navigate('up')),
+      cursorDown: () => runBoardAction(() => navigate('down')),
       copyTitle: () => void copySelectedTaskField('title'),
       copyDescription: () => void copySelectedTaskField('description'),
       advanceTask: () => {
         const task = cursorTask();
         if (task && cols.length > 1) {
           follow.current = task.id;
-          void actions.advance(task);
+          runBoardAction(() => actions.advance(task));
         }
       },
       retreatTask: () => {
         const task = cursorTask();
         if (task && cols.length > 1) {
           follow.current = task.id;
-          void actions.retreat(task);
+          runBoardAction(() => actions.retreat(task));
         }
       },
       grab: () => {
@@ -448,7 +461,7 @@ export default function ProjectScreen() {
       },
       delete: () => {
         const task = cursorTask();
-        if (task) void actions.deleteTask(task);
+        if (task) runBoardAction(() => actions.deleteTask(task));
       },
       newTask: () => openCreateTask(),
       newColumn: () => setColumnDialog({ column: null }),
@@ -456,10 +469,12 @@ export default function ProjectScreen() {
         const task = cursorTask();
         if (task) {
           const isFavorite = !task.isFavorite;
-          void updateTaskWithUndo(
-            task.id,
-            { isFavorite },
-            t(isFavorite ? 'toast.pinned' : 'toast.unpinned'),
+          runBoardAction(() =>
+            updateTaskWithUndo(
+              task.id,
+              { isFavorite },
+              t(isFavorite ? 'toast.pinned' : 'toast.unpinned'),
+            ),
           );
         }
       },
@@ -469,9 +484,9 @@ export default function ProjectScreen() {
       },
       archiveTask: () => {
         const task = cursorTask();
-        if (task) void actions.archiveTask(task);
+        if (task) runBoardAction(() => actions.archiveTask(task));
       },
-      archiveDone: () => void actions.archiveDone(),
+      archiveDone: () => runBoardAction(() => actions.archiveDone()),
       duplicate: () => {
         const task = cursorTask();
         if (task) void duplicateTaskById(task.id);
@@ -867,15 +882,17 @@ export default function ProjectScreen() {
           showTaskUpdatedAt={showTaskUpdatedAt}
           menuItemsFor={columnMenu}
           taskMenuFor={taskMenu}
-          onAdvance={(task) => void actions.advance(task)}
+          onAdvance={(task) => runBoardAction(() => actions.advance(task))}
           onTaskDrop={(task, target, manualIndex) => {
             if (task.columnId === target.id && manualIndex !== undefined) {
-              void reorderTaskWithUndo(task.id, manualIndex);
+              runBoardAction(() => reorderTaskWithUndo(task.id, manualIndex));
             } else {
-              void actions.moveTask(task, target);
+              runBoardAction(() => actions.moveTask(task, target));
             }
           }}
-          onColumnDrop={(column, toIndex) => void moveColumnWithUndo(column.id, toIndex)}
+          onColumnDrop={(column, toIndex) =>
+            runBoardAction(() => moveColumnWithUndo(column.id, toIndex))
+          }
           onAddTask={(column) => openCreateTask(column.id)}
           onCopyTitle={() => showClipboardToast('task.copyTitle')}
           onCopyDescription={() => showClipboardToast('task.copyDescription')}

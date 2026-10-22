@@ -3,7 +3,11 @@ import { mergeRecords } from '@/domain/merge';
 import { fromRemoteRow, TABLE_NAMES, toRemoteRow } from '@/domain/schema';
 import type { AnyRecord, Snapshot, TableName } from '@/domain/types';
 import type { RemoteApi, SyncResult } from './types';
-import { flushPendingRemoteDeletes } from './pendingDeletes';
+import {
+  flushPendingRemoteDeleteAllBeforePush,
+  flushPendingRemoteDeletes,
+  reconcilePreparedRemoteDeleteAll,
+} from './pendingDeletes';
 import { DAY_MS } from '@/lib/dates';
 
 /** エンジンが必要とする端末側の入出力（ストアとDBへの橋渡し）。 */
@@ -65,12 +69,17 @@ export async function runSync(
   opts: SyncOptions,
 ): Promise<SyncResult> {
   const result: SyncResult = { pushed: 0, pulled: 0, purged: 0 };
+  const initialSnapshot = local.snapshot();
+  await reconcilePreparedRemoteDeleteAll(opts.ownerId, {
+    projects: initialSnapshot.projects.map((record) => record.id),
+    kanban_columns: initialSnapshot.columns.map((record) => record.id),
+    tasks: initialSnapshot.tasks.map((record) => record.id),
+  });
+  // A confirmed reset clears old server data before Push. New records created afterward remain local
+  // and are then uploaded; processing reset after Push would accidentally delete those new records.
+  await flushPendingRemoteDeleteAllBeforePush(remote, opts.ownerId);
   const serverNow = await remote.serverTime();
   opts.onServerTime?.(serverNow);
-
-  // 明示同期／自動同期の入口を通った場合だけ、手動／オフ中に端末へ保存した削除を送る。
-  // リモート削除が途中で失敗した場合はテーブル単位でキューを残し、次回同期で再試行する。
-  await flushPendingRemoteDeletes(remote, opts.ownerId);
 
   // ---- Push ----
   for (const table of TABLE_NAMES) {
@@ -119,6 +128,53 @@ export async function runSync(
     });
     await local.apply({ [table]: settled }, []);
   }
+
+  // 削除要求は Push の後に処理する。削除要求を保存した直後にアプリが中断し、
+  // ローカル削除だけが未完了だった場合でも、古い dirty レコードを送った後で確実に削除する。
+  // サーバー削除とローカル削除が両方成功した後にだけ、キューを確定して消す。
+  const pendingDeletes = await flushPendingRemoteDeletes(remote, opts.ownerId, true);
+  const beforePendingPurge = local.snapshot();
+  const removalsByTable: Record<TableName, Set<string>> = {
+    projects: new Set<string>(),
+    kanban_columns: new Set<string>(),
+    tasks: new Set<string>(),
+  };
+  if (pendingDeletes.deleteAllLocal) {
+    for (const table of TABLE_NAMES) {
+      for (const record of rowsOf(beforePendingPurge, table)) {
+        removalsByTable[table].add(record.id);
+      }
+    }
+  } else {
+    for (const table of pendingDeletes.clearLocalTables) {
+      for (const record of rowsOf(beforePendingPurge, table)) removalsByTable[table].add(record.id);
+    }
+    const projectIds = new Set(pendingDeletes.deletedProjectIds);
+    for (const id of projectIds) removalsByTable.projects.add(id);
+    for (const column of beforePendingPurge.columns) {
+      if (projectIds.has(column.projectId)) removalsByTable.kanban_columns.add(column.id);
+    }
+    for (const task of beforePendingPurge.tasks) {
+      if (projectIds.has(task.projectId)) removalsByTable.tasks.add(task.id);
+    }
+    for (const table of TABLE_NAMES) {
+      for (const id of pendingDeletes.deletedIds[table] ?? []) removalsByTable[table].add(id);
+      const cutoff = pendingDeletes.expiredTrashBefore[table];
+      if (cutoff === undefined) continue;
+      for (const record of rowsOf(beforePendingPurge, table)) {
+        if (record.deletedAt !== null && record.deletedAt < cutoff)
+          removalsByTable[table].add(record.id);
+      }
+    }
+  }
+  const pendingRemovals = TABLE_NAMES.map((table) => ({
+    table,
+    ids: [...removalsByTable[table]],
+  }));
+  const pendingPurged = pendingRemovals.reduce((sum, item) => sum + item.ids.length, 0);
+  if (pendingPurged > 0) await local.apply({}, pendingRemovals);
+  await pendingDeletes.complete();
+  result.purged += pendingPurged;
 
   // ---- Pull ----
   for (const table of TABLE_NAMES) {
@@ -183,11 +239,12 @@ export async function runSync(
   if (opts.trashRetentionDays !== null) {
     const limit = opts.now() - opts.trashRetentionDays * DAY_MS;
     for (const table of ['tasks', 'kanban_columns', 'projects'] as TableName[]) {
+      // 端末のローカル一覧に存在しない、サーバー上だけの期限切れごみ箱データも削除する。
+      await remote.deleteExpiredTrash(table, opts.ownerId, limit);
       const ids = rowsOf(local.snapshot(), table)
-        .filter((r) => !r.dirty && r.deletedAt !== null && r.deletedAt < limit)
-        .map((r) => r.id);
+        .filter((record) => record.deletedAt !== null && record.deletedAt < limit)
+        .map((record) => record.id);
       if (ids.length === 0) continue;
-      await remote.deleteByIds(table, ids);
       await local.apply({}, [{ table, ids }]);
       result.purged += ids.length;
     }

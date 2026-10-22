@@ -135,6 +135,8 @@ export const ja = {
   'menu.clearTrashedProjectsMessage':
     'ごみ箱のプロジェクト {count} 件と、その配下のカンバン・タスクを完全に削除します。自動モードではサーバー上のデータも削除します。手動／オフでは通信せず端末から削除し、サーバーへの削除は次回同期時に反映します。元に戻せません。',
   'menu.clearTrashedProjectsDone': 'ごみ箱のプロジェクト {count} 件を完全に削除しました。',
+  'menu.clearTrashedProjectsPending':
+    '端末からごみ箱のプロジェクト {count} 件を削除しました。サーバー側の完全削除は次回同期時に反映します。',
   'menu.noProjects': 'プロジェクトがありません。',
   'menu.guestBadge': 'ゲスト',
   'menu.open': 'メニューを開く',
@@ -200,6 +202,8 @@ export const ja = {
   'project.permanentDeleteMessage':
     '「{name}」と、その中のカンバン・タスクを完全に削除します。この操作は元に戻せません。',
   'project.permanentDeleteDone': 'プロジェクトを完全に削除しました',
+  'project.permanentDeletePending':
+    '端末から削除しました。サーバー側の完全削除は次回同期時に反映します。',
   'project.permanentDeleteFailed':
     'プロジェクトを完全に削除できませんでした。もう一度お試しください。',
   'project.empty': 'プロジェクトを選んでください',
@@ -315,6 +319,8 @@ export const ja = {
   'board.clearSyncNotStarted':
     '同期が実行されなかったため、クリアを中止しました。同期状態を確認してから再試行してください。',
   'board.clearDone': 'クリアしました（{count} 件）',
+  'board.clearPending':
+    '端末から削除しました（{count} 件）。サーバー側の削除は次回同期時に反映します。',
   'board.search': 'プロジェクト内を検索',
   'board.searchEmpty': '一致するタスクはありません',
   'board.archiveTitle': 'アーカイブ',
@@ -423,6 +429,10 @@ export const ja = {
     'プロジェクト、カンバン、タスク、ごみ箱、アーカイブのデータを削除し、同期モード以外の設定を初期値に戻します。自動モードではサーバー上のデータも削除します。手動／オフでは通信せず、削除要求を端末に保存して次回の同期時に反映します。この操作は元に戻せません。アカウント自体は残ります。',
   'settings.resetAllConfirm': 'すべて削除して初期化',
   'settings.resetAllDone': 'データを削除し、同期モード以外の設定を初期化しました。',
+  'settings.resetAllRemotePending':
+    '端末内のデータを削除しました。サーバー側の削除は次回同期時に反映します。',
+  'settings.remoteDeletePending':
+    '端末から削除しました。サーバー側の削除は次回同期時に反映します。',
   'settings.resetAllFailed':
     'データを初期化できませんでした。接続とログイン状態を確認してください。',
   'settings.emailChange': 'メールアドレスの変更',

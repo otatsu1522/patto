@@ -139,7 +139,11 @@ export function useBoardActions(projectId: string) {
         if (r !== 'confirm') return;
         const res = await clearBucket(kind, projectId);
         if (res.ok) {
-          toast(t('board.clearDone', { count: res.count }), undefined, { category: 'system' });
+          if (res.remotePending) {
+            toast(t('board.clearPending', { count: res.count }), undefined, { category: 'system' });
+          } else {
+            toast(t('board.clearDone', { count: res.count }), undefined, { category: 'system' });
+          }
         } else {
           alert(t('common.error'), res.message);
         }

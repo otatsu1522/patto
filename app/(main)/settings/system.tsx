@@ -126,7 +126,11 @@ export default function SystemSettings() {
     if (r !== 'confirm') return;
     const res = await clearBucket(kind);
     if (res.ok) {
-      toast(t('board.clearDone', { count: res.count }), undefined, { category: 'system' });
+      if (res.remotePending) {
+        alert(t('common.error'), t('settings.remoteDeletePending'));
+      } else {
+        toast(t('board.clearDone', { count: res.count }), undefined, { category: 'system' });
+      }
     } else {
       alert(t('common.error'), res.message);
     }
@@ -143,7 +147,11 @@ export default function SystemSettings() {
     if (result !== 'confirm') return;
     const res = await resetAllData();
     if (res.ok) {
-      toast(t('settings.resetAllDone'), undefined, { category: 'system' });
+      if (res.remotePending) {
+        alert(t('common.error'), t('settings.resetAllRemotePending'));
+      } else {
+        toast(t('settings.resetAllDone'), undefined, { category: 'system' });
+      }
     } else {
       alert(t('common.error'), res.message);
     }

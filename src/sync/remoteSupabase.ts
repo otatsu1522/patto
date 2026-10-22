@@ -180,6 +180,32 @@ export function createSupabaseRemote(client: SupabaseClient): RemoteApi {
       if (error) fail(error);
     },
 
+    async deleteProjectsOwned(projectIds: string[], ownerId: string) {
+      if (projectIds.length === 0) return;
+      const { error } = await client.rpc('patto_delete_trashed_projects', {
+        p_owner_id: ownerId,
+        p_project_ids: projectIds,
+      });
+      if (error) fail(error);
+    },
+
+    async deleteAllOwnedData(ownerId: string) {
+      const { error } = await client.rpc('patto_delete_all_owned_data', {
+        p_owner_id: ownerId,
+      });
+      if (error) fail(error);
+    },
+
+    async deleteExpiredTrash(table: TableName, ownerId: string, cutoff: number) {
+      const { error } = await client
+        .from(table)
+        .delete()
+        .eq('owner_id', ownerId)
+        .not('deleted_at', 'is', null)
+        .lt('deleted_at', cutoff);
+      if (error) fail(error);
+    },
+
     async fetchHiddenIds(table: TableName, ids: string[]) {
       const hiddenIds: string[] = [];
       for (const part of chunks([...new Set(ids)], SYNC.maxIdsPerQuery)) {
