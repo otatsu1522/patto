@@ -251,11 +251,9 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
     });
   }, []);
   const scrollUiSnapshotRef = useRef<ScrollUiSnapshot | null>(null);
-  // メニューとカンバンの境界線をつなぐ幅。Web では sticky レイヤー内の線に使う。
-  const menuEdgeWidth = Math.max(
-    0,
-    closedX - menuWidth + (Platform.OS === 'web' && customOuterBorder ? lineWidth : 0),
-  );
+  // メニュー右端からヘッダー／フッターの境界までの実際の距離。
+  // Web とネイティブで同じ幾何計算を使い、線幅分の延長で接続を補正しない。
+  const menuEdgeWidth = Math.max(0, closedX - menuWidth);
   // メニューを開いているときだけ、ヘッダー下線をメニュー右端からつなぐ。
   const menuBridgeOpacity = useMemo(
     () =>
@@ -1417,11 +1415,11 @@ export const BoardView = forwardRef<BoardViewHandle, Props>(function BoardView(p
           style={[
             styles.columnHeaderGlobalBridge,
             {
-              // Sidebar 内ではなく BoardView 直下に描画し、次のカンバンやサイドバーの縁マスクに覆われないようにする。
-              // 縦線の内側からカンバン側へ 2px 重ね、線幅設定にかかわらず隙間を作らない。
+              // Sidebar 内ではなく BoardView 直下に描画し、縦の境界線の幅だけで接続する。
+              // カンバン側へ余分に延長せず、境界の内側端から外側端までを正確に描画する。
               left: menuWidth - lineWidth,
               top: BOARD.headerHeight + BOARD.touchTarget - lineWidth,
-              width: lineWidth + 2,
+              width: lineWidth,
               height: lineWidth,
               backgroundColor: lineColor,
               opacity: menuBridgeOpacity,
