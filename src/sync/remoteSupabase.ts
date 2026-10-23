@@ -15,7 +15,22 @@ const chunks = <T>(items: T[], size: number): T[][] => {
 
 /** Supabase（PostgreSQL + RLS）を使った RemoteApi 実装。RLS により自分の行だけが見える。 */
 export function createSupabaseRemote(client: SupabaseClient): RemoteApi {
+  let activeResetGeneration = 0;
   return {
+    async getAccountResetGeneration(ownerId: string) {
+      const { data, error } = await client
+        .from('patto_account_data_state')
+        .select('reset_generation')
+        .eq('owner_id', ownerId)
+        .maybeSingle();
+      if (error) return fail(error);
+      activeResetGeneration = Number(data?.reset_generation ?? 0);
+      if (!Number.isSafeInteger(activeResetGeneration) || activeResetGeneration < 0) {
+        throw new Error('Invalid account reset generation');
+      }
+      return activeResetGeneration;
+    },
+
     async serverTime() {
       const { data, error } = await client.rpc('server_time');
       if (error) return fail(error);
@@ -164,7 +179,11 @@ export function createSupabaseRemote(client: SupabaseClient): RemoteApi {
     },
 
     async upsert(table: TableName, rows: RemoteRow[]) {
-      const { error } = await client.from(table).upsert(rows, { onConflict: 'id' });
+      const versionedRows = rows.map((row) => ({
+        ...row,
+        reset_generation: activeResetGeneration,
+      }));
+      const { error } = await client.from(table).upsert(versionedRows, { onConflict: 'id' });
       if (error) fail(error);
     },
 
@@ -207,11 +226,18 @@ export function createSupabaseRemote(client: SupabaseClient): RemoteApi {
       } satisfies DeleteProjectsOwnedResult;
     },
 
-    async deleteAllOwnedData(ownerId: string) {
-      const { error } = await client.rpc('patto_delete_all_owned_data', {
+    async deleteAllOwnedData(ownerId: string, requestId: string) {
+      const { data, error } = await client.rpc('patto_delete_all_owned_data', {
         p_owner_id: ownerId,
+        p_request_id: requestId,
       });
-      if (error) fail(error);
+      if (error) return fail(error);
+      const generation = Number(data);
+      if (!Number.isSafeInteger(generation) || generation < 1) {
+        throw new Error('Invalid account reset generation response');
+      }
+      activeResetGeneration = generation;
+      return generation;
     },
 
     async deleteExpiredTrash(table: TableName, ownerId: string, cutoff: number) {

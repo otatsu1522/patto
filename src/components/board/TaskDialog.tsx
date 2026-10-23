@@ -251,6 +251,7 @@ export function TaskDialog({
         onClose={requestClose}
         onShow={focusInitialField}
         preserveKeyboardLayout={calendar}
+        expandToKeyboard={task !== null}
         overlay={
           <DiscardChangesOverlay
             visible={discardPrompt}

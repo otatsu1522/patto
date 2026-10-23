@@ -1,4 +1,5 @@
 import { kv } from '@/lib/kv';
+import { newId } from '@/lib/ids';
 import type { TableName } from '@/domain/types';
 import type { RemoteApi } from './types';
 
@@ -18,6 +19,8 @@ interface PendingTableDelete {
 interface PendingRemoteDeletes {
   version: 2;
   deleteAllData: boolean;
+  /** サーバー全件リセットを再試行しても同じ要求として扱うための ID。 */
+  deleteAllRequestId: string | null;
   /** Local reset is being prepared; remote deletion must wait until local clear succeeds. */
   deleteAllPreparing: boolean;
   deleteAllPreparingIds: Record<TableName, string[]>;
@@ -30,6 +33,8 @@ interface PendingRemoteDeletes {
 export interface FlushedDeleteResult {
   /** 全データ削除要求をサーバーで完了したため、ローカルもすべて削除する。 */
   deleteAllLocal: boolean;
+  /** 全データ初期化でサーバーが確定した世代番号。 */
+  resetGeneration?: number;
   /** 完了したプロジェクト単位削除。子レコードもローカルから除去する。 */
   deletedProjectIds: string[];
   /** 別端末で復元済みのため、削除を取り消してサーバーから再取得するプロジェクトID。 */
@@ -49,6 +54,7 @@ const keyForOwner = (ownerId: string) => `${STORAGE_KEY_PREFIX}${ownerId}`;
 const emptyQueue = (): PendingRemoteDeletes => ({
   version: 2,
   deleteAllData: false,
+  deleteAllRequestId: null,
   deleteAllPreparing: false,
   deleteAllPreparingIds: { projects: [], kanban_columns: [], tasks: [] },
   projectIds: [],
@@ -95,6 +101,9 @@ async function readQueue(ownerId: string): Promise<PendingRemoteDeletes> {
   const expiryInput = parsed.expiredTrashBefore as Record<string, unknown> | undefined;
   if (
     typeof parsed.deleteAllData !== 'boolean' ||
+    (parsed.deleteAllRequestId !== undefined &&
+      parsed.deleteAllRequestId !== null &&
+      typeof parsed.deleteAllRequestId !== 'string') ||
     (parsed.deleteAllPreparing !== undefined && typeof parsed.deleteAllPreparing !== 'boolean') ||
     (parsed.deleteAllPreparingIds !== undefined &&
       (!parsed.deleteAllPreparingIds || typeof parsed.deleteAllPreparingIds !== 'object')) ||
@@ -124,6 +133,8 @@ async function readQueue(ownerId: string): Promise<PendingRemoteDeletes> {
   return {
     version: 2,
     deleteAllData: parsed.deleteAllData,
+    deleteAllRequestId:
+      typeof parsed.deleteAllRequestId === 'string' ? parsed.deleteAllRequestId : null,
     deleteAllPreparing: parsed.deleteAllPreparing === true,
     deleteAllPreparingIds,
     projectIds: [...new Set(projectIds as string[])],
@@ -231,7 +242,11 @@ export async function queueRemoteDeleteAll(
 
 /** ローカルの全件削除が成功した後に、サーバー削除を再試行可能な状態へ確定する。 */
 export async function commitRemoteDeleteAll(ownerId: string): Promise<void> {
-  await writeQueue(ownerId, { ...emptyQueue(), deleteAllData: true });
+  await writeQueue(ownerId, {
+    ...emptyQueue(),
+    deleteAllData: true,
+    deleteAllRequestId: newId(),
+  });
 }
 
 /** ローカルの全件削除が失敗した場合、未確定の準備状態だけを取り消す。 */
@@ -272,7 +287,11 @@ export async function reconcilePreparedRemoteDeleteAll(
     await writeQueue(ownerId, queue);
     return;
   }
-  await writeQueue(ownerId, { ...emptyQueue(), deleteAllData: true });
+  await writeQueue(ownerId, {
+    ...emptyQueue(),
+    deleteAllData: true,
+    deleteAllRequestId: queue.deleteAllRequestId ?? newId(),
+  });
 }
 
 /** 即時削除に成功した単独レコードIDを保留キューから取り除く。 */
@@ -299,13 +318,22 @@ export async function removeQueuedRemoteDeletes(
 export async function flushPendingRemoteDeleteAllBeforePush(
   remote: RemoteApi,
   ownerId: string,
-): Promise<boolean> {
+  onResetGeneration: (generation: number) => Promise<void>,
+): Promise<number | null> {
   const queue = await readQueue(ownerId);
-  if (queue.deleteAllPreparing) return false;
-  if (!queue.deleteAllData) return false;
-  await remote.deleteAllOwnedData(ownerId);
+  if (queue.deleteAllPreparing) return null;
+  if (!queue.deleteAllData) return null;
+  const requestId = queue.deleteAllRequestId ?? newId();
+  if (queue.deleteAllRequestId === null) {
+    queue.deleteAllRequestId = requestId;
+    // RPC前に要求IDを永続化し、RPC成功後に端末側の保存が失敗しても再度全件削除しない。
+    await writeQueue(ownerId, queue);
+  }
+  const generation = await remote.deleteAllOwnedData(ownerId, requestId);
+  // 世代をローカルに保存してからキューを消す。保存に失敗した場合は次回同期で同じ要求を再試行する。
+  await onResetGeneration(generation);
   await writeQueue(ownerId, emptyQueue());
-  return true;
+  return generation;
 }
 
 /**
@@ -348,7 +376,13 @@ export async function flushPendingRemoteDeletes(
   }
 
   if (queue.deleteAllData) {
-    await remote.deleteAllOwnedData(ownerId);
+    const requestId = queue.deleteAllRequestId ?? newId();
+    if (queue.deleteAllRequestId === null) {
+      queue.deleteAllRequestId = requestId;
+      // RPC前に要求IDを保存し、成功後の端末側エラーで全件削除を繰り返さない。
+      await writeQueue(ownerId, queue);
+    }
+    result.resetGeneration = await remote.deleteAllOwnedData(ownerId, requestId);
     result.deleteAllLocal = true;
     Object.assign(remaining, emptyQueue());
     changed = true;

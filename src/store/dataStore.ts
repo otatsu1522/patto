@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { Platform } from 'react-native';
 import { DEFAULT_COLUMNS } from '@/config/defaults';
 import {
   TUTORIAL_PREVIOUS_TASK_COUNTS,
@@ -10,7 +9,7 @@ import {
 } from '@/config/tutorial';
 import { LIMITS } from '@/config/limits';
 import { TIMING } from '@/config/timing';
-import { destroyLocalDb, openLocalDb, webTabDatabaseScope } from '@/db/sqliteDb';
+import { destroyLocalDb, openLocalDb } from '@/db/sqliteDb';
 import type { LocalDb } from '@/db/types';
 import {
   buildColumn,
@@ -24,6 +23,8 @@ import {
 } from '@/domain/mutations';
 import { compareBySortKey, keyAtEnd, keyAtStart, keyForIndex } from '@/domain/ordering';
 import { validateImportedBoards, type ImportedBoard } from '@/domain/trello';
+import { mergeRecords } from '@/domain/merge';
+import { mergeableFields } from '@/domain/schema';
 import { UserActionError } from '@/domain/operationError';
 import { columnsOf, isActive, purgeTargets, tasksOf } from '@/domain/selectors';
 import type {
@@ -74,15 +75,7 @@ async function openLocalDbWithTimeout(scope: string): Promise<LocalDb> {
   }
 }
 
-function isWebDatabaseContention(error: unknown): boolean {
-  if (error instanceof DbOpenTimeoutError) return true;
-  const detail = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-  return /NoModificationAllowedError|createSyncAccessHandle|Access Handles cannot be created|database is locked|Sync operation timeout|Invalid VFS state/i.test(
-    detail,
-  );
-}
-
-/** DBを開いて読み込む。Webで共有DBの排他ハンドルを取得できない場合のみ、タブ固有DBへ切り替える。 */
+/** DBを開いて読み込む。Web でも常に同じ共有 DB を使い、競合時に別 DB へ切り替えない。 */
 async function openAndLoadDb(scope: string): Promise<{ db: LocalDb; snapshot: Snapshot }> {
   const opened = await openLocalDbWithTimeout(scope);
   try {
@@ -90,30 +83,6 @@ async function openAndLoadDb(scope: string): Promise<{ db: LocalDb; snapshot: Sn
   } catch (error) {
     void opened.close().catch(() => undefined);
     throw error;
-  }
-}
-
-async function openAndLoadDbWithTabFallback(
-  scope: string,
-): Promise<{ db: LocalDb; snapshot: Snapshot }> {
-  try {
-    return await openAndLoadDb(scope);
-  } catch (error) {
-    if (Platform.OS !== 'web' || !isWebDatabaseContention(error)) throw error;
-    const fallbackScope = webTabDatabaseScope(scope);
-    if (!fallbackScope) throw error;
-    // Web の SQLite / OPFS は、同じDBファイルのアクセスハンドルを別タブで共有できない。
-    // 起動を止めないため、このタブだけ独立DBを使う。タブ間の同期・競合解決は行わない。
-    try {
-      return await openAndLoadDb(fallbackScope);
-    } catch (fallbackError) {
-      // ブラウザーでタブを複製すると sessionStorage も複製されることがある。
-      // フォールバックDBも使用中なら、このタブ専用の新しいIDで一度だけ再試行する。
-      if (!isWebDatabaseContention(fallbackError)) throw fallbackError;
-      const uniqueFallbackScope = webTabDatabaseScope(scope, true);
-      if (!uniqueFallbackScope || uniqueFallbackScope === fallbackScope) throw fallbackError;
-      return openAndLoadDb(uniqueFallbackScope);
-    }
   }
 }
 
@@ -249,6 +218,105 @@ const upsertById = <T extends { id: string }>(list: T[], changed: T[] | undefine
   return Array.from(map.values());
 };
 
+/**
+ * 更新関数がキュー投入前に読んだ古いレコードを、そのまま保存しないための三者差分。
+ * 呼び出し時点のレコードから実際に変更された項目だけを、キュー実行時点の最新値へ適用する。
+ */
+function rebaseLocalChanges<T extends AnyRecord>(
+  table: TableName,
+  baseRecords: AnyRecord[],
+  currentRecords: AnyRecord[],
+  proposedRecords: T[] | undefined,
+): T[] | undefined {
+  if (!proposedRecords) return undefined;
+  const baseById = new Map(baseRecords.map((record) => [record.id, record]));
+  const currentById = new Map(currentRecords.map((record) => [record.id, record]));
+  const fields = mergeableFields(table);
+  const proposalsById = new Map<string, T[]>();
+  for (const proposed of proposedRecords) {
+    const list = proposalsById.get(proposed.id) ?? [];
+    list.push(proposed);
+    proposalsById.set(proposed.id, list);
+  }
+
+  return [...proposalsById.entries()].flatMap(([id, proposals]) => {
+    const base = baseById.get(id);
+    // 新規作成レコードは通常IDごとに1件。重複がある場合は最後の内容を使う。
+    if (!base) return [proposals[proposals.length - 1]!];
+    const current = currentById.get(id);
+    // キューを待つ間に物理削除されたレコードを、遅れてきた編集で復活させない。
+    if (!current) return [];
+
+    const baseValues = base as unknown as Record<string, unknown>;
+    const patch: Record<string, unknown> = {};
+    const changedFields = new Set<string>();
+    for (const proposed of proposals) {
+      const proposedValues = proposed as unknown as Record<string, unknown>;
+      for (const field of fields) {
+        if (
+          JSON.stringify(proposedValues[field] ?? null) !==
+          JSON.stringify(baseValues[field] ?? null)
+        ) {
+          changedFields.add(field);
+          // 同じフィールドが複数回含まれた場合は、変更リスト内の最後の値を採用する。
+          patch[field] = proposedValues[field] ?? null;
+        }
+      }
+    }
+    if (changedFields.size === 0) return [];
+
+    const latestRevision = Math.max(current.updatedAt, ...Object.values(current.fieldUpdatedAt));
+    const revision = Math.max(nowMs(), latestRevision + 1);
+    const fieldUpdatedAt = { ...current.fieldUpdatedAt };
+    for (const field of changedFields) fieldUpdatedAt[field] = revision;
+
+    return [
+      {
+        ...current,
+        ...patch,
+        updatedAt: revision,
+        fieldUpdatedAt,
+        dirty: true,
+      } as T,
+    ];
+  });
+}
+
+function rebaseChanges(base: Snapshot, current: Snapshot, changes: Changes): Changes {
+  return {
+    projects: rebaseLocalChanges('projects', base.projects, current.projects, changes.projects),
+    columns: rebaseLocalChanges('kanban_columns', base.columns, current.columns, changes.columns),
+    tasks: rebaseLocalChanges('tasks', base.tasks, current.tasks, changes.tasks),
+  };
+}
+
+/** Pull結果を適用する直前に、待ち時間中に起きたローカル編集と再マージする。 */
+function mergeIncomingChanges(
+  current: Snapshot,
+  changes: Partial<Record<TableName, AnyRecord[]>>,
+): Changes {
+  const mergeTable = <T extends AnyRecord>(
+    table: TableName,
+    existing: T[],
+    incoming: AnyRecord[] | undefined,
+  ): T[] | undefined => {
+    if (!incoming) return undefined;
+    const currentById = new Map(existing.map((record) => [record.id, record]));
+    return incoming.map((record) => {
+      const local = currentById.get(record.id);
+      if (!local) return record as T;
+      const { merged, differsFromRemote } = mergeRecords(table, local, record as T);
+      return { ...merged, dirty: record.dirty || differsFromRemote } as T;
+    });
+  };
+
+  return {
+    projects: mergeTable('projects', current.projects, changes.projects),
+    columns: mergeTable('kanban_columns', current.columns, changes.kanban_columns),
+    tasks: mergeTable('tasks', current.tasks, changes.tasks),
+  };
+}
+
 interface DataState extends Snapshot {
   scope: string | null;
   ownerId: string;
@@ -355,15 +423,20 @@ export const useDataStore = create<DataState>((set, get) => {
       get().scope === expectedScope;
 
     await enqueueDataMutation(async () => {
-      // プロジェクトと配下のカンバン／タスクなどを、全テーブル成功後にだけ画面へ反映する。
-      await targetDb.applyChanges(changes);
+      const queuedState = get();
+      const effectiveChanges = isTargetCurrent()
+        ? rebaseChanges(initialState, queuedState, changes)
+        : changes;
+      // 読み取り後に別操作が先に確定しても、変更項目以外はキュー実行時の最新値を保持する。
+      // プロジェクトと配下のカンバン／タスクは全テーブル成功後にだけ画面へ反映する。
+      await targetDb.applyChanges(effectiveChanges);
       if (isTargetCurrent()) {
         set((s) => {
           if (s.ownerId !== expectedOwnerId || s.scope !== expectedScope || !s.ready) return s;
           return {
-            projects: upsertById(s.projects, changes.projects),
-            columns: upsertById(s.columns, changes.columns),
-            tasks: upsertById(s.tasks, changes.tasks),
+            projects: upsertById(s.projects, effectiveChanges.projects),
+            columns: upsertById(s.columns, effectiveChanges.columns),
+            tasks: upsertById(s.tasks, effectiveChanges.tasks),
           };
         });
       }
@@ -643,7 +716,7 @@ export const useDataStore = create<DataState>((set, get) => {
         }
         // 同じアカウントへ短時間で戻った場合、旧同期のDB lease／サインアウト後の削除が終わるまで待つ。
         await waitForScopeLeases(scope);
-        const { db: opened, snapshot } = await openAndLoadDbWithTabFallback(scope);
+        const { db: opened, snapshot } = await openAndLoadDb(scope);
         try {
           db = opened;
           dbLogicalScopes.set(opened, scope);
@@ -760,11 +833,19 @@ export const useDataStore = create<DataState>((set, get) => {
         get().scope === target.scope;
 
       await enqueueDataMutation(async () => {
+        const currentState = get();
+        const effectiveChanges = isTargetCurrent()
+          ? mergeIncomingChanges(currentState, changes)
+          : {
+              projects: changes.projects as Project[] | undefined,
+              columns: changes.kanban_columns as KanbanColumn[] | undefined,
+              tasks: changes.tasks as Task[] | undefined,
+            };
         await targetDb.applyChanges(
           {
-            projects: changes.projects,
-            columns: changes.kanban_columns,
-            tasks: changes.tasks,
+            projects: effectiveChanges.projects,
+            columns: effectiveChanges.columns,
+            tasks: effectiveChanges.tasks,
           },
           removed,
         );
@@ -779,15 +860,15 @@ export const useDataStore = create<DataState>((set, get) => {
             return {
               projects: upsertById(
                 s.projects.filter((x) => !dp.has(x.id)),
-                changes.projects as Project[] | undefined,
+                effectiveChanges.projects,
               ),
               columns: upsertById(
                 s.columns.filter((x) => !dc.has(x.id)),
-                changes.kanban_columns as KanbanColumn[] | undefined,
+                effectiveChanges.columns,
               ),
               tasks: upsertById(
                 s.tasks.filter((x) => !dt.has(x.id)),
-                changes.tasks as Task[] | undefined,
+                effectiveChanges.tasks,
               ),
             };
           });

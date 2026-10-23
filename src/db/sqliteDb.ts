@@ -7,34 +7,61 @@ import { dbNameFor, type LocalDb, type LocalDbChanges, type LocalDbRemoval } fro
 
 /** 端末内データベース（expo-sqlite）。Android / iOS / Web で同じ実装を使う。 */
 
-const WEB_TAB_DATABASE_ID_KEY = 'patto:sqlite-tab-database-id';
-let cachedWebTabDatabaseId: string | null = null;
+type WebLockManager = {
+  request<T>(
+    name: string,
+    options: { mode: 'exclusive'; ifAvailable?: boolean },
+    callback: (lock: { name: string } | null) => Promise<T>,
+  ): Promise<T>;
+};
 
-/** 同一ブラウザー内で SQLite の共有ファイルを開けない場合に使う、タブ固有のDBスコープ。 */
-export function webTabDatabaseScope(scope: string, rotateId = false): string | null {
-  if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
-  if (rotateId) {
-    // 複製したタブは sessionStorage も複製されるため、同じタブ固有DBを
-    // 先に開いたタブが使用中なら、新しいIDに切り替えて再試行する。
-    cachedWebTabDatabaseId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-    try {
-      window.sessionStorage.setItem(WEB_TAB_DATABASE_ID_KEY, cachedWebTabDatabaseId);
-    } catch {
-      // ストレージが使えない環境でも、現在のページ内では識別できるIDを使用する。
-    }
-  } else if (!cachedWebTabDatabaseId) {
-    try {
-      cachedWebTabDatabaseId = window.sessionStorage.getItem(WEB_TAB_DATABASE_ID_KEY);
-      if (!cachedWebTabDatabaseId) {
-        cachedWebTabDatabaseId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-        window.sessionStorage.setItem(WEB_TAB_DATABASE_ID_KEY, cachedWebTabDatabaseId);
-      }
-    } catch {
-      // ストレージが使えない環境でも、現在のページ内では識別できるIDを使用する。
-      cachedWebTabDatabaseId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-    }
+/**
+ * Web の SQLite ファイルをタブ間で排他利用する。
+ * OPFS の同期アクセスハンドルは同じ DB を複数タブで同時に開けないため、
+ * 接続が開いている間は Web Locks を保持し、競合時に別 DB へ分岐させない。
+ */
+async function acquireWebDatabaseLock(databaseName: string): Promise<() => void> {
+  if (Platform.OS !== 'web') return () => undefined;
+  if (typeof navigator === 'undefined') {
+    throw new Error(
+      'Web データベースの排他制御を利用できません。対応ブラウザーで開き直してください。',
+    );
   }
-  return `${scope}__webtab_${cachedWebTabDatabaseId}`;
+
+  const locks = (navigator as Navigator & { locks?: WebLockManager }).locks;
+  if (!locks) {
+    throw new Error(
+      'このブラウザーは複数タブ間のデータベース排他制御に対応していません。対応ブラウザーで開き直してください。',
+    );
+  }
+
+  return new Promise<() => void>((resolve, reject) => {
+    let acquired = false;
+    let releaseHold!: () => void;
+    const hold = new Promise<void>((resolveHold) => {
+      releaseHold = resolveHold;
+    });
+    const request = locks.request(
+      `patto:sqlite-access:${databaseName}`,
+      { mode: 'exclusive', ifAvailable: true },
+      async (lock) => {
+        if (!lock) {
+          reject(
+            new Error(
+              'このデータベースは別のタブで使用中です。ほかの Patto タブを閉じてから、このタブを再読み込みしてください。',
+            ),
+          );
+          return;
+        }
+        acquired = true;
+        resolve(() => releaseHold());
+        await hold;
+      },
+    );
+    void request.catch((error) => {
+      if (!acquired) reject(error);
+    });
+  });
 }
 
 async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
@@ -52,6 +79,7 @@ async function migrate(db: SQLite.SQLiteDatabase): Promise<void> {
 
 export async function openLocalDb(scope: string): Promise<LocalDb> {
   const databaseName = `${dbNameFor(scope)}.db`;
+  const releaseAccessLock = await acquireWebDatabaseLock(databaseName);
   const openAndMigrate = async (): Promise<SQLite.SQLiteDatabase> => {
     const opened = await SQLite.openDatabaseAsync(databaseName);
     try {
@@ -63,18 +91,13 @@ export async function openLocalDb(scope: string): Promise<LocalDb> {
     }
   };
 
-  // Web 版では別タブも同じ IndexedDB/SQLite ファイルを開くため、初回オープンと
-  // マイグレーションだけはタブ間でも直列化する。未対応ブラウザでは従来どおり開く。
-  type WebLockManager = {
-    request<T>(name: string, callback: () => Promise<T>): Promise<T>;
-  };
-  const locks =
-    Platform.OS === 'web' && typeof navigator !== 'undefined'
-      ? (navigator as Navigator & { locks?: WebLockManager }).locks
-      : undefined;
-  const db = locks
-    ? await locks.request(`patto:sqlite-init:${databaseName}`, openAndMigrate)
-    : await openAndMigrate();
+  let db: SQLite.SQLiteDatabase;
+  try {
+    db = await openAndMigrate();
+  } catch (error) {
+    releaseAccessLock();
+    throw error;
+  }
 
   // withTransactionAsync() は排他的ではなく、同じ接続で複数のトランザクションが重なるとエラーになる。
   // そのため、この接続への読み書きはすべて1本の待ち行列に並べて、1つずつ順番に実行する。
@@ -185,7 +208,11 @@ export async function openLocalDb(scope: string): Promise<LocalDb> {
 
     close: () =>
       serial(async () => {
-        await db.closeAsync();
+        try {
+          await db.closeAsync();
+        } finally {
+          releaseAccessLock();
+        }
       }),
   };
 }
@@ -198,19 +225,16 @@ function isMissingDatabaseError(error: unknown): boolean {
 }
 
 export async function destroyLocalDb(scope: string): Promise<void> {
-  const names = new Set([`${dbNameFor(scope)}.db`]);
-  const tabScope = webTabDatabaseScope(scope);
-  if (tabScope) names.add(`${dbNameFor(tabScope)}.db`);
-  const results = await Promise.allSettled(
-    [...names].map(async (name) => {
-      try {
-        await SQLite.deleteDatabaseAsync(name);
-      } catch (error) {
-        // 起動時に作成されていないタブ用DBなど、「元から存在しない」場合だけ成功扱いにする。
-        if (!isMissingDatabaseError(error)) throw error;
-      }
-    }),
-  );
-  const failed = results.find((result) => result.status === 'rejected');
-  if (failed?.status === 'rejected') throw failed.reason;
+  const name = `${dbNameFor(scope)}.db`;
+  const releaseAccessLock = await acquireWebDatabaseLock(name);
+  try {
+    try {
+      await SQLite.deleteDatabaseAsync(name);
+    } catch (error) {
+      // 起動時に作成されていない DB など、「元から存在しない」場合だけ成功扱いにする。
+      if (!isMissingDatabaseError(error)) throw error;
+    }
+  } finally {
+    releaseAccessLock();
+  }
 }

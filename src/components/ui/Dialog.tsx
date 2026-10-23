@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import {
   Keyboard,
   KeyboardAvoidingView,
@@ -26,8 +34,16 @@ import { AuthInputFocusProvider, useInputFocusScroller } from '../auth/AuthInput
 import { useWebWheelScroll } from '@/hooks/useWebWheelScroll';
 
 // ESC は最前面のダイアログだけが処理する。ネストしたダイアログで親まで閉じないようにする。
-let dialogEscapeSequence = 0;
-const activeDialogEscapeStack: number[] = [];
+const activeDialogEscapeStack: string[] = [];
+
+function getWebInputElement(input: TextInput | null): HTMLElement | null {
+  if (!input || typeof HTMLElement === 'undefined') return null;
+  const node =
+    input instanceof HTMLElement
+      ? input
+      : (input as unknown as { getNativeRef?: () => unknown }).getNativeRef?.();
+  return node instanceof HTMLElement ? node : null;
+}
 
 interface Props {
   visible: boolean;
@@ -47,6 +63,8 @@ interface Props {
   onDismiss?: () => void;
   /** 期限カレンダーなどの子ダイアログ表示中、親ダイアログのキーボード配置を維持する。 */
   preserveKeyboardLayout?: boolean;
+  /** キーボード表示中、ダイアログを利用可能な高さまで広げる。 */
+  expandToKeyboard?: boolean;
   /** 旧呼び出し元との互換用。現在のダイアログはアニメーションなしで表示を切り替える。 */
   dismissImmediately?: boolean;
 }
@@ -64,6 +82,7 @@ export function Dialog({
   onShow,
   onDismiss,
   preserveKeyboardLayout = false,
+  expandToKeyboard = false,
 }: Props) {
   const { colors, lineWidth, lineColor } = useTheme();
   const insets = getSystemBarInsets(useSafeAreaInsets());
@@ -72,6 +91,7 @@ export function Dialog({
     (mode === 'compact' || Platform.OS !== 'web' || isTouchWeb) && !fixedBody && !!footer;
   const push = useUiStore((s) => s.pushDialog);
   const pop = useUiStore((s) => s.popDialog);
+  const dialogCount = useUiStore((s) => s.dialogCount);
   const bodyScrollRef = useWebWheelScroll({
     enabled: visible && !fixedBody,
     touchScroll: visible && !fixedBody,
@@ -92,12 +112,17 @@ export function Dialog({
   // KeyboardAvoidingView の behavior は表示中ずっと固定し、フォーカス時の後追いレイアウト変更を防ぐ。
   const dialogInputFocusedRef = useRef(false);
   const focusedDialogInputRef = useRef<TextInput | null>(null);
-  const dialogEscapeTokenRef = useRef<number | null>(null);
+  const dialogEscapeToken = useId();
   // onShow から入力欄へ自動フォーカスする間、native の Keyboard イベントが
   // TextInput の onFocus より先に届いても、キーボード表示状態を取りこぼさない。
   const dialogInputFocusRequestedRef = useRef(false);
   const nativeKeyboardSessionRef = useRef(false);
   const nativeShowFrameRef = useRef<number | null>(null);
+  const dialogShowPaintFrameRef = useRef<number | null>(null);
+  const positionStableFrameRef = useRef<number | null>(null);
+  const positionerLayoutReadyRef = useRef(false);
+  const positionReadyRef = useRef(false);
+  const pendingShowFocusRef = useRef(false);
   const preserveKeyboardLayoutRef = useRef(preserveKeyboardLayout);
   useLayoutEffect(() => {
     preserveKeyboardLayoutRef.current = preserveKeyboardLayout;
@@ -166,6 +191,12 @@ export function Dialog({
           dialogInputFocusedRef.current = true;
           focusedDialogInputRef.current = input;
           dialogInputFocusRequestedRef.current = false;
+          // ダイアログを切り替えた際、キーボードが既に表示されていると
+          // Keyboard show イベントが再発しない場合があるため、実状態も同期する。
+          if (Platform.OS !== 'web' && Keyboard.isVisible()) {
+            nativeKeyboardSessionRef.current = true;
+            updateKeyboardState(true);
+          }
         } else if (focusedDialogInputRef.current === input) {
           // フォーカス中の入力欄自身から非フォーカス通知を受けた場合だけ解除する。
           // 別の入力欄のサイズ変更通知で、現在のフォーカス状態を消さない。
@@ -175,13 +206,12 @@ export function Dialog({
       }
       revealFocusedInput(input);
     },
-    [revealFocusedInput],
+    [revealFocusedInput, updateKeyboardState],
   );
 
   const handleRequestClose = useCallback(() => {
     if (!dismissible) return;
-    const token = dialogEscapeTokenRef.current;
-    if (token !== null && activeDialogEscapeStack[activeDialogEscapeStack.length - 1] !== token) {
+    if (activeDialogEscapeStack[activeDialogEscapeStack.length - 1] !== dialogEscapeToken) {
       return;
     }
 
@@ -208,7 +238,7 @@ export function Dialog({
     }
 
     onClose();
-  }, [dismissible, onClose]);
+  }, [dismissible, onClose, dialogEscapeToken]);
   // Modalを閉じてから再表示するまでの間に残ったキーボード状態は、同じ描画に使わない。
   // レイアウトeffectより前のレンダーでも、開閉直後は中央配置の状態として扱う。
   const keyboardStateMatchesVisibility = keyboardState.visibleFor === visible;
@@ -221,20 +251,70 @@ export function Dialog({
     keyboardState.webViewportHeight > 0;
   const webViewportTop = webKeyboardViewportActive ? keyboardState.webViewportTop : 0;
   const webViewportHeight = webKeyboardViewportActive ? keyboardState.webViewportHeight : 0;
+  const expandDialogForKeyboard =
+    expandToKeyboard && keyboardVisible && (Platform.OS !== 'web' || webKeyboardViewportActive);
   const dialogTopPadding = insets.top + SPACING.lg;
   const webKeyboardMaxHeight = webKeyboardViewportActive
     ? Math.max(0, webViewportHeight - dialogTopPadding)
     : undefined;
   const wasVisibleRef = useRef(visible);
   const onDismissRef = useRef(onDismiss);
-  const [webModalSession, setWebModalSession] = useState(0);
-  const wasVisibleForWebModalRef = useRef(false);
+  // 表示状態が変わったレンダー中にセッションを更新し、古いレイアウトが表示される前に無効化する。
+  // effect 内で setState する必要がなく、再表示時も前回の positionReady を使わない。
+  const [dialogSessionState, setDialogSessionState] = useState(() => ({
+    session: 0,
+    visible,
+  }));
+  if (dialogSessionState.visible !== visible) {
+    setDialogSessionState((previous) => ({
+      session: previous.session + (visible ? 1 : 0),
+      visible,
+    }));
+  }
+  const dialogSession = dialogSessionState.session;
+  const [positionReadySession, setPositionReadySession] = useState<number | null>(null);
+  const wasVisibleForDialogSessionRef = useRef(false);
+  const positionReady = visible && positionReadySession === dialogSession;
 
   useLayoutEffect(() => {
-    if (Platform.OS === 'web' && visible && !wasVisibleForWebModalRef.current) {
-      setWebModalSession((session) => session + 1);
+    if (visible && !wasVisibleForDialogSessionRef.current) {
+      // KeyboardAvoidingView は前回表示時の frame を内部に保持する。
+      // 開くたびに新しいレイアウト計算から始め、前回のキーボード寸法を持ち越さない。
+      positionerLayoutReadyRef.current = false;
+      positionReadyRef.current = false;
+      if (positionStableFrameRef.current !== null) {
+        cancelAnimationFrame(positionStableFrameRef.current);
+        positionStableFrameRef.current = null;
+      }
+      if (nativeShowFrameRef.current !== null) {
+        cancelAnimationFrame(nativeShowFrameRef.current);
+        nativeShowFrameRef.current = null;
+      }
+      if (dialogShowPaintFrameRef.current !== null) {
+        cancelAnimationFrame(dialogShowPaintFrameRef.current);
+        dialogShowPaintFrameRef.current = null;
+      }
+      pendingShowFocusRef.current = false;
+      dialogInputFocusRequestedRef.current = false;
+    } else if (!visible) {
+      positionerLayoutReadyRef.current = false;
+      positionReadyRef.current = false;
+      if (positionStableFrameRef.current !== null) {
+        cancelAnimationFrame(positionStableFrameRef.current);
+        positionStableFrameRef.current = null;
+      }
+      if (nativeShowFrameRef.current !== null) {
+        cancelAnimationFrame(nativeShowFrameRef.current);
+        nativeShowFrameRef.current = null;
+      }
+      if (dialogShowPaintFrameRef.current !== null) {
+        cancelAnimationFrame(dialogShowPaintFrameRef.current);
+        dialogShowPaintFrameRef.current = null;
+      }
+      pendingShowFocusRef.current = false;
+      dialogInputFocusRequestedRef.current = false;
     }
-    wasVisibleForWebModalRef.current = visible;
+    wasVisibleForDialogSessionRef.current = visible;
   }, [visible]);
 
   // 開閉時に前回のキーボード寸法を次の表示へ持ち越さない。
@@ -317,9 +397,12 @@ export function Dialog({
           // ブラウザーのアドレスバーによる visualViewport の変化をキーボードと誤認しない。
           // 実際に入力要素へフォーカスがある場合に限り、表示領域の下端との差を採用する。
           const active = document.activeElement;
-          // フォーカス通知と DOM の activeElement の更新順は、別ダイアログから
-          // 切り替えた直後にずれることがある。実際に入力要素が active なら検出する。
+          // document.activeElement は背面の詳細ダイアログから開いた編集ダイアログの
+          // 入力欄も指すため、このダイアログ自身がフォーカス管理している入力欄に限定する。
+          const localInput = getWebInputElement(focusedDialogInputRef.current);
           const focusedInput =
+            localInput !== null &&
+            active === localInput &&
             active instanceof HTMLElement &&
             active.matches('input, textarea, [contenteditable="true"]');
           const visibleBottom = viewport.offsetTop + viewport.height;
@@ -329,22 +412,34 @@ export function Dialog({
               window.innerHeight,
               visibleBottom,
             );
-          } else if (!webKeyboardSessionRef.current) {
-            // キーボードセッション終了後にだけ基準値を更新する。
-            // blur が先行しても、閉じきる前に基準値を縮めない。
-            webViewportBaselineHeightRef.current = Math.max(visibleBottom, window.innerHeight);
           }
           const measuredHeight = Math.max(0, webViewportBaselineHeightRef.current - visibleBottom);
           if (focusedInput && measuredHeight > UI_METRICS.keyboard.dialogVisibleHeightPx) {
             webKeyboardSessionRef.current = true;
           } else if (
             webKeyboardSessionRef.current &&
-            measuredHeight <= UI_METRICS.keyboard.dialogHideTolerancePx
+            measuredHeight <=
+              (focusedInput
+                ? UI_METRICS.keyboard.dialogHideTolerancePx
+                : UI_METRICS.keyboard.dialogVisibleHeightPx)
           ) {
+            // フォーカスが外れ、キーボード相当の縮小がなくなったらセッションを終了する。
+            // アドレスバー分の小さな viewport 差だけでキーボード表示を維持しない。
             webKeyboardSessionRef.current = false;
           }
           const keyboardVisible = webKeyboardSessionRef.current;
-          const webKeyboardHeight = keyboardVisible ? measuredHeight : 0;
+          // フォーカスがなく、キーボードも閉じていると判断できる時だけ基準値を更新する。
+          // キーボードが開き始めた瞬間の縮小値を基準値として保存しない。
+          if (
+            !focusedInput &&
+            !keyboardVisible &&
+            measuredHeight <= UI_METRICS.keyboard.dialogVisibleHeightPx
+          ) {
+            webViewportBaselineHeightRef.current = Math.max(visibleBottom, window.innerHeight);
+          }
+          const webKeyboardHeight = keyboardVisible
+            ? Math.max(0, webViewportBaselineHeightRef.current - visibleBottom)
+            : 0;
           updateKeyboardState(
             keyboardVisible,
             webKeyboardHeight,
@@ -421,19 +516,83 @@ export function Dialog({
   }, [visible, preserveKeyboardLayout, updateKeyboardState]);
 
   useEffect(() => {
-    if (visible || nativeShowFrameRef.current === null) return;
-    cancelAnimationFrame(nativeShowFrameRef.current);
-    nativeShowFrameRef.current = null;
+    if (visible) return;
+    if (nativeShowFrameRef.current !== null) {
+      cancelAnimationFrame(nativeShowFrameRef.current);
+      nativeShowFrameRef.current = null;
+    }
+    if (dialogShowPaintFrameRef.current !== null) {
+      cancelAnimationFrame(dialogShowPaintFrameRef.current);
+      dialogShowPaintFrameRef.current = null;
+    }
+    if (positionStableFrameRef.current !== null) {
+      cancelAnimationFrame(positionStableFrameRef.current);
+      positionStableFrameRef.current = null;
+    }
+    pendingShowFocusRef.current = false;
     dialogInputFocusRequestedRef.current = false;
   }, [visible]);
 
+  const scheduleShowFocusAfterLayout = useCallback(() => {
+    if (!visible || !onShow) {
+      pendingShowFocusRef.current = false;
+      return;
+    }
+    if (!positionerLayoutReadyRef.current || !positionReadyRef.current) {
+      pendingShowFocusRef.current = true;
+      return;
+    }
+
+    pendingShowFocusRef.current = false;
+    if (nativeShowFrameRef.current !== null) {
+      cancelAnimationFrame(nativeShowFrameRef.current);
+    }
+    if (dialogShowPaintFrameRef.current !== null) {
+      cancelAnimationFrame(dialogShowPaintFrameRef.current);
+    }
+
+    // 1フレーム目で表示位置をレイアウト・描画させ、次のフレームで入力欄へフォーカスする。
+    // これにより、モバイル Web でもキーボードを開く前に中央位置を表示できる。
+    nativeShowFrameRef.current = requestAnimationFrame(() => {
+      nativeShowFrameRef.current = null;
+      dialogShowPaintFrameRef.current = requestAnimationFrame(() => {
+        dialogShowPaintFrameRef.current = null;
+        if (!wasVisibleForDialogSessionRef.current || !positionReadyRef.current) return;
+        if (Platform.OS !== 'web') dialogInputFocusRequestedRef.current = true;
+        onShow();
+      });
+    });
+  }, [visible, onShow]);
+
+  const handlePositionerLayout = useCallback(() => {
+    positionerLayoutReadyRef.current = true;
+    if (!visible || !wasVisibleForDialogSessionRef.current || positionReadyRef.current) return;
+
+    // 表示直後の最初の layout 値は、Modal／キーボード回避ビューの初期化中に
+    // 一時的な位置・高さである場合がある。2フレーム安定するまでカードを隠す。
+    if (positionStableFrameRef.current !== null) {
+      cancelAnimationFrame(positionStableFrameRef.current);
+    }
+    positionStableFrameRef.current = requestAnimationFrame(() => {
+      positionStableFrameRef.current = requestAnimationFrame(() => {
+        positionStableFrameRef.current = null;
+        if (!wasVisibleForDialogSessionRef.current) return;
+        positionReadyRef.current = true;
+        setPositionReadySession(dialogSession);
+        if (pendingShowFocusRef.current) scheduleShowFocusAfterLayout();
+      });
+    });
+  }, [dialogSession, scheduleShowFocusAfterLayout, visible]);
+
   const handleShow = () => {
-    // Web は現在の visualViewport とフォーカス状態から計測する。
-    // ネイティブでは中央配置で1フレーム表示してから自動フォーカスする。
+    // 現在の visualViewport とフォーカス状態から表示領域を計測する。
     if (Platform.OS === 'web') {
       const viewport = typeof window !== 'undefined' ? window.visualViewport : undefined;
       const active = typeof document !== 'undefined' ? document.activeElement : null;
+      const localInput = getWebInputElement(focusedDialogInputRef.current);
       const focusedInput =
+        localInput !== null &&
+        active === localInput &&
         active instanceof HTMLElement &&
         active.matches('input, textarea, [contenteditable="true"]');
       if (isTouchWeb && viewport && focusedInput) {
@@ -456,19 +615,13 @@ export function Dialog({
         webKeyboardSessionRef.current = false;
         updateKeyboardState(false);
       }
-    } else if (onShow) {
+    }
+
+    if (onShow && (Platform.OS !== 'web' || isTouchWeb)) {
       // フォーカス予定だけでキーボード表示中のレイアウトへ先回りしない。
-      // まず既定の中央位置で Modal を表示し、次フレームで入力欄へフォーカスする。
-      // ダイアログが表示された後のキーボードによる移動は Keyboard イベントに任せる。
-      if (nativeShowFrameRef.current !== null) {
-        cancelAnimationFrame(nativeShowFrameRef.current);
-      }
-      nativeShowFrameRef.current = requestAnimationFrame(() => {
-        nativeShowFrameRef.current = null;
-        if (!visible) return;
-        dialogInputFocusRequestedRef.current = true;
-        onShow();
-      });
+      // 最初のレイアウト完了後、中央位置が描画されてからフォーカスを要求する。
+      pendingShowFocusRef.current = true;
+      scheduleShowFocusAfterLayout();
       return;
     }
     onShow?.();
@@ -477,21 +630,22 @@ export function Dialog({
   useLayoutEffect(() => {
     if (!visible) return;
     push();
-    const token = ++dialogEscapeSequence;
-    dialogEscapeTokenRef.current = token;
+    const token = dialogEscapeToken;
     activeDialogEscapeStack.push(token);
     return () => {
       const index = activeDialogEscapeStack.lastIndexOf(token);
       if (index >= 0) activeDialogEscapeStack.splice(index, 1);
-      if (dialogEscapeTokenRef.current === token) dialogEscapeTokenRef.current = null;
       pop();
     };
-  }, [visible, push, pop]);
+  }, [visible, push, pop, dialogEscapeToken]);
 
   const compact = mode === 'compact';
+  const isTopDialog =
+    dialogCount > 0 &&
+    activeDialogEscapeStack[activeDialogEscapeStack.length - 1] === dialogEscapeToken;
   return (
     <Modal
-      key={Platform.OS === 'web' ? webModalSession : 'native-dialog'}
+      key={Platform.OS === 'web' ? dialogSession : 'native-dialog'}
       visible={visible}
       transparent
       animationType="none"
@@ -501,7 +655,10 @@ export function Dialog({
       statusBarTranslucent
       navigationBarTranslucent
     >
-      <View style={styles.modalRoot}>
+      <View
+        style={[styles.modalRoot, { opacity: positionReady ? 1 : 0 }]}
+        pointerEvents={positionReady ? 'auto' : 'none'}
+      >
         {visible ? <SystemBars manageSystemUi={false} /> : null}
         {/* 背景は全画面に固定する。キーボード表示時もメニューや画面本体を移動させない。 */}
         <Pressable
@@ -515,6 +672,8 @@ export function Dialog({
         />
         {/* キーボード回避はダイアログ本体の位置決めだけに適用する。 */}
         <KeyboardAvoidingView
+          key={dialogSession}
+          enabled={isTopDialog}
           behavior={
             Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined
           }
@@ -536,9 +695,12 @@ export function Dialog({
                   }
                 : undefined),
               // キーボード表示時は表示領域の最下端へ寄せ、下端に余白を作らない。
-              justifyContent: keyboardVisible ? 'flex-end' : 'center',
+              // ネイティブは KeyboardAvoidingView に位置調整を任せ、
+              // Web は VisualViewport 内でキーボード上端へ配置する。
+              justifyContent: webKeyboardViewportActive && keyboardVisible ? 'flex-end' : 'center',
             },
           ]}
+          onLayout={handlePositionerLayout}
           pointerEvents="box-none"
         >
           <View
@@ -564,6 +726,7 @@ export function Dialog({
                   : fixedBody
                     ? UI_METRICS.dialog.fixedBodyHeight
                     : undefined,
+                ...(expandDialogForKeyboard && Platform.OS !== 'web' ? { flexGrow: 1 } : undefined),
               },
             ]}
           >
@@ -591,7 +754,10 @@ export function Dialog({
               ) : (
                 <ScrollView
                   ref={bodyScrollRef}
-                  style={styles.bodyScroll}
+                  style={[
+                    styles.bodyScroll,
+                    expandDialogForKeyboard ? styles.keyboardExpandedBodyScroll : undefined,
+                  ]}
                   keyboardShouldPersistTaps="handled"
                   contentContainerStyle={styles.body}
                   onScroll={onScroll}
@@ -605,7 +771,7 @@ export function Dialog({
             </AuthInputFocusProvider>
           </View>
         </KeyboardAvoidingView>
-        {overlay}
+        {positionReady ? overlay : null}
       </View>
     </Modal>
   );
@@ -637,6 +803,7 @@ const styles = StyleSheet.create({
   title: { flex: 1 },
   headerActionPlaceholder: { width: BOARD.touchTarget, height: BOARD.touchTarget },
   bodyScroll: { flexShrink: 1, minHeight: 0 },
+  keyboardExpandedBodyScroll: { flexGrow: 1 },
   body: { padding: SPACING.lg, gap: SPACING.md },
   fixedBodyScroll: { flex: 1 },
   fixedBodyContent: { flex: 1 },

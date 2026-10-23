@@ -10,6 +10,7 @@ import {
   reconcilePreparedRemoteDeleteAll,
 } from './pendingDeletes';
 import { DAY_MS } from '@/lib/dates';
+import { RESET_GENERATION_META_KEY } from './resetGeneration';
 
 /** エンジンが必要とする端末側の入出力（ストアとDBへの橋渡し）。 */
 export interface LocalPort {
@@ -78,7 +79,40 @@ export async function runSync(
   });
   // A confirmed reset clears old server data before Push. New records created afterward remain local
   // and are then uploaded; processing reset after Push would accidentally delete those new records.
-  await flushPendingRemoteDeleteAllBeforePush(remote, opts.ownerId);
+  const resetAppliedHere = await flushPendingRemoteDeleteAllBeforePush(
+    remote,
+    opts.ownerId,
+    async (generation) => {
+      await local.setMeta(RESET_GENERATION_META_KEY, String(generation));
+      for (const table of TABLE_NAMES) await local.setMeta(cursorKey(table), '0');
+    },
+  );
+
+  if (resetAppliedHere === null) {
+    const remoteGeneration = await remote.getAccountResetGeneration(opts.ownerId);
+    const storedGenerationRaw = await local.getMeta(RESET_GENERATION_META_KEY);
+    const storedGeneration = storedGenerationRaw === null ? null : Number(storedGenerationRaw);
+    const snapshot = local.snapshot();
+    const hasLocalRows = TABLE_NAMES.some((table) => rowsOf(snapshot, table).length > 0);
+    const generationChanged =
+      storedGeneration === null
+        ? remoteGeneration > 0 && hasLocalRows
+        : !Number.isSafeInteger(storedGeneration) || storedGeneration !== remoteGeneration;
+
+    if (generationChanged) {
+      // 別端末が全データをリセットしていた。古い dirty 行も Push せず、先にローカルから除去する。
+      await local.apply(
+        {},
+        TABLE_NAMES.map((table) => ({
+          table,
+          ids: rowsOf(snapshot, table).map((record) => record.id),
+        })),
+      );
+      for (const table of TABLE_NAMES) await local.setMeta(cursorKey(table), '0');
+    }
+    await local.setMeta(RESET_GENERATION_META_KEY, String(remoteGeneration));
+  }
+
   // プロジェクト削除の要求が保存済みなら、その配下の dirty 行を先にPushしない。
   // アプリ中断中に別端末で復元されていた場合、古い削除状態で復元を上書きしないため。
   const pendingProjectDeleteSet = new Set(await pendingRemoteProjectDeleteIds(opts.ownerId));
@@ -186,6 +220,10 @@ export async function runSync(
   }));
   const pendingPurged = pendingRemovals.reduce((sum, item) => sum + item.ids.length, 0);
   if (pendingPurged > 0) await local.apply({}, pendingRemovals);
+  if (pendingDeletes.resetGeneration !== undefined) {
+    await local.setMeta(RESET_GENERATION_META_KEY, String(pendingDeletes.resetGeneration));
+    for (const table of TABLE_NAMES) await local.setMeta(cursorKey(table), '0');
+  }
   await pendingDeletes.complete();
   result.purged += pendingPurged;
 
@@ -282,6 +320,22 @@ export async function runSync(
     if (gone.length === 0) continue;
     await local.apply({}, [{ table, ids: gone }]);
     result.purged += gone.length;
+  }
+  // Reset can commit while this sync is in flight. Recheck before declaring success so a tab
+  // that had no dirty rows (and therefore no rejected upload) still observes the remote reset.
+  const finalRemoteGeneration = await remote.getAccountResetGeneration(opts.ownerId);
+  const localGenerationRaw = await local.getMeta(RESET_GENERATION_META_KEY);
+  if (localGenerationRaw === null || Number(localGenerationRaw) !== finalRemoteGeneration) {
+    const finalSnapshot = local.snapshot();
+    await local.apply(
+      {},
+      TABLE_NAMES.map((table) => ({
+        table,
+        ids: rowsOf(finalSnapshot, table).map((record) => record.id),
+      })),
+    );
+    for (const table of TABLE_NAMES) await local.setMeta(cursorKey(table), '0');
+    await local.setMeta(RESET_GENERATION_META_KEY, String(finalRemoteGeneration));
   }
   await local.setMeta('lastSyncedAt', String(opts.now()));
   return result;

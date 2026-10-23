@@ -19,12 +19,13 @@ import {
   removeQueuedRemoteProjectDeletes,
 } from '@/sync/pendingDeletes';
 import { createSupabaseRemote } from '@/sync/remoteSupabase';
-import { useDataStore } from '@/store/dataStore';
+import { getDb, useDataStore } from '@/store/dataStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useSyncStore } from '@/sync/status';
 import type { TableName } from '@/domain/types';
 import { DAY_MS } from '@/lib/dates';
 import { nowMs } from '@/lib/clock';
+import { RESET_GENERATION_META_KEY } from '@/sync/resetGeneration';
 
 export type ClearKind = 'trash' | 'archive';
 
@@ -424,6 +425,13 @@ export async function resetAllData(): Promise<ClearResult> {
               createSupabaseRemote(createSyncSupabaseClient(session.access_token)),
               identity.userId,
             );
+            // 世代をローカルへ保存してから削除キューを確定する。保存失敗時は次回同期で再試行する。
+            if (pending.resetGeneration !== undefined) {
+              await getDb().setMeta(RESET_GENERATION_META_KEY, String(pending.resetGeneration));
+              for (const table of ['projects', 'kanban_columns', 'tasks'] as TableName[]) {
+                await getDb().setMeta(`cursor:${table}`, '0');
+              }
+            }
             // ローカルはすでに空なので、サーバー削除とキュー確定だけを行う。
             await pending.complete();
             remotePending = false;
