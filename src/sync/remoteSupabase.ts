@@ -16,6 +16,37 @@ const chunks = <T>(items: T[], size: number): T[][] => {
 /** Supabase（PostgreSQL + RLS）を使った RemoteApi 実装。RLS により自分の行だけが見える。 */
 export function createSupabaseRemote(client: SupabaseClient): RemoteApi {
   let activeResetGeneration = 0;
+
+  const fetchDeleteEvents = async (
+    table: TableName,
+    cursor: number,
+    limit: number,
+    upperBound?: number,
+  ): Promise<RemoteRow[]> => {
+    let query = client
+      .from('patto_delete_events')
+      .select('record_id, server_seq, reset_generation')
+      .eq('table_name', table)
+      .eq('reset_generation', activeResetGeneration)
+      .gt('server_seq', cursor)
+      .order('server_seq', { ascending: true });
+    if (upperBound !== undefined) query = query.lte('server_seq', upperBound);
+    const { data, error } = await query.limit(limit);
+    if (error) return fail(error);
+    return (
+      (data ?? []) as {
+        record_id: string;
+        server_seq: number | string;
+        reset_generation: number | string;
+      }[]
+    ).map((event) => ({
+      id: event.record_id,
+      server_seq: Number(event.server_seq),
+      reset_generation: Number(event.reset_generation),
+      _patto_deleted: true,
+    }));
+  };
+
   return {
     async getAccountResetGeneration(ownerId: string) {
       const { data, error } = await client
@@ -38,14 +69,28 @@ export function createSupabaseRemote(client: SupabaseClient): RemoteApi {
     },
 
     async latestServerSeq(table: TableName) {
-      const { data, error } = await client
-        .from(table)
-        .select('server_seq')
-        .order('server_seq', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (error) return fail(error);
-      return Number(data?.server_seq ?? 0);
+      const [rowsResult, deletesResult] = await Promise.all([
+        client
+          .from(table)
+          .select('server_seq')
+          .order('server_seq', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        client
+          .from('patto_delete_events')
+          .select('server_seq')
+          .eq('table_name', table)
+          .eq('reset_generation', activeResetGeneration)
+          .order('server_seq', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+      if (rowsResult.error) return fail(rowsResult.error);
+      if (deletesResult.error) return fail(deletesResult.error);
+      return Math.max(
+        Number(rowsResult.data?.server_seq ?? 0),
+        Number(deletesResult.data?.server_seq ?? 0),
+      );
     },
 
     async fetchSince(
@@ -64,10 +109,17 @@ export function createSupabaseRemote(client: SupabaseClient): RemoteApi {
         return upperBound === undefined ? query : query.lte('server_seq', upperBound);
       };
 
+      const deleteEventsPromise = fetchDeleteEvents(table, cursor, limit, upperBound);
+
       if (table !== 'tasks') {
-        const { data, error } = await base().limit(limit);
-        if (error) return fail(error);
-        return (data ?? []) as RemoteRow[];
+        const [rowsResult, deleteEvents] = await Promise.all([
+          base().limit(limit),
+          deleteEventsPromise,
+        ]);
+        if (rowsResult.error) return fail(rowsResult.error);
+        return [...((rowsResult.data ?? []) as RemoteRow[]), ...deleteEvents]
+          .sort((a, b) => Number(a.server_seq) - Number(b.server_seq))
+          .slice(0, limit);
       }
 
       // 通常同期では、サーバーにだけ存在するアーカイブ／ごみ箱の本文を取得しない。
@@ -97,18 +149,21 @@ export function createSupabaseRemote(client: SupabaseClient): RemoteApi {
         }
       }
 
-      const results = await Promise.all(
-        requests.map(async (query) => {
-          const { data, error } = await query;
-          if (error) return fail(error);
-          return (data ?? []) as RemoteRow[];
-        }),
-      );
+      const [results, deleteEvents] = await Promise.all([
+        Promise.all(
+          requests.map(async (query) => {
+            const { data, error } = await query;
+            if (error) return fail(error);
+            return (data ?? []) as RemoteRow[];
+          }),
+        ),
+        deleteEventsPromise,
+      ]);
       const byId = new Map<string, RemoteRow>();
       for (const rows of results) {
         for (const row of rows) byId.set(String(row.id), row);
       }
-      return [...byId.values()]
+      return [...byId.values(), ...deleteEvents]
         .sort((a, b) => Number(a.server_seq) - Number(b.server_seq))
         .slice(0, limit);
     },
@@ -248,6 +303,22 @@ export function createSupabaseRemote(client: SupabaseClient): RemoteApi {
         .not('deleted_at', 'is', null)
         .lt('deleted_at', cutoff);
       if (error) fail(error);
+    },
+
+    async fetchDeletedIds(table: TableName, ids: string[]) {
+      const deletedIds: string[] = [];
+      for (const part of chunks([...new Set(ids)], SYNC.maxIdsPerQuery)) {
+        if (part.length === 0) continue;
+        const { data, error } = await client
+          .from('patto_delete_events')
+          .select('record_id')
+          .eq('table_name', table)
+          .eq('reset_generation', activeResetGeneration)
+          .in('record_id', part);
+        if (error) return fail(error);
+        deletedIds.push(...((data ?? []) as { record_id: string }[]).map((row) => row.record_id));
+      }
+      return [...new Set(deletedIds)];
     },
 
     async fetchHiddenIds(table: TableName, ids: string[]) {

@@ -429,7 +429,7 @@ export async function resetAllData(): Promise<ClearResult> {
             if (pending.resetGeneration !== undefined) {
               await getDb().setMeta(RESET_GENERATION_META_KEY, String(pending.resetGeneration));
               for (const table of ['projects', 'kanban_columns', 'tasks'] as TableName[]) {
-                await getDb().setMeta(`cursor:${table}`, '0');
+                await getDb().setMeta(`cursor:v2:${table}`, '0');
               }
             }
             // ローカルはすでに空なので、サーバー削除とキュー確定だけを行う。

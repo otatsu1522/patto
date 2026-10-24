@@ -15,11 +15,11 @@ export interface RemoteApi {
   getAccountResetGeneration(ownerId: string): Promise<number>;
   /** サーバー時刻（epoch ms） */
   serverTime(): Promise<number>;
-  /** 指定テーブルで現在見えている最大の server_seq。差分取得の上限を固定する。 */
+  /** 指定テーブルの行と削除イベントを含む最大 server_seq。差分取得の上限を固定する。 */
   latestServerSeq(table: TableName): Promise<number>;
   /**
-   * server_seq が cursor より大きく upperBound 以下の行を昇順で取得する。
-   * tasks では表示中IDの非表示化も検出する。
+   * server_seq が cursor より大きく upperBound 以下の変更を昇順で取得する。
+   * 物理削除イベントも含む。tasks では表示中IDの非表示化も検出する。
    */
   fetchSince(
     table: TableName,
@@ -44,6 +44,8 @@ export interface RemoteApi {
   deleteAllOwnedData(ownerId: string, requestId: string): Promise<number>;
   /** deleted_at が cutoff より古いごみ箱データを所有者の全行から削除する。 */
   deleteExpiredTrash(table: TableName, ownerId: string, cutoff: number): Promise<void>;
+  /** 指定IDが現在のリセット世代で物理削除済みか確認する。 */
+  fetchDeletedIds(table: TableName, ids: string[]): Promise<string[]>;
   /** ローカルに残っている非表示レコードのIDだけ、サーバーにも存在するか確認する。 */
   fetchHiddenIds(table: TableName, ids: string[]): Promise<string[]>;
 }

@@ -1,4 +1,4 @@
-import { DAY_MS, formatDate, startOfDay } from '@/lib/dates';
+import { formatDate } from '@/lib/dates';
 
 /** 期限は年月日のみ（時刻なし）。dueHasTime は互換のため残してあり、常に false。 */
 export interface Due {
@@ -65,10 +65,16 @@ export const formatDue = (due: Due): string => formatDate(due.dueAt);
 
 export type DueState = 'overdue' | 'today' | 'tomorrow' | 'upcoming';
 
-export function dueState(due: Due, now: number): DueState {
-  const today = startOfDay(now);
-  if (due.dueAt < today) return 'overdue';
-  if (due.dueAt < today + DAY_MS) return 'today';
-  if (due.dueAt < today + DAY_MS * 2) return 'tomorrow';
+export function dueState(due: Due, now: number, todayDate: string = formatDate(now)): DueState {
+  // 期限は時刻ではなく暦日で比較する。固定の24時間加算は夏時間の切り替わり日に
+  // 1日を正確に表せないため、YYYY-MM-DD のローカル日付を比較する。
+  const dueDate = formatDate(due.dueAt);
+  if (dueDate < todayDate) return 'overdue';
+  if (dueDate === todayDate) return 'today';
+
+  const [year, month, day] = todayDate.split('-').map(Number);
+  const tomorrow = new Date(year!, month! - 1, day!, 12, 0, 0, 0);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  if (dueDate === formatDate(tomorrow.getTime())) return 'tomorrow';
   return 'upcoming';
 }

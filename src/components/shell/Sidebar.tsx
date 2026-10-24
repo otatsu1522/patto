@@ -322,6 +322,11 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
     const isArchived = p.archivedAt !== null;
     const selected = !isArchived && currentId === p.id;
     const fg = selected ? colors.onPrimary : colors.text;
+    // 並び替えはピン留め領域・通常領域をそれぞれ独立したリストとして扱う。
+    const projectGroup = p.isFavorite ? favorites : normals;
+    const projectIndex = isArchived ? -1 : projectGroup.findIndex((item) => item.id === p.id);
+    const canReorderProject = projectIndex >= 0 && projectGroup.length > 1;
+    const moveProjectTo = (toIndex: number) => useDataStore.getState().moveProject(p.id, toIndex);
     const archiveMenuItem: MenuItem = {
       label: p.archivedAt ? t('project.unarchiveAction') : t('project.archiveAction'),
       icon: 'archive',
@@ -376,6 +381,28 @@ export function Sidebar({ width, showMenuIcon, onToggle, onSwipeClose }: Props) 
                 }
               })();
             },
+          },
+          {
+            label: projectIndex === 0 ? t('project.moveToLast') : t('project.moveUp'),
+            icon: projectIndex === 0 ? 'sortDesc' : 'sortAsc',
+            separator: true,
+            disabled: !canReorderProject,
+            onPress: () =>
+              projectIndex < 0 || !canReorderProject
+                ? undefined
+                : moveProjectTo(projectIndex === 0 ? projectGroup.length - 1 : projectIndex - 1),
+          },
+          {
+            label:
+              projectIndex === projectGroup.length - 1
+                ? t('project.moveToFirst')
+                : t('project.moveDown'),
+            icon: projectIndex === projectGroup.length - 1 ? 'sortAsc' : 'sortDesc',
+            disabled: !canReorderProject,
+            onPress: () =>
+              projectIndex < 0 || !canReorderProject
+                ? undefined
+                : moveProjectTo(projectIndex === projectGroup.length - 1 ? 0 : projectIndex + 1),
           },
           {
             label: t('common.duplicate'),

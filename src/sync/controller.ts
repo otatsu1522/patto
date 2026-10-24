@@ -520,7 +520,7 @@ export function startAutoSync(ownerId: string): () => void {
     }
 
     const channel = client.channel(`patto-${ownerId}`);
-    for (const table of ['projects', 'kanban_columns', 'tasks']) {
+    for (const table of ['projects', 'kanban_columns', 'tasks', 'patto_delete_events']) {
       channel.on(
         'postgres_changes',
         { event: '*', schema: 'public', table, filter: `owner_id=eq.${ownerId}` },

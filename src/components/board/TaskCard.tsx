@@ -10,6 +10,7 @@ import { GestureDetector } from 'react-native-gesture-handler';
 import { UI_METRICS } from '@/config/layout';
 import { TIMING } from '@/config/timing';
 import { dueState, formatDue } from '@/domain/due';
+import { useLocalDateKey } from '@/hooks/useLocalDateKey';
 import type { Task } from '@/domain/types';
 import { t } from '@/i18n';
 import { nowMs } from '@/lib/clock';
@@ -50,6 +51,56 @@ function CardBodyTrigger({ onActivate, ...props }: ViewProps & { onActivate: () 
     );
   }
   return <Pressable {...props} onPress={onActivate} />;
+}
+
+interface TaskDueMetadataProps {
+  dueAt: number;
+  showIcon: boolean;
+  done: boolean;
+}
+
+/** 期限のあるカードだけが日付境界を購読し、日付変更時に期限表示を更新する。 */
+function TaskDueMetadata({ dueAt, showIcon, done }: TaskDueMetadataProps) {
+  const { colors, isDark, fs } = useTheme();
+  const localDateKey = useLocalDateKey();
+  const due = { dueAt, dueHasTime: false };
+  const state = dueState(due, nowMs(), localDateKey);
+  const dueColor =
+    state === 'overdue'
+      ? colors.danger
+      : state === 'today'
+        ? isDark
+          ? TASK_DUE_STATUS_COLORS.dark.today
+          : TASK_DUE_STATUS_COLORS.light.today
+        : state === 'tomorrow'
+          ? isDark
+            ? TASK_DUE_STATUS_COLORS.dark.tomorrow
+            : TASK_DUE_STATUS_COLORS.light.tomorrow
+          : colors.textMuted;
+  const dueStatus =
+    state === 'overdue'
+      ? t('task.dueStatusOverdue')
+      : state === 'today'
+        ? t('task.dueStatusToday')
+        : state === 'tomorrow'
+          ? t('task.dueStatusTomorrow')
+          : '';
+  const dueText = `${t('task.due')}: ${formatDue(due)}${dueStatus ? ` ${dueStatus}` : ''}`;
+
+  return (
+    <View style={styles.metadataItem}>
+      {showIcon ? <Icon name="calendar" size={ICON_SIZE.md} color={dueColor} /> : null}
+      <AppText
+        variant="caption"
+        numberOfLines={2}
+        ellipsizeMode="tail"
+        color={dueColor}
+        style={[styles.metadataText, { fontSize: fs(11) }, done ? styles.done : undefined]}
+      >
+        {dueText}
+      </AppText>
+    </View>
+  );
 }
 
 interface Props {
@@ -96,7 +147,7 @@ export function TaskCard({
   onMeasure,
   drag,
 }: Props) {
-  const { colors, taskColor, isDark, lineWidth, lineColor, fs } = useTheme();
+  const { colors, taskColor, lineWidth, lineColor, fs } = useTheme();
   const lastDragEnd = useRef(0);
   const cardRef = useRef<View>(null);
   const registerCardRef = useCallback(
@@ -120,31 +171,6 @@ export function TaskCard({
     },
   });
 
-  const due = task.dueAt !== null ? { dueAt: task.dueAt, dueHasTime: false } : null;
-  const state = due ? dueState(due, nowMs()) : null;
-  const dueColor =
-    state === 'overdue'
-      ? colors.danger
-      : state === 'today'
-        ? isDark
-          ? TASK_DUE_STATUS_COLORS.dark.today
-          : TASK_DUE_STATUS_COLORS.light.today
-        : state === 'tomorrow'
-          ? isDark
-            ? TASK_DUE_STATUS_COLORS.dark.tomorrow
-            : TASK_DUE_STATUS_COLORS.light.tomorrow
-          : colors.textMuted;
-  const dueStatus =
-    state === 'overdue'
-      ? t('task.dueStatusOverdue')
-      : state === 'today'
-        ? t('task.dueStatusToday')
-        : state === 'tomorrow'
-          ? t('task.dueStatusTomorrow')
-          : '';
-  const dueText = due
-    ? `${t('task.due')}: ${formatDue(due)}${dueStatus ? ` ${dueStatus}` : ''}`
-    : '';
   const strike = done ? styles.done : undefined;
   const descriptionVisible = showDescription && task.description.trim().length > 0;
   const metadataIconsVisible = showMetadataIcons;
@@ -162,23 +188,10 @@ export function TaskCard({
     : SPACING.md + UI_METRICS.board.taskContentPaddingAdjustment;
   const bodyGap = SPACING.xs + UI_METRICS.board.taskContentGapAdjustment;
   const metadata =
-    (showDueDate && due) || showUpdatedAt ? (
+    (showDueDate && task.dueAt !== null) || showUpdatedAt ? (
       <View style={styles.metadataList}>
-        {showDueDate && due ? (
-          <View style={styles.metadataItem}>
-            {metadataIconsVisible ? (
-              <Icon name="calendar" size={ICON_SIZE.md} color={dueColor} />
-            ) : null}
-            <AppText
-              variant="caption"
-              numberOfLines={2}
-              ellipsizeMode="tail"
-              color={dueColor}
-              style={[styles.metadataText, { fontSize: fs(11) }, strike]}
-            >
-              {dueText}
-            </AppText>
-          </View>
+        {showDueDate && task.dueAt !== null ? (
+          <TaskDueMetadata dueAt={task.dueAt} showIcon={metadataIconsVisible} done={done} />
         ) : null}
         {showUpdatedAt ? (
           <View style={styles.metadataItem}>

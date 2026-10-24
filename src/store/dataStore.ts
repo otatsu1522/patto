@@ -332,6 +332,8 @@ interface DataState extends Snapshot {
     changes: Partial<Record<TableName, AnyRecord[]>>,
     removed?: { table: TableName; ids: string[] }[],
   ) => Promise<void>;
+  /** Pull の全ページ適用後に、チュートリアルデータの移行を一度だけ実行する。 */
+  completeRemoteSync: (target: SyncDbTarget) => Promise<void>;
   reload: () => Promise<void>;
   snapshot: () => Snapshot;
 
@@ -874,14 +876,21 @@ export const useDataStore = create<DataState>((set, get) => {
           });
         }
       });
-      // 同期対象が引き続き表示中の場合だけ、既存のサンプルデータ補完を実行する。
-      // target を渡しているため、処理中にアカウントが切り替わっても書き込み先は変わらない。
-      if (isTargetCurrent()) {
-        try {
-          await migrateTutorialTasks(true, target);
-        } catch {
-          // 色補完の失敗は同期データの保存失敗として扱わず、次回に再試行する。
-        }
+    },
+
+    async completeRemoteSync(target) {
+      if (
+        db !== target.db ||
+        !get().ready ||
+        get().ownerId !== target.ownerId ||
+        get().scope !== target.scope
+      ) {
+        return;
+      }
+      try {
+        await migrateTutorialTasks(true, target);
+      } catch {
+        // 色補完の失敗は同期データの保存失敗として扱わず、次回の起動／同期で再試行する。
       }
     },
 
@@ -1015,13 +1024,19 @@ export const useDataStore = create<DataState>((set, get) => {
 
     async moveProject(id, toIndex) {
       const p = project(id);
-      if (!p) return;
+      if (!p || !isActive(p) || p.archivedAt !== null) return;
+      // ピン留め領域と通常領域は独立した並び順を持つ。移動先の sortKey は
+      // 同じ領域内のプロジェクトだけを使って計算し、領域の境界を越えない。
       const sorted = get()
-        .projects.filter((x) => isActive(x) && x.archivedAt === null)
+        .projects.filter(
+          (x) => isActive(x) && x.archivedAt === null && x.isFavorite === p.isFavorite,
+        )
         .sort(compareBySortKey);
-      await commit({
-        projects: [patchRecord(p, { sortKey: keyForIndex(sorted, toIndex, id) }, now())],
-      });
+      if (sorted.length < 2) return;
+      const targetIndex = Math.max(0, Math.min(toIndex, sorted.length - 1));
+      const sortKey = keyForIndex(sorted, targetIndex, id);
+      if (sortKey === p.sortKey) return;
+      await commit({ projects: [patchRecord(p, { sortKey }, now())] });
     },
 
     // ---- カンバン ----
@@ -1446,6 +1461,8 @@ export interface SyncLocalContext {
   ) => Promise<void>;
   getMeta: (key: string) => Promise<string | null>;
   setMeta: (key: string, value: string) => Promise<void>;
+  /** 同期の全ページが完了した後に一度だけ実行する処理。 */
+  afterSync: () => Promise<void>;
   release: () => Promise<void>;
 }
 
@@ -1520,6 +1537,10 @@ export function captureSyncLocalContext(expectedOwnerId: string): SyncLocalConte
     },
     getMeta: (key) => target.db.getMeta(key),
     setMeta: (key, value) => target.db.setMeta(key, value),
+    afterSync: async () => {
+      await useDataStore.getState().completeRemoteSync(target);
+      if (isCurrent()) frozenSnapshot = useDataStore.getState().snapshot();
+    },
     release: async () => {
       if (released) return;
       released = true;

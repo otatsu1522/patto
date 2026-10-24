@@ -4,8 +4,9 @@ import { mergeableFields } from './schema';
 import type { BaseRecord, KanbanColumn, Project, TableName, Task } from './types';
 
 /**
- * 変更した項目だけ fieldUpdatedAt を更新して返す。変更がなければ元のレコードをそのまま返す。
- * すべての更新はこの関数を通すことで、同期時の項目単位マージが正しく働く。
+ * 変更項目の fieldUpdatedAt を更新して返す。変更がなければ元のレコードをそのまま返す。
+ * タスクの位置遷移では、columnId/completedAt/sortKey を一体の revision として記録する。
+ * すべての更新はこの関数を通すことで、同期時の競合解決が正しく働く。
  */
 export function patchRecord<T extends BaseRecord>(
   rec: T,
@@ -22,16 +23,42 @@ export function patchRecord<T extends BaseRecord>(
     }
   }
   if (Object.keys(changes).length === 0) return rec;
+
+  // タスクの配置と完了状態は一体として競合解決する。
+  // columnId の変更は移動、completedAt の更新と sortKey の変更が同じパッチに
+  // 含まれる場合は移動の取り消し／復元などの一体操作として扱う。
+  const patchValues = patch as unknown as Record<string, unknown>;
+  const changedPositionFields = ['columnId', 'completedAt', 'sortKey'].some((field) =>
+    Object.prototype.hasOwnProperty.call(changes, field),
+  );
+  const isTaskPositionTransition =
+    'columnId' in src &&
+    changedPositionFields &&
+    (Object.prototype.hasOwnProperty.call(changes, 'columnId') ||
+      Object.prototype.hasOwnProperty.call(patchValues, 'completedAt'));
+
   // 同じミリ秒内の連続編集でも更新世代が逆転・同値にならないようにする。
   // 同期中に同じ項目が変更された場合、送信済みの旧値より後の更新としてマージできる。
   const lastRevision = Math.max(rec.updatedAt, ...Object.values(rec.fieldUpdatedAt));
   const revisionTime = Math.max(now, lastRevision + 1);
   for (const key of Object.keys(stamps)) stamps[key] = revisionTime;
+
+  const fieldUpdatedAt = { ...rec.fieldUpdatedAt, ...stamps };
+  if (isTaskPositionTransition) {
+    // 同じ列への移動で completedAt が null のままでも、移動操作自体を記録する。
+    // hidden metadata は server/local merge が columnId, completedAt, sortKey を
+    // 同じ操作として選択するためのもの。通常の sortKey 並べ替えでは更新しない。
+    fieldUpdatedAt.columnId = revisionTime;
+    fieldUpdatedAt.completedAt = revisionTime;
+    fieldUpdatedAt.sortKey = revisionTime;
+    fieldUpdatedAt.__taskMove = revisionTime;
+  }
+
   return {
     ...rec,
     ...changes,
     updatedAt: revisionTime,
-    fieldUpdatedAt: { ...rec.fieldUpdatedAt, ...stamps },
+    fieldUpdatedAt,
     dirty: true,
   } as T;
 }

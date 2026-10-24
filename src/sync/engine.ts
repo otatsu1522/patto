@@ -21,6 +21,8 @@ export interface LocalPort {
   ): Promise<void>;
   getMeta(key: string): Promise<string | null>;
   setMeta(key: string, value: string): Promise<void>;
+  /** Pull の全ページ処理が終わった後に一度だけ実行する。 */
+  afterSync?(): Promise<void>;
 }
 
 export interface SyncOptions {
@@ -42,7 +44,8 @@ const chunk = <T>(list: T[], size: number): T[][] => {
   return out;
 };
 
-const cursorKey = (table: TableName) => `cursor:${table}`;
+// v2 starts from zero once after the commit-order fix, so rows skipped by an older cursor are re-read.
+const cursorKey = (table: TableName) => `cursor:v2:${table}`;
 
 /** 同期開始時のローカルレコードと、完了時点のレコードが同一か確認する。 */
 function sameRecordSnapshot(a: AnyRecord, b: AnyRecord): boolean {
@@ -111,6 +114,65 @@ export async function runSync(
       for (const table of TABLE_NAMES) await local.setMeta(cursorKey(table), '0');
     }
     await local.setMeta(RESET_GENERATION_META_KEY, String(remoteGeneration));
+  }
+
+  // dirty 行の再 Push 前に、物理削除済みの自身・親レコードを確認する。
+  // 普段は dirty 行がある同期時だけ実行し、通常の Pull の通信量を増やさない。
+  const beforeDeleteCheck = local.snapshot();
+  const dirtyProjects = beforeDeleteCheck.projects.filter((record) => record.dirty);
+  const dirtyColumns = beforeDeleteCheck.columns.filter((record) => record.dirty);
+  const dirtyTasks = beforeDeleteCheck.tasks.filter((record) => record.dirty);
+  const hasDirtyRows = dirtyProjects.length + dirtyColumns.length + dirtyTasks.length > 0;
+  const deletedBeforePush: Record<TableName, Set<string>> = {
+    projects: new Set<string>(),
+    kanban_columns: new Set<string>(),
+    tasks: new Set<string>(),
+  };
+  if (hasDirtyRows) {
+    const candidatesByTable: Record<TableName, string[]> = {
+      projects: [
+        ...new Set([
+          ...beforeDeleteCheck.projects.map((record) => record.id),
+          ...dirtyColumns.map((record) => record.projectId),
+          ...dirtyTasks.map((record) => record.projectId),
+        ]),
+      ],
+      kanban_columns: [
+        ...new Set([
+          ...beforeDeleteCheck.columns.map((record) => record.id),
+          ...dirtyTasks.map((record) => record.columnId),
+        ]),
+      ],
+      tasks: [...new Set(dirtyTasks.map((record) => record.id))],
+    };
+    for (const table of TABLE_NAMES) {
+      const candidates = candidatesByTable[table];
+      if (candidates.length === 0) continue;
+      const deletedIds = await remote.fetchDeletedIds(table, candidates);
+      for (const id of deletedIds) deletedBeforePush[table].add(id);
+    }
+  }
+  const deletedProjects = deletedBeforePush.projects;
+  const deletedColumns = deletedBeforePush.kanban_columns;
+  if (deletedProjects.size > 0) {
+    for (const column of beforeDeleteCheck.columns) {
+      if (deletedProjects.has(column.projectId)) deletedBeforePush.kanban_columns.add(column.id);
+    }
+    for (const task of beforeDeleteCheck.tasks) {
+      if (deletedProjects.has(task.projectId)) deletedBeforePush.tasks.add(task.id);
+    }
+  }
+  if (deletedColumns.size > 0) {
+    for (const task of beforeDeleteCheck.tasks) {
+      if (deletedColumns.has(task.columnId)) deletedBeforePush.tasks.add(task.id);
+    }
+  }
+  const deletedBeforePushRemovals = TABLE_NAMES.map((table) => ({
+    table,
+    ids: [...deletedBeforePush[table]],
+  }));
+  if (deletedBeforePushRemovals.some((item) => item.ids.length > 0)) {
+    await local.apply({}, deletedBeforePushRemovals);
   }
 
   // プロジェクト削除の要求が保存済みなら、その配下の dirty 行を先にPushしない。
@@ -257,9 +319,18 @@ export async function runSync(
         }
         break;
       }
-      const localMap = new Map(rowsOf(local.snapshot(), table).map((r) => [r.id, r]));
+      const localSnapshot = local.snapshot();
+      const localMap = new Map(rowsOf(localSnapshot, table).map((r) => [r.id, r]));
       const changes: AnyRecord[] = [];
+      const removedIds = new Set<string>();
+      const deletedProjectIds = new Set<string>();
       for (const raw of rows) {
+        if (raw._patto_deleted === true) {
+          const id = String(raw.id);
+          removedIds.add(id);
+          if (table === 'projects') deletedProjectIds.add(id);
+          continue;
+        }
         const theirs = fromRemoteRow<AnyRecord>(table, raw);
         const mine = localMap.get(theirs.id);
         if (!mine) {
@@ -272,8 +343,36 @@ export async function runSync(
           });
         }
       }
-      await local.apply({ [table]: changes }, []);
-      result.pulled += rows.length;
+      const pullRemovals: { table: TableName; ids: string[] }[] = [];
+      if (removedIds.size > 0) pullRemovals.push({ table, ids: [...removedIds] });
+      // プロジェクトの物理削除イベントは、別端末だけに存在した配下データも含めて除去する。
+      if (deletedProjectIds.size > 0) {
+        const removedColumnIds = localSnapshot.columns
+          .filter((column) => deletedProjectIds.has(column.projectId))
+          .map((column) => column.id);
+        const removedColumnIdSet = new Set(removedColumnIds);
+        pullRemovals.push({ table: 'kanban_columns', ids: removedColumnIds });
+        pullRemovals.push({
+          table: 'tasks',
+          ids: localSnapshot.tasks
+            .filter(
+              (task) =>
+                deletedProjectIds.has(task.projectId) || removedColumnIdSet.has(task.columnId),
+            )
+            .map((task) => task.id),
+        });
+      }
+      if (table === 'kanban_columns' && removedIds.size > 0) {
+        pullRemovals.push({
+          table: 'tasks',
+          ids: localSnapshot.tasks
+            .filter((task) => removedIds.has(task.columnId))
+            .map((task) => task.id),
+        });
+      }
+      await local.apply(changes.length > 0 ? { [table]: changes } : {}, pullRemovals);
+      result.pulled += changes.length;
+      result.purged += removedIds.size;
       cursor = Number(rows[rows.length - 1]!.server_seq);
       await local.setMeta(cursorKey(table), String(cursor));
       if (rows.length < SYNC.pageSize) {
@@ -337,6 +436,7 @@ export async function runSync(
     for (const table of TABLE_NAMES) await local.setMeta(cursorKey(table), '0');
     await local.setMeta(RESET_GENERATION_META_KEY, String(finalRemoteGeneration));
   }
+  await local.afterSync?.();
   await local.setMeta('lastSyncedAt', String(opts.now()));
   return result;
 }
